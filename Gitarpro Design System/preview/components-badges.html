@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: var(--font-sans); display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .badge {
+    display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
+    border-radius: var(--radius-sm); font-size: 11px; font-weight: 500;
+    font-family: var(--font-mono); letter-spacing: 0.02em; border: 1px solid transparent;
+  }
+  .badge-added    { background: oklch(58% 0.13 145 / 15%); color: oklch(58% 0.13 145); border-color: oklch(58% 0.13 145 / 30%); }
+  .badge-removed  { background: oklch(55% 0.16 22 / 15%); color: oklch(62% 0.18 22); border-color: oklch(55% 0.16 22 / 30%); }
+  .badge-changed  { background: oklch(65% 0.14 60 / 15%); color: oklch(65% 0.14 60); border-color: oklch(65% 0.14 60 / 30%); }
+  .badge-neutral  { background: var(--color-surface-raised); color: var(--color-fg-2); border-color: var(--color-border); }
+  .badge-accent   { background: oklch(55% 0.16 22); color: #f0f0f0; }
+  .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-sm); font-size: 11px; font-family: var(--font-mono); background: var(--color-surface-raised); color: var(--color-fg-2); border: 1px solid var(--color-border); gap: 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .label { font-size: 10px; color: var(--color-fg-3); font-family: var(--font-mono); margin-bottom: 2px; }
+</style>
+</head>
+<body>
+  <div class="col">
+    <div class="label">diff badges</div>
+    <div><span class="badge badge-added">+added</span></div>
+    <div><span class="badge badge-removed">−removed</span></div>
+    <div><span class="badge badge-changed">~changed</span></div>
+    <div><span class="badge badge-neutral">=equal</span></div>
+    <div><span class="badge badge-accent">HEAD</span></div>
+  </div>
+  <div class="col">
+    <div class="label">branch / ref tags</div>
+    <div><span class="tag"><span class="dot" style="background:oklch(58% 0.13 145)"></span>main</span></div>
+    <div><span class="tag"><span class="dot" style="background:oklch(60% 0.12 230)"></span>feature/bridge</span></div>
+    <div><span class="tag"><span class="dot" style="background:oklch(65% 0.14 60)"></span>v1.0</span></div>
+  </div>
+  <div class="col">
+    <div class="label">file status</div>
+    <div><span class="badge badge-added">A</span>&nbsp;<span style="font-size:12px;font-family:var(--font-mono);color:var(--color-fg-2)">song.gp</span></div>
+    <div><span class="badge badge-changed">M</span>&nbsp;<span style="font-size:12px;font-family:var(--font-mono);color:var(--color-fg-2)">intro.gp5</span></div>
+    <div><span class="badge badge-removed">D</span>&nbsp;<span style="font-size:12px;font-family:var(--font-mono);color:var(--color-fg-2)">old.gp</span></div>
+    <div><span class="badge badge-neutral">?</span>&nbsp;<span style="font-size:12px;font-family:var(--font-mono);color:var(--color-fg-3)">draft.gp</span></div>
+  </div>
+</body>
+</html>

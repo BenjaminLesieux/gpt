@@ -1,0 +1,275 @@
+/* ============================================================
+   GITARPRO DESIGN SYSTEM — Colors & Typography
+   Bauhaus-dark / Interpol-cold aesthetic
+   ============================================================ */
+
+/* Bauhaus brand fonts */
+@font-face {
+  font-family: 'Bauhaus';
+  src: url('fonts/BauhausRegular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Bauhaus';
+  src: url('fonts/BauhausItalic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Bauhaus';
+  src: url('fonts/BauhausBold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Bauhaus';
+  src: url('fonts/BauhausBoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* Monospace — Space Mono retained for CLI/code output */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+/* ── Base Color Palette ─────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --color-bg:             #0c0c0c;
+  --color-surface:        #141414;
+  --color-surface-raised: #1c1c1c;
+  --color-surface-hover:  #242424;
+  --color-overlay:        rgba(0, 0, 0, 0.72);
+
+  /* Borders */
+  --color-border:         #2a2a2a;
+  --color-border-subtle:  #1f1f1f;
+  --color-border-strong:  #3a3a3a;
+
+  /* Foreground / Text */
+  --color-fg-1:           #f0f0f0;   /* primary text */
+  --color-fg-2:           #8a8a8a;   /* secondary / metadata */
+  --color-fg-3:           #484848;   /* muted / disabled */
+  --color-fg-inverse:     #0c0c0c;   /* text on accent */
+
+  /* Accent — cold brick-red */
+  --color-accent:         oklch(55% 0.16 22);
+  --color-accent-bright:  oklch(62% 0.18 22);
+  --color-accent-dim:     oklch(55% 0.16 22 / 15%);
+  --color-accent-border:  oklch(55% 0.16 22 / 40%);
+
+  /* Diff Colors */
+  --color-added:          oklch(58% 0.13 145);
+  --color-added-bg:       oklch(58% 0.13 145 / 12%);
+  --color-removed:        oklch(55% 0.16 22);
+  --color-removed-bg:     oklch(55% 0.16 22 / 12%);
+  --color-changed:        oklch(65% 0.14 60);
+  --color-changed-bg:     oklch(65% 0.14 60 / 12%);
+
+  /* Semantic / Status */
+  --color-success:        var(--color-added);
+  --color-danger:         var(--color-accent);
+  --color-warning:        var(--color-changed);
+  --color-info:           oklch(60% 0.12 230);
+
+  /* Focus ring */
+  --color-focus:          oklch(55% 0.16 22 / 60%);
+}
+
+/* ── Spacing Scale ──────────────────────────────────────── */
+:root {
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+}
+
+/* ── Border Radius ──────────────────────────────────────── */
+:root {
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   6px;
+  --radius-pill: 2px; /* deliberately NOT a pill; keep it sharp */
+}
+
+/* ── Shadows ────────────────────────────────────────────── */
+:root {
+  --shadow-focus:   0 0 0 2px var(--color-focus);
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-menu:    0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Typography Scale ───────────────────────────────────── */
+:root {
+  --font-sans:  'Bauhaus', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:  'Space Mono', 'Fira Code', 'Courier New', monospace;
+
+  /* Size scale (px) */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+  --text-2xl:  28px;
+  --text-3xl:  36px;
+  --text-4xl:  48px;
+
+  /* Line heights */
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  /* Letter spacing */
+  --tracking-tight:  -0.02em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.04em;
+  --tracking-widest:  0.12em;
+
+  /* Weights */
+  --weight-light:    300;
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
+
+/* ── Semantic Type Roles ────────────────────────────────── */
+:root {
+  /* Display — large headings, hero text */
+  --type-display-size:    var(--text-3xl);
+  --type-display-weight:  var(--weight-bold);
+  --type-display-leading: var(--leading-tight);
+  --type-display-tracking: var(--tracking-tight);
+  --type-display-font:    var(--font-sans);
+
+  /* Heading 1 */
+  --type-h1-size:    var(--text-2xl);
+  --type-h1-weight:  var(--weight-semibold);
+  --type-h1-leading: var(--leading-tight);
+
+  /* Heading 2 */
+  --type-h2-size:    var(--text-xl);
+  --type-h2-weight:  var(--weight-medium);
+  --type-h2-leading: var(--leading-snug);
+
+  /* Heading 3 */
+  --type-h3-size:    var(--text-lg);
+  --type-h3-weight:  var(--weight-medium);
+  --type-h3-leading: var(--leading-snug);
+
+  /* Body */
+  --type-body-size:    var(--text-base);
+  --type-body-weight:  var(--weight-regular);
+  --type-body-leading: var(--leading-normal);
+
+  /* Small / Caption */
+  --type-small-size:    var(--text-sm);
+  --type-small-weight:  var(--weight-regular);
+  --type-small-leading: var(--leading-normal);
+
+  /* Label — UI labels, form labels */
+  --type-label-size:    var(--text-sm);
+  --type-label-weight:  var(--weight-medium);
+  --type-label-tracking: var(--tracking-wide);
+
+  /* Code / Mono — hashes, paths, CLI output */
+  --type-code-size:    var(--text-sm);
+  --type-code-weight:  var(--weight-regular);
+  --type-code-font:    var(--font-mono);
+  --type-code-leading: var(--leading-normal);
+}
+
+/* ── Transition Tokens ──────────────────────────────────── */
+:root {
+  --transition-fast:   100ms ease;
+  --transition-base:   150ms ease;
+  --transition-slow:   250ms ease;
+}
+
+/* ── Base Reset (opt-in by including this file) ─────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Semantic HTML Element Defaults ────────────────────── */
+h1 {
+  font-size: var(--type-h1-size);
+  font-weight: var(--type-h1-weight);
+  line-height: var(--type-h1-leading);
+  color: var(--color-fg-1);
+}
+
+h2 {
+  font-size: var(--type-h2-size);
+  font-weight: var(--type-h2-weight);
+  line-height: var(--type-h2-leading);
+  color: var(--color-fg-1);
+}
+
+h3 {
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  line-height: var(--type-h3-leading);
+  color: var(--color-fg-1);
+}
+
+p {
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-weight);
+  line-height: var(--type-body-leading);
+  color: var(--color-fg-1);
+}
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--type-code-size);
+  line-height: var(--type-code-leading);
+  color: var(--color-fg-1);
+}
+
+a {
+  color: var(--color-accent-bright);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--color-fg-1); }
+
+/* ── Utility Classes ────────────────────────────────────── */
+.text-primary   { color: var(--color-fg-1); }
+.text-secondary { color: var(--color-fg-2); }
+.text-muted     { color: var(--color-fg-3); }
+.text-accent    { color: var(--color-accent-bright); }
+.text-added     { color: var(--color-added); }
+.text-removed   { color: var(--color-removed); }
+.text-changed   { color: var(--color-changed); }
+.text-mono      { font-family: var(--font-mono); }
+.text-xs        { font-size: var(--text-xs); }
+.text-sm        { font-size: var(--text-sm); }
+.text-base      { font-size: var(--text-base); }
+.text-lg        { font-size: var(--text-lg); }
+.uppercase      { text-transform: uppercase; letter-spacing: var(--tracking-widest); }
+
+.surface        { background: var(--color-surface); }
+.surface-raised { background: var(--color-surface-raised); }
+.border-subtle  { border: 1px solid var(--color-border); }

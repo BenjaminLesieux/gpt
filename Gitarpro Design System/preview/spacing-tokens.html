@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); }
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .bar { background: oklch(55% 0.16 22 / 40%); height: 12px; border-radius: 1px; }
+  .label { font-family: var(--font-mono); font-size: 11px; color: var(--color-fg-3); width: 80px; }
+  .val { font-size: 11px; color: var(--color-fg-2); }
+</style>
+</head>
+<body>
+  <div class="row"><div class="label">--space-1</div><div class="bar" style="width:4px"></div><div class="val">4px</div></div>
+  <div class="row"><div class="label">--space-2</div><div class="bar" style="width:8px"></div><div class="val">8px</div></div>
+  <div class="row"><div class="label">--space-3</div><div class="bar" style="width:12px"></div><div class="val">12px</div></div>
+  <div class="row"><div class="label">--space-4</div><div class="bar" style="width:16px"></div><div class="val">16px</div></div>
+  <div class="row"><div class="label">--space-5</div><div class="bar" style="width:20px"></div><div class="val">20px</div></div>
+  <div class="row"><div class="label">--space-6</div><div class="bar" style="width:24px"></div><div class="val">24px</div></div>
+  <div class="row"><div class="label">--space-8</div><div class="bar" style="width:32px"></div><div class="val">32px</div></div>
+  <div class="row"><div class="label">--space-10</div><div class="bar" style="width:40px"></div><div class="val">40px</div></div>
+  <div class="row"><div class="label">--space-12</div><div class="bar" style="width:48px"></div><div class="val">48px</div></div>
+  <div class="row"><div class="label">--space-16</div><div class="bar" style="width:64px"></div><div class="val">64px</div></div>
+  <div class="row"><div class="label">--space-24</div><div class="bar" style="width:96px"></div><div class="val">96px</div></div>
+</body>
+</html>

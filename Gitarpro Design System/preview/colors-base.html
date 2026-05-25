@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .swatch { height: 52px; border-radius: var(--radius-sm); position: relative; }
+  .label { font-size: 10px; color: var(--color-fg-3); margin-top: 5px; font-family: var(--font-mono); line-height: 1.3; }
+  .val { font-size: 9px; color: var(--color-fg-3); opacity: 0.7; }
+  .row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .item { flex: 1; min-width: 60px; }
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="item"><div class="swatch" style="background:#0c0c0c; border:1px solid #2a2a2a"></div><div class="label">bg<div class="val">#0c0c0c</div></div></div>
+  <div class="item"><div class="swatch" style="background:#141414"></div><div class="label">surface<div class="val">#141414</div></div></div>
+  <div class="item"><div class="swatch" style="background:#1c1c1c"></div><div class="label">raised<div class="val">#1c1c1c</div></div></div>
+  <div class="item"><div class="swatch" style="background:#242424"></div><div class="label">hover<div class="val">#242424</div></div></div>
+  <div class="item"><div class="swatch" style="background:#2a2a2a"></div><div class="label">border<div class="val">#2a2a2a</div></div></div>
+  <div class="item"><div class="swatch" style="background:#484848"></div><div class="label">fg-3<div class="val">#484848</div></div></div>
+  <div class="item"><div class="swatch" style="background:#8a8a8a"></div><div class="label">fg-2<div class="val">#8a8a8a</div></div></div>
+  <div class="item"><div class="swatch" style="background:#f0f0f0"></div><div class="label" style="color:#8a8a8a">fg-1<div class="val">#f0f0f0</div></div></div>
+</div>
+<div class="row">
+  <div class="item"><div class="swatch" style="background:oklch(55% 0.16 22)"></div><div class="label">accent<div class="val">oklch 55% .16 22</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(62% 0.18 22)"></div><div class="label">accent-bright<div class="val">oklch 62% .18 22</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(55% 0.16 22 / 15%); border:1px solid #2a2a2a"></div><div class="label">accent-dim<div class="val">15% alpha</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(58% 0.13 145)"></div><div class="label">added<div class="val">cold green</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(55% 0.16 22)"></div><div class="label">removed<div class="val">= accent</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(65% 0.14 60)"></div><div class="label">changed<div class="val">cold amber</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(60% 0.12 230)"></div><div class="label">info<div class="val">cold blue</div></div></div>
+  <div class="item"><div class="swatch" style="background:oklch(55% 0.16 22 / 60%); border:1px solid #2a2a2a"></div><div class="label">focus<div class="val">60% alpha</div></div></div>
+</div>
+</body>
+</html>

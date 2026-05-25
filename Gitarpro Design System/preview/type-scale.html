@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: 'Bauhaus', sans-serif; }
+  .row { display: flex; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--color-border-subtle); padding: 7px 0; }
+  .meta { font-size: 10px; color: var(--color-fg-3); font-family: 'Space Mono', monospace; width: 100px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+  <div class="row"><div class="meta">48px / bold</div><span style="font-size:48px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#f0f0f0;letter-spacing:-0.02em;line-height:1">Gitarpro</span></div>
+  <div class="row"><div class="meta">36px / bold</div><span style="font-size:36px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#f0f0f0;letter-spacing:-0.02em;line-height:1">History</span></div>
+  <div class="row"><div class="meta">28px / bold italic</div><span style="font-size:28px;font-weight:700;font-style:italic;font-family:'Bauhaus',sans-serif;color:#f0f0f0;line-height:1">Commit diff</span></div>
+  <div class="row"><div class="meta">22px / regular</div><span style="font-size:22px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#f0f0f0;line-height:1">Lead Guitar</span></div>
+  <div class="row"><div class="meta">18px / bold</div><span style="font-size:18px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#f0f0f0;line-height:1">Staged changes</span></div>
+  <div class="row"><div class="meta">16px / regular</div><span style="font-size:16px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#f0f0f0">Changes staged for commit</span></div>
+  <div class="row"><div class="meta">14px / regular</div><span style="font-size:14px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#f0f0f0">3 bars changed in Lead Guitar, 1 bar added</span></div>
+  <div class="row"><div class="meta">12px / regular</div><span style="font-size:12px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#8a8a8a">On branch main — nothing to commit</span></div>
+  <div class="row"><div class="meta">11px / italic</div><span style="font-size:11px;font-weight:400;font-style:italic;font-family:'Bauhaus',sans-serif;color:#484848">Working tree clean</span></div>
+  <div class="row"><div class="meta">11px / bold caps</div><span style="font-size:11px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#484848;text-transform:uppercase;letter-spacing:0.12em">Untracked files</span></div>
+</body>
+</html>

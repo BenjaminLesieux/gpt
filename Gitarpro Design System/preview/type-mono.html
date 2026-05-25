@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: var(--font-sans); }
+  .block { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 10px; }
+  .cli { font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--color-fg-1); }
+  .prompt { color: var(--color-fg-3); }
+  .cmd { color: var(--color-fg-1); }
+  .green { color: oklch(58% 0.13 145); }
+  .red { color: oklch(62% 0.18 22); }
+  .grey { color: var(--color-fg-3); }
+  .hash { color: oklch(60% 0.12 230); font-family: var(--font-mono); font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="block">
+    <div class="cli">
+      <span class="prompt">$ </span><span class="cmd">gpt status</span><br>
+      On branch <strong>main</strong><br><br>
+      Changes staged for commit:<br>
+      <span class="green">  modified    song.gp  <span class="grey">(2 bars changed in Lead Guitar)</span></span><br><br>
+      Untracked files:<br>
+      <span class="grey">  demo-v2.gp</span>
+    </div>
+  </div>
+  <div class="block">
+    <div class="cli">
+      <span class="hash">a3f9c12</span>&nbsp; <span style="color:var(--color-fg-1)">add bridge riff</span>&nbsp; <span class="grey">2h ago</span><br>
+      <span class="hash">8b2e047</span>&nbsp; <span style="color:var(--color-fg-1)">fix timing in chorus</span>&nbsp; <span class="grey">1d ago</span><br>
+      <span class="hash">c1d44fa</span>&nbsp; <span style="color:var(--color-fg-1)">init</span>&nbsp; <span class="grey">3d ago</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gpt — Desktop App</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #0c0c0c; font-family: 'Bauhaus', sans-serif; -webkit-font-smoothing: antialiased; }
+  #root { width: 100%; height: 100%; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  select option { background: #1c1c1c; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="Views.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "oklch(55% 0.16 22)",
+  "sidebarWidth": 220,
+  "density": "default"
+}/*EDITMODE-END*/;
+
+function TitleBar({ repoPath, branch }) {
+  return (
+    <div style={{ height:38, background:'#0c0c0c', borderBottom:'1px solid #1f1f1f', display:'flex', alignItems:'center', paddingLeft:16, flexShrink:0, WebkitAppRegion:'drag', userSelect:'none' }}>
+      {/* macOS traffic lights placeholder */}
+      <div style={{ display:'flex', gap:6, marginRight:20 }}>
+        {['#ff5f57','#ffbd2e','#28ca41'].map((c,i) => (
+          <div key={i} style={{ width:12, height:12, borderRadius:'50%', background:c, opacity:0.7 }}/>
+        ))}
+      </div>
+      <span style={{ fontFamily:"'Space Mono', monospace", fontWeight:700, fontSize:14, color:'#f0f0f0', letterSpacing:'-0.04em' }}>
+        gp<span style={{ color:'oklch(62% 0.18 22)' }}>t</span>
+      </span>
+      {repoPath && (
+        <>
+          <span style={{ fontSize:12, color:'#484848', margin:'0 8px' }}>—</span>
+          <span style={{ fontFamily:"'Space Mono', monospace", fontSize:11, color:'#8a8a8a' }}>{repoPath}</span>
+          <span style={{ fontFamily:"'Space Mono', monospace", fontSize:11, color:'#484848', marginLeft:8 }}>on</span>
+          <span style={{ fontFamily:"'Space Mono', monospace", fontSize:11, color:'oklch(60% 0.12 230)', marginLeft:6 }}>{branch}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('gpt_ui_state') || '{}'); } catch { return {}; } })();
+  const [repoOpen, setRepoOpen] = React.useState(saved.repoOpen ?? false);
+  const [view, setView] = React.useState(saved.view || 'history');
+  const [branch, setBranch] = React.useState(saved.branch || 'main');
+  const [selectedHash, setSelectedHash] = React.useState(COMMITS[0].hash);
+  const [tweaksVisible, setTweaksVisible] = React.useState(false);
+  const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
+
+  // Persist state
+  React.useEffect(() => {
+    localStorage.setItem('gpt_ui_state', JSON.stringify({ repoOpen, view, branch }));
+  }, [repoOpen, view, branch]);
+
+  // Tweaks integration
+  React.useEffect(() => {
+    window.addEventListener('message', e => {
+      if (e.data?.type === '__activate_edit_mode')   setTweaksVisible(true);
+      if (e.data?.type === '__deactivate_edit_mode') setTweaksVisible(false);
+    });
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+  }, []);
+
+  const repoPath = '~/songs/my-album';
+
+  if (!repoOpen) {
+    return (
+      <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#0c0c0c' }}>
+        <TitleBar />
+        <OpenRepoView onOpen={() => setRepoOpen(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#0c0c0c', overflow:'hidden' }}>
+      <TitleBar repoPath={repoPath} branch={branch} />
+      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+        <Sidebar view={view} setView={setView} branch={branch} setBranch={setBranch} repoPath={repoPath} />
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#0c0c0c' }}>
+          {view === 'history' && <HistoryView commits={COMMITS} selectedHash={selectedHash} onSelect={setSelectedHash} />}
+          {view === 'status'  && <StatusView staged={STAGED_FILES} unstaged={UNSTAGED_FILES} untracked={UNTRACKED_FILES} />}
+          {view === 'diff'    && <DiffView commits={COMMITS} />}
+          {view === 'merge'   && <MergeView />}
+        </div>
+      </div>
+
+      {/* Tweaks panel */}
+      {tweaksVisible && (
+        <div style={{ position:'fixed', bottom:16, right:16, background:'#141414', border:'1px solid #2a2a2a', borderRadius:4, padding:16, width:220, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', zIndex:1000 }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#8a8a8a', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Tweaks</div>
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:11, color:'#484848', marginBottom:4 }}>View</div>
+            {['history','status','diff','merge'].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{ display:'block', width:'100%', textAlign:'left', background: view===v ? 'oklch(55% 0.16 22 / 15%)' : 'transparent', border: view===v ? '1px solid oklch(55% 0.16 22 / 40%)' : '1px solid transparent', borderRadius:2, color: view===v ? 'oklch(62% 0.18 22)' : '#8a8a8a', fontSize:12, padding:'4px 8px', cursor:'pointer', marginBottom:2, fontFamily:"'Bauhaus', sans-serif", transition:'all 100ms' }}>
+                {v}
+              </button>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#484848', marginBottom:4 }}>Open repo</div>
+            <button onClick={() => setRepoOpen(o => !o)} style={{ width:'100%', background:'#1c1c1c', border:'1px solid #2a2a2a', borderRadius:2, color:'#8a8a8a', fontSize:12, padding:'5px 8px', cursor:'pointer', fontFamily:"'Bauhaus', sans-serif" }}>
+              {repoOpen ? 'Close repo (show welcome)' : 'Open repo'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<title>gpt — Desktop App UI Kit</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  @page { size: 1440px 900px; margin: 0; }
+
+  body {
+    font-family: 'Bauhaus', 'Helvetica Neue', sans-serif;
+    background: #0c0c0c;
+    color: #f0f0f0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Each screen is one page */
+  .screen {
+    width: 1440px;
+    height: 900px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #0c0c0c;
+    break-after: page;
+    break-inside: avoid;
+    position: relative;
+  }
+
+  /* ── Title bar ── */
+  .titlebar {
+    height: 38px;
+    background: #0c0c0c;
+    border-bottom: 1px solid #1f1f1f;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .traffic-lights { display: flex; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .logo-mono { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 14px; letter-spacing: -0.04em; }
+  .logo-t { color: oklch(62% 0.18 22); }
+  .titlebar-sep { font-size: 12px; color: #333; }
+  .titlebar-path { font-family: 'Space Mono', monospace; font-size: 11px; color: #8a8a8a; }
+  .titlebar-branch { font-family: 'Space Mono', monospace; font-size: 11px; color: oklch(60% 0.12 230); }
+
+  /* ── App shell ── */
+  .app-shell { flex: 1; display: flex; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    background: #141414;
+    border-right: 1px solid #2a2a2a;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    height: 100%;
+  }
+  .sidebar-logo { padding: 14px 16px 12px; border-bottom: 1px solid #1f1f1f; }
+  .sidebar-logo .wordmark { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.04em; }
+  .repo-section { padding: 10px 14px; border-bottom: 1px solid #2a2a2a; }
+  .repo-label { font-size: 10px; color: #484848; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 4px; }
+  .repo-path { font-size: 11px; color: #8a8a8a; font-family: 'Space Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .branch-chip {
+    margin-top: 8px; display: flex; align-items: center; gap: 6px;
+    background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px;
+    padding: 5px 8px; font-size: 12px; color: #f0f0f0;
+  }
+  .nav-section-label { padding: 12px 14px 4px; font-size: 10px; color: #484848; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 14px; font-size: 13px; color: #8a8a8a;
+    position: relative;
+  }
+  .nav-item.active { color: #f0f0f0; background: #1c1c1c; }
+  .nav-item.active::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: oklch(55% 0.16 22); }
+  .sidebar-footer { padding: 10px 14px; border-top: 1px solid #2a2a2a; display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+  .sidebar-version { font-size: 11px; color: #333; font-family: 'Space Mono', monospace; }
+
+  /* ── Main area ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .panel-header {
+    padding: 9px 14px; border-bottom: 1px solid #2a2a2a;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-title { font-size: 11px; font-weight: 700; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+    border-radius: 2px; font-size: 10px; font-family: 'Space Mono', monospace; font-weight: 700;
+  }
+  .badge-added   { background: oklch(58% 0.13 145 / 15%); color: oklch(58% 0.13 145); border: 1px solid oklch(58% 0.13 145 / 30%); }
+  .badge-removed { background: oklch(55% 0.16 22 / 15%);  color: oklch(62% 0.18 22);  border: 1px solid oklch(55% 0.16 22 / 30%); }
+  .badge-changed { background: oklch(65% 0.14 60 / 15%);  color: oklch(65% 0.14 60);  border: 1px solid oklch(65% 0.14 60 / 30%); }
+  .badge-neutral { background: #1c1c1c; color: #8a8a8a; border: 1px solid #2a2a2a; }
+  .badge-accent  { background: oklch(55% 0.16 22); color: #f0f0f0; border: none; }
+  .badge-info    { background: oklch(60% 0.12 230 / 15%); color: oklch(60% 0.12 230); border: 1px solid oklch(60% 0.12 230 / 30%); }
+
+  /* ── Commit list ── */
+  .commit-list { overflow-y: auto; flex: 1; }
+  .commit-row {
+    padding: 9px 14px; border-bottom: 1px solid #1f1f1f;
+    position: relative;
+  }
+  .commit-row.active { background: #1c1c1c; }
+  .commit-row.active::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: oklch(55% 0.16 22); }
+  .commit-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .commit-hash { font-family: 'Space Mono', monospace; font-size: 11px; color: oklch(60% 0.12 230); }
+  .commit-msg { font-size: 13px; color: #c0c0c0; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .commit-row.active .commit-msg { color: #f0f0f0; }
+  .commit-author { font-size: 11px; color: #484848; font-family: 'Space Mono', monospace; }
+
+  /* ── Tab placeholder ── */
+  .tab-viewer { flex: 1; background: #0f0f0f; display: flex; flex-direction: column; overflow: hidden; }
+  .tab-track-header { padding: 10px 16px; border-bottom: 1px solid #1f1f1f; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .tab-playbar { padding: 6px 16px; border-bottom: 1px solid #1f1f1f; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .progress-track { flex: 1; height: 2px; background: #1c1c1c; border-radius: 1px; }
+  .progress-fill { width: 35%; height: 100%; background: oklch(55% 0.16 22); border-radius: 1px; }
+  .tab-body { flex: 1; padding: 20px 16px; overflow: hidden; }
+  .tab-bars { display: flex; gap: 0; }
+  .tab-bar { flex: 1; border-right: 1px solid #2a2a2a; padding-right: 6px; margin-right: 6px; }
+  .tab-bar-num { font-size: 9px; color: #333; font-family: 'Space Mono', monospace; margin-bottom: 4px; }
+  .tab-string { height: 20px; border-bottom: 1px solid #1f1f1f; display: flex; align-items: center; justify-content: center; }
+  .fret-num { font-size: 11px; font-family: 'Space Mono', monospace; color: #f0f0f0; background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px; padding: 0 4px; line-height: 16px; }
+  .tab-watermark { font-size: 10px; color: #222; font-family: 'Space Mono', monospace; margin-top: 12px; }
+
+  /* ── Status view ── */
+  .status-lists { flex: 1; overflow-y: auto; }
+  .file-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid #1f1f1f; }
+  .file-name { font-family: 'Space Mono', monospace; font-size: 12px; color: #c0c0c0; flex: 1; }
+  .file-summary { font-size: 11px; color: #484848; }
+  .commit-panel { width: 280px; border-left: 1px solid #2a2a2a; display: flex; flex-direction: column; flex-shrink: 0; }
+  .commit-area { padding: 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .field-label { font-size: 11px; font-weight: 700; color: #484848; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .mock-textarea { width: 100%; background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px; color: #484848; font-family: 'Bauhaus', sans-serif; font-size: 13px; padding: 8px 10px; min-height: 80px; font-style: italic; }
+  .summary-box { background: #141414; border: 1px solid #1f1f1f; border-radius: 2px; padding: 8px 10px; }
+  .btn-primary { background: oklch(55% 0.16 22); color: #f0f0f0; border: none; border-radius: 2px; height: 36px; font-size: 13px; font-weight: 700; font-family: 'Bauhaus', sans-serif; width: 100%; margin-top: auto; display: flex; align-items: center; justify-content: center; }
+
+  /* ── Diff view ── */
+  .diff-header-controls { display: flex; gap: 6px; align-items: center; }
+  .mock-select { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px; color: #8a8a8a; font-family: 'Space Mono', monospace; font-size: 11px; padding: 3px 6px; }
+  .diff-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .track-label { font-size: 11px; color: #8a8a8a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .bar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 24px; }
+  .bar-cell { height: 44px; border-radius: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .bar-sym { font-size: 13px; font-weight: 700; font-family: 'Space Mono', monospace; }
+  .bar-idx { font-size: 9px; font-family: 'Space Mono', monospace; opacity: 0.6; }
+  .diff-legend { display: flex; gap: 16px; padding-top: 8px; border-top: 1px solid #1f1f1f; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #484848; }
+
+  /* ── Merge view ── */
+  .conflict-card { margin-bottom: 16px; background: #141414; border: 1px solid oklch(55% 0.16 22 / 40%); border-radius: 2px; overflow: hidden; }
+  .conflict-header { padding: 8px 14px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 8px; }
+  .conflict-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  .conflict-col { padding: 10px 14px; border-right: 1px solid #2a2a2a; }
+  .conflict-col:last-child { border-right: none; }
+  .conflict-side-label { font-size: 10px; color: #484848; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .mini-staff { height: 60px; background: #0f0f0f; border-radius: 2px; border: 1px solid #1f1f1f; display: flex; flex-direction: column; justify-content: space-around; padding: 4px 8px; position: relative; }
+  .staff-line { height: 1px; background: #2a2a2a; }
+  .keep-btn { margin-top: 8px; width: 100%; background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 2px; color: #8a8a8a; font-size: 11px; padding: 4px; font-family: 'Bauhaus', sans-serif; text-align: center; }
+
+  /* SVG icons */
+  svg { display: inline-block; vertical-align: middle; }
+
+  /* ── Screen label watermark ── */
+  .screen-label {
+    position: absolute; bottom: 12px; right: 16px;
+    font-size: 10px; font-family: 'Space Mono', monospace; color: #222;
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 1 — History Browser
+     ═══════════════════════════════════════════════════ -->
+<div class="screen">
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="dot" style="background:#ff5f57;opacity:.7"></div>
+      <div class="dot" style="background:#ffbd2e;opacity:.7"></div>
+      <div class="dot" style="background:#28ca41;opacity:.7"></div>
+    </div>
+    <span class="logo-mono">gp<span class="logo-t">t</span></span>
+    <span class="titlebar-sep">—</span>
+    <span class="titlebar-path">~/songs/my-album</span>
+    <span class="titlebar-sep" style="margin-left:4px">on</span>
+    <span class="titlebar-branch" style="margin-left:6px">main</span>
+  </div>
+
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo"><span class="wordmark">gp<span class="logo-t">t</span></span></div>
+      <div class="repo-section">
+        <div class="repo-label">Repository</div>
+        <div class="repo-path">~/songs/my-album</div>
+        <div class="branch-chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+          main
+        </div>
+      </div>
+      <div class="nav-section-label">Views</div>
+      <div class="nav-item active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </div>
+      <div class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+        Status
+      </div>
+      <div class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        Diff
+      </div>
+      <div class="nav-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+        Merge
+      </div>
+      <div class="sidebar-footer"><span class="sidebar-version">v0.1.0</span></div>
+    </div>
+
+    <!-- History content -->
+    <div class="main" style="flex-direction:row">
+      <!-- Commit list -->
+      <div style="width:280px;border-right:1px solid #2a2a2a;display:flex;flex-direction:column;flex-shrink:0">
+        <div class="panel-header">
+          <span class="panel-title">History</span>
+          <span style="font-size:11px;color:#484848;font-family:'Space Mono',monospace">7 commits</span>
+        </div>
+        <div class="commit-list">
+          <div class="commit-row active">
+            <div class="commit-meta">
+              <span class="commit-hash">a3f9c12</span>
+              <span class="badge badge-accent">HEAD</span>
+              <span class="badge badge-neutral">main</span>
+            </div>
+            <div class="commit-msg">add bridge riff with hammer-ons</div>
+            <div class="commit-author">Alex Kim · 2h ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">8b2e047</span></div>
+            <div class="commit-msg">fix timing in chorus — bars 17–20</div>
+            <div class="commit-author">Alex Kim · 1d ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">c1d44fa</span></div>
+            <div class="commit-msg">update bass line for verse 2</div>
+            <div class="commit-author">Jordan Lee · 2d ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">f02b981</span></div>
+            <div class="commit-msg">add outro section</div>
+            <div class="commit-author">Alex Kim · 3d ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">e91a330</span></div>
+            <div class="commit-msg">rework verse guitar — capo 2</div>
+            <div class="commit-author">Jordan Lee · 4d ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">d77c102</span></div>
+            <div class="commit-msg">initial arrangement</div>
+            <div class="commit-author">Alex Kim · 5d ago</div>
+          </div>
+          <div class="commit-row">
+            <div class="commit-meta"><span class="commit-hash">b44f290</span></div>
+            <div class="commit-msg">init</div>
+            <div class="commit-author">Alex Kim · 6d ago</div>
+          </div>
+        </div>
+      </div>
+      <!-- Tab viewer -->
+      <div class="tab-viewer">
+        <div class="tab-track-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span style="font-size:13px;font-weight:700">add bridge riff with hammer-ons</span>
+          <span style="font-size:11px;color:#484848;font-family:'Space Mono',monospace">Lead Guitar — Standard Tuning</span>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">E</span>
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">A</span>
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">D</span>
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">G</span>
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">B</span>
+            <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:1px 4px">E</span>
+          </div>
+        </div>
+        <div class="tab-playbar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#8a8a8a" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+          <span style="font-size:11px;color:#484848;font-family:'Space Mono',monospace">0:14 / 0:42</span>
+        </div>
+        <div class="tab-body">
+          <div class="tab-bars">
+            <!-- 8 bars of fake tablature -->
+            <div class="tab-bar"><div class="tab-bar-num">1</div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">7</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">2</div><div class="tab-string"><span class="fret-num">5</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">3</span></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">3</div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">9</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">4</div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">7</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">5</span></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">5</div><div class="tab-string"><span class="fret-num">12</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">6</div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">7</span></div><div class="tab-string"></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">7</div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">5</span></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div></div>
+            <div class="tab-bar"><div class="tab-bar-num">8</div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"></div><div class="tab-string"><span class="fret-num">3</span></div><div class="tab-string"></div></div>
+          </div>
+          <div class="tab-watermark">rendered via AlphaTab</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Screen 1 — History</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 2 — Status / Commit
+     ═══════════════════════════════════════════════════ -->
+<div class="screen">
+  <div class="titlebar">
+    <div class="traffic-lights"><div class="dot" style="background:#ff5f57;opacity:.7"></div><div class="dot" style="background:#ffbd2e;opacity:.7"></div><div class="dot" style="background:#28ca41;opacity:.7"></div></div>
+    <span class="logo-mono">gp<span class="logo-t">t</span></span>
+    <span class="titlebar-sep">—</span>
+    <span class="titlebar-path">~/songs/my-album</span>
+    <span class="titlebar-sep" style="margin-left:4px">on</span>
+    <span class="titlebar-branch" style="margin-left:6px">main</span>
+  </div>
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-logo"><span class="wordmark">gp<span class="logo-t">t</span></span></div>
+      <div class="repo-section">
+        <div class="repo-label">Repository</div>
+        <div class="repo-path">~/songs/my-album</div>
+        <div class="branch-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg> main</div>
+      </div>
+      <div class="nav-section-label">Views</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> History</div>
+      <div class="nav-item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg> Status</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Diff</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge</div>
+      <div class="sidebar-footer"><span class="sidebar-version">v0.1.0</span></div>
+    </div>
+    <div class="main" style="flex-direction:row">
+      <!-- File lists -->
+      <div class="status-lists" style="flex:1;border-right:1px solid #2a2a2a">
+        <div class="panel-header"><span class="panel-title">Staged (2)</span></div>
+        <div class="file-row"><span class="badge badge-changed">M</span><span class="file-name">song.gp</span><span class="file-summary">2 bars changed in Lead Guitar</span></div>
+        <div class="file-row"><span class="badge badge-added">A</span><span class="file-name">bridge.gp</span><span class="file-summary">new</span></div>
+        <div class="panel-header" style="margin-top:8px"><span class="panel-title">Unstaged (1)</span></div>
+        <div class="file-row"><span class="badge badge-changed">M</span><span class="file-name">chorus.gp5</span></div>
+        <div class="panel-header" style="margin-top:8px"><span class="panel-title">Untracked (2)</span></div>
+        <div class="file-row"><span class="badge badge-neutral">?</span><span class="file-name" style="color:#484848">demo-v2.gp</span></div>
+        <div class="file-row"><span class="badge badge-neutral">?</span><span class="file-name" style="color:#484848">scratch.gp5</span></div>
+      </div>
+      <!-- Commit panel -->
+      <div class="commit-panel">
+        <div class="panel-header"><span class="panel-title">Commit</span></div>
+        <div class="commit-area">
+          <div>
+            <div class="field-label">Message</div>
+            <div class="mock-textarea">add bridge riff with hammer-ons</div>
+          </div>
+          <div class="summary-box">
+            <div style="font-size:10px;color:#484848;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Summary</div>
+            <div style="font-size:12px;color:#8a8a8a;font-family:'Space Mono',monospace">2 files staged</div>
+          </div>
+          <div class="btn-primary">Commit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Screen 2 — Status / Commit</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 3 — Diff View
+     ═══════════════════════════════════════════════════ -->
+<div class="screen">
+  <div class="titlebar">
+    <div class="traffic-lights"><div class="dot" style="background:#ff5f57;opacity:.7"></div><div class="dot" style="background:#ffbd2e;opacity:.7"></div><div class="dot" style="background:#28ca41;opacity:.7"></div></div>
+    <span class="logo-mono">gp<span class="logo-t">t</span></span>
+    <span class="titlebar-sep">—</span>
+    <span class="titlebar-path">~/songs/my-album</span>
+    <span class="titlebar-sep" style="margin-left:4px">on</span>
+    <span class="titlebar-branch" style="margin-left:6px">main</span>
+  </div>
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-logo"><span class="wordmark">gp<span class="logo-t">t</span></span></div>
+      <div class="repo-section">
+        <div class="repo-label">Repository</div>
+        <div class="repo-path">~/songs/my-album</div>
+        <div class="branch-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg> main</div>
+      </div>
+      <div class="nav-section-label">Views</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> History</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg> Status</div>
+      <div class="nav-item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Diff</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge</div>
+      <div class="sidebar-footer"><span class="sidebar-version">v0.1.0</span></div>
+    </div>
+    <div class="main">
+      <div class="panel-header">
+        <span class="panel-title">Diff</span>
+        <div class="diff-header-controls">
+          <span style="font-size:11px;color:#484848">base</span>
+          <span class="mock-select">c1d44fa — update bass line…</span>
+          <span style="font-size:11px;color:#484848">head</span>
+          <span class="mock-select">a3f9c12 — add bridge riff…</span>
+        </div>
+      </div>
+      <div class="diff-body">
+        <!-- Track 1 -->
+        <div style="margin-bottom:20px">
+          <div class="track-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Lead Guitar
+            <span style="font-size:11px;color:#484848;font-family:'Space Mono',monospace;font-weight:400;text-transform:none;letter-spacing:0">3 changes</span>
+          </div>
+          <div class="bar-grid">
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">1</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">2</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">3</span></div>
+            <div class="bar-cell" style="background:oklch(58% 0.13 145 / 12%);border:1px solid oklch(58% 0.13 145 / 40%)"><span class="bar-sym" style="color:oklch(58% 0.13 145)">+</span><span class="bar-idx" style="color:oklch(58% 0.13 145)">4</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">5</span></div>
+            <div class="bar-cell" style="background:oklch(65% 0.14 60 / 12%);border:1px solid oklch(65% 0.14 60 / 40%)"><span class="bar-sym" style="color:oklch(65% 0.14 60)">~</span><span class="bar-idx" style="color:oklch(65% 0.14 60)">6</span></div>
+            <div class="bar-cell" style="background:oklch(65% 0.14 60 / 12%);border:1px solid oklch(65% 0.14 60 / 40%)"><span class="bar-sym" style="color:oklch(65% 0.14 60)">~</span><span class="bar-idx" style="color:oklch(65% 0.14 60)">7</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">8</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">9</span></div>
+            <div class="bar-cell" style="background:oklch(55% 0.16 22 / 12%);border:1px solid oklch(55% 0.16 22 / 40%)"><span class="bar-sym" style="color:oklch(62% 0.18 22)">−</span><span class="bar-idx" style="color:oklch(62% 0.18 22)">10</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">11</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">12</span></div>
+            <div class="bar-cell" style="background:oklch(65% 0.14 60 / 12%);border:1px solid oklch(65% 0.14 60 / 40%)"><span class="bar-sym" style="color:oklch(65% 0.14 60)">~</span><span class="bar-idx" style="color:oklch(65% 0.14 60)">13</span></div>
+            <div class="bar-cell" style="background:oklch(58% 0.13 145 / 12%);border:1px solid oklch(58% 0.13 145 / 40%)"><span class="bar-sym" style="color:oklch(58% 0.13 145)">+</span><span class="bar-idx" style="color:oklch(58% 0.13 145)">14</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">15</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">16</span></div>
+          </div>
+        </div>
+        <!-- Track 2 -->
+        <div style="margin-bottom:20px">
+          <div class="track-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Bass
+            <span style="font-size:11px;color:#484848;font-family:'Space Mono',monospace;font-weight:400;text-transform:none;letter-spacing:0">1 change</span>
+          </div>
+          <div class="bar-grid">
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">1</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">2</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">3</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">4</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">5</span></div>
+            <div class="bar-cell" style="background:oklch(65% 0.14 60 / 12%);border:1px solid oklch(65% 0.14 60 / 40%)"><span class="bar-sym" style="color:oklch(65% 0.14 60)">~</span><span class="bar-idx" style="color:oklch(65% 0.14 60)">6</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">7</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">8</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">9</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">10</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">11</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">12</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">13</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">14</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">15</span></div>
+            <div class="bar-cell" style="background:#141414;border:1px solid #1f1f1f"><span class="bar-sym" style="color:#333">=</span><span class="bar-idx" style="color:#333">16</span></div>
+          </div>
+        </div>
+        <div class="diff-legend">
+          <div class="legend-item"><span style="font-family:'Space Mono',monospace;color:oklch(58% 0.13 145);font-weight:700;font-size:12px">+</span> added</div>
+          <div class="legend-item"><span style="font-family:'Space Mono',monospace;color:oklch(62% 0.18 22);font-weight:700;font-size:12px">−</span> removed</div>
+          <div class="legend-item"><span style="font-family:'Space Mono',monospace;color:oklch(65% 0.14 60);font-weight:700;font-size:12px">~</span> changed</div>
+          <div class="legend-item"><span style="font-family:'Space Mono',monospace;color:#333;font-weight:700;font-size:12px">=</span> equal</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Screen 3 — Diff</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 4 — Merge Conflict Resolver
+     ═══════════════════════════════════════════════════ -->
+<div class="screen">
+  <div class="titlebar">
+    <div class="traffic-lights"><div class="dot" style="background:#ff5f57;opacity:.7"></div><div class="dot" style="background:#ffbd2e;opacity:.7"></div><div class="dot" style="background:#28ca41;opacity:.7"></div></div>
+    <span class="logo-mono">gp<span class="logo-t">t</span></span>
+    <span class="titlebar-sep">—</span>
+    <span class="titlebar-path">~/songs/my-album</span>
+    <span class="titlebar-sep" style="margin-left:4px">on</span>
+    <span class="titlebar-branch" style="margin-left:6px">main</span>
+  </div>
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-logo"><span class="wordmark">gp<span class="logo-t">t</span></span></div>
+      <div class="repo-section">
+        <div class="repo-label">Repository</div>
+        <div class="repo-path">~/songs/my-album</div>
+        <div class="branch-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linecap="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg> main</div>
+      </div>
+      <div class="nav-section-label">Views</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> History</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg> Status</div>
+      <div class="nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Diff</div>
+      <div class="nav-item active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg> Merge</div>
+      <div class="sidebar-footer"><span class="sidebar-version">v0.1.0</span></div>
+    </div>
+    <div class="main">
+      <div class="panel-header">
+        <span class="panel-title">Merge conflicts</span>
+        <span style="font-size:11px;color:oklch(62% 0.18 22);font-family:'Space Mono',monospace">2 unresolved</span>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1">
+        <!-- Conflict 1 -->
+        <div class="conflict-card">
+          <div class="conflict-header">
+            <span style="font-size:12px;color:#8a8a8a;font-weight:700">Lead Guitar</span>
+            <span style="font-family:'Space Mono',monospace;font-size:11px;color:#484848">bar 6</span>
+          </div>
+          <div class="conflict-grid">
+            <div class="conflict-col">
+              <div class="conflict-side-label">ours</div>
+              <div class="mini-staff">
+                <div class="staff-line"></div><div class="staff-line" style="position:relative"><span style="position:absolute;left:30%;top:-7px;font-family:'Space Mono',monospace;font-size:10px;color:#f0f0f0;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:0 3px">7</span></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div>
+              </div>
+              <div class="keep-btn">Keep ours</div>
+            </div>
+            <div class="conflict-col">
+              <div class="conflict-side-label">base</div>
+              <div class="mini-staff"><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div></div>
+            </div>
+            <div class="conflict-col">
+              <div class="conflict-side-label">theirs</div>
+              <div class="mini-staff">
+                <div class="staff-line"></div><div class="staff-line" style="position:relative"><span style="position:absolute;left:55%;top:-7px;font-family:'Space Mono',monospace;font-size:10px;color:#f0f0f0;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:0 3px">5</span></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div>
+              </div>
+              <div class="keep-btn">Keep theirs</div>
+            </div>
+          </div>
+        </div>
+        <!-- Conflict 2 -->
+        <div class="conflict-card">
+          <div class="conflict-header">
+            <span style="font-size:12px;color:#8a8a8a;font-weight:700">Lead Guitar</span>
+            <span style="font-family:'Space Mono',monospace;font-size:11px;color:#484848">bar 9</span>
+          </div>
+          <div class="conflict-grid">
+            <div class="conflict-col">
+              <div class="conflict-side-label">ours</div>
+              <div class="mini-staff">
+                <div class="staff-line"></div><div class="staff-line"></div><div class="staff-line" style="position:relative"><span style="position:absolute;left:35%;top:-7px;font-family:'Space Mono',monospace;font-size:10px;color:#f0f0f0;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:0 3px">12</span></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div>
+              </div>
+              <div class="keep-btn">Keep ours</div>
+            </div>
+            <div class="conflict-col">
+              <div class="conflict-side-label">base</div>
+              <div class="mini-staff"><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div></div>
+            </div>
+            <div class="conflict-col">
+              <div class="conflict-side-label">theirs</div>
+              <div class="mini-staff">
+                <div class="staff-line"></div><div class="staff-line"></div><div class="staff-line" style="position:relative"><span style="position:absolute;left:50%;top:-7px;font-family:'Space Mono',monospace;font-size:10px;color:#f0f0f0;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:2px;padding:0 3px">10</span></div><div class="staff-line"></div><div class="staff-line"></div><div class="staff-line"></div>
+              </div>
+              <div class="keep-btn">Keep theirs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Screen 4 — Merge</div>
+</div>
+
+<script>
+  // Wait for fonts + layout, then print
+  document.fonts.ready.then(() => {
+    setTimeout(() => window.print(), 500);
+  });
+</script>
+</body>
+</html>

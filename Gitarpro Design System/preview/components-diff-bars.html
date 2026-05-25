@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); }
+  .diff-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+  .bar {
+    height: 40px; border-radius: var(--radius-sm); border: 1px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; cursor: pointer;
+    transition: opacity var(--transition-fast);
+    flex-direction: column; gap: 2px;
+  }
+  .bar:hover { opacity: 0.8; }
+  .bar-equal   { background: var(--color-surface); border-color: var(--color-border-subtle); color: var(--color-fg-3); }
+  .bar-added   { background: oklch(58% 0.13 145 / 12%); border-color: oklch(58% 0.13 145 / 40%); color: oklch(58% 0.13 145); }
+  .bar-removed { background: oklch(55% 0.16 22 / 12%); border-color: oklch(55% 0.16 22 / 40%); color: oklch(62% 0.18 22); }
+  .bar-changed { background: oklch(65% 0.14 60 / 12%); border-color: oklch(65% 0.14 60 / 40%); color: oklch(65% 0.14 60); }
+  .bar-sym { font-size: 12px; font-weight: 700; }
+  .bar-num { font-size: 9px; opacity: 0.6; }
+  .legend { display: flex; gap: 16px; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-fg-3); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 1px; }
+</style>
+</head>
+<body>
+  <div class="diff-grid">
+    <div class="bar bar-equal"><span class="bar-num">1</span></div>
+    <div class="bar bar-equal"><span class="bar-num">2</span></div>
+    <div class="bar bar-equal"><span class="bar-num">3</span></div>
+    <div class="bar bar-added"><span class="bar-sym">+</span><span class="bar-num">4</span></div>
+    <div class="bar bar-equal"><span class="bar-num">5</span></div>
+    <div class="bar bar-changed"><span class="bar-sym">~</span><span class="bar-num">6</span></div>
+    <div class="bar bar-changed"><span class="bar-sym">~</span><span class="bar-num">7</span></div>
+    <div class="bar bar-equal"><span class="bar-num">8</span></div>
+    <div class="bar bar-equal"><span class="bar-num">9</span></div>
+    <div class="bar bar-removed"><span class="bar-sym">−</span><span class="bar-num">10</span></div>
+    <div class="bar bar-equal"><span class="bar-num">11</span></div>
+    <div class="bar bar-equal"><span class="bar-num">12</span></div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:oklch(58% 0.13 145)"></div>added</div>
+    <div class="legend-item"><div class="legend-dot" style="background:oklch(55% 0.16 22)"></div>removed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:oklch(65% 0.14 60)"></div>changed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--color-surface-raised)"></div>equal</div>
+  </div>
+</body>
+</html>

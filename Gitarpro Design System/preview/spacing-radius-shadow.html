@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); display: flex; gap: 32px; flex-wrap: wrap; }
+  .group { }
+  .section-label { font-size: 10px; color: var(--color-fg-3); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+  .radius-row { display: flex; gap: 12px; margin-bottom: 0; }
+  .rbox { width: 52px; height: 52px; background: var(--color-surface-raised); border: 1px solid var(--color-border); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .rlabel { font-size: 9px; color: var(--color-fg-3); font-family: var(--font-mono); margin-top: 6px; text-align: center; }
+  .shadow-col { display: flex; flex-direction: column; gap: 12px; }
+  .sbox { height: 40px; width: 160px; background: var(--color-surface-raised); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: var(--font-mono); color: var(--color-fg-3); }
+</style>
+</head>
+<body>
+  <div class="group">
+    <div class="section-label">border-radius</div>
+    <div class="radius-row">
+      <div><div class="rbox" style="border-radius:2px"></div><div class="rlabel">2px<br>sm</div></div>
+      <div><div class="rbox" style="border-radius:4px"></div><div class="rlabel">4px<br>md</div></div>
+      <div><div class="rbox" style="border-radius:6px"></div><div class="rlabel">6px<br>lg</div></div>
+    </div>
+  </div>
+  <div class="group">
+    <div class="section-label">shadows</div>
+    <div class="shadow-col">
+      <div class="sbox" style="box-shadow: 0 0 0 2px oklch(55% 0.16 22 / 60%)">focus ring</div>
+      <div class="sbox" style="box-shadow: 0 4px 16px rgba(0,0,0,0.5)">menu shadow</div>
+      <div class="sbox" style="box-shadow: 0 8px 32px rgba(0,0,0,0.6)">overlay shadow</div>
+    </div>
+  </div>
+  <div class="group">
+    <div class="section-label">borders</div>
+    <div class="shadow-col">
+      <div class="sbox" style="border:1px solid #1f1f1f">subtle</div>
+      <div class="sbox" style="border:1px solid #2a2a2a">default</div>
+      <div class="sbox" style="border:1px solid #3a3a3a">strong</div>
+      <div class="sbox" style="border:1px solid oklch(55% 0.16 22 / 40%)">accent</div>
+    </div>
+  </div>
+</body>
+</html>

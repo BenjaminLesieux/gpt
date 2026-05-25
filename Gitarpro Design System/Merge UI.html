@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gitarpro — Merge UI</title>
+<style>
+  @font-face { font-family:'Bauhaus'; src:url('fonts/BauhausRegular.ttf') format('truetype'); font-weight:400; }
+  @font-face { font-family:'Bauhaus'; src:url('fonts/BauhausBold.ttf') format('truetype'); font-weight:700; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:100%;height:100%;overflow:hidden;}
+  #root{width:100%;height:100%;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px;}
+  button:focus{outline:none;}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel">
+
+// ─── Tokens ──────────────────────────────────────────────────────────────
+const T = {
+  bg:'#0c0c0c', surface:'#141414', raised:'#1c1c1c', hover:'#242424',
+  border:'#2a2a2a', borderSubt:'#1f1f1f',
+  fg1:'#f0f0f0', fg2:'#8a8a8a', fg3:'#484848',
+  accent:'oklch(55% 0.16 22)', accentBrt:'oklch(62% 0.18 22)',
+  accentDim:'oklch(55% 0.16 22 / 15%)', accentBrd:'oklch(55% 0.16 22 / 40%)',
+  added:'oklch(58% 0.13 145)', addedBg:'oklch(58% 0.13 145 / 12%)', addedBrd:'oklch(58% 0.13 145 / 35%)',
+  changed:'oklch(65% 0.14 60)', changedBg:'oklch(65% 0.14 60 / 12%)', changedBrd:'oklch(65% 0.14 60 / 35%)',
+  info:'oklch(60% 0.12 230)', infoBg:'oklch(60% 0.12 230 / 12%)', infoBrd:'oklch(60% 0.12 230 / 35%)',
+  sans:"'Bauhaus','Helvetica Neue',sans-serif",
+  mono:"'Space Mono',monospace",
+};
+
+// ─── Data ─────────────────────────────────────────────────────────────────
+const STRINGS = ['e','B','G','D','A','E'];
+const BEATS = 4;
+const NUM_BARS = 12;
+const TRACKS = [
+  { id:0, label:'Lead Guitar', tuning:'Standard' },
+  { id:1, label:'Bass',        tuning:'4-string' },
+];
+
+function h32(n) {
+  let x = n >>> 0;
+  x = (Math.imul(x ^ (x >>> 16), 0x45d9f3b)) >>> 0;
+  return (x ^ (x >>> 16)) >>> 0;
+}
+function genNotes(barIdx, trackIdx, variant) {
+  return STRINGS.map((_,si) =>
+    Array.from({length:BEATS}, (_,bi) => {
+      const v = h32(barIdx*9973 + si*997 + bi*97 + trackIdx*31 + variant*100003);
+      return (v % 3 === 0) ? null : ((v % 14) + 1);
+    })
+  );
+}
+
+const CONFLICTS = [
+  { id:'bpm',  type:'bpm',     label:'Tempo',              track:null, bar:null, ours:'132', theirs:'120', unit:'BPM',  desc:'bridge section tempo change' },
+  { id:'ts',   type:'timesig', label:'Time Signature',     track:null, bar:null, ours:'4/4', theirs:'3/4', desc:'added in bars 5–8' },
+  { id:'n1',   type:'note',    label:'Bar 3 · e · Beat 2', track:0, bar:3, si:0, bi:2, ours:7,    theirs:5,    desc:'hammer-on vs open slide' },
+  { id:'n2',   type:'note',    label:'Bar 3 · D · Beat 0', track:0, bar:3, si:3, bi:0, ours:null, theirs:3,    desc:'added passing tone' },
+  { id:'m6',   type:'measure', label:'Bar 6 · full bar',   track:0, bar:6, desc:'bridge riff variation' },
+  { id:'m9',   type:'measure', label:'Bar 9 · full bar',   track:1, bar:9, desc:'bass line re-voiced' },
+  { id:'n3',   type:'note',    label:'Bar 11 · A · Beat 3', track:1, bar:11, si:4, bi:3, ours:5, theirs:7, desc:'root vs fifth' },
+];
+
+function getBarNotes(barIdx, trackIdx, side, barConflicts) {
+  const variant = side === 'theirs' ? 1 : 0;
+  const notes = genNotes(barIdx, trackIdx, variant).map(r => [...r]);
+  barConflicts.filter(c => c.type === 'note').forEach(c => {
+    notes[c.si][c.bi] = side === 'ours' ? c.ours : c.theirs;
+  });
+  return notes;
+}
+
+function getResultNotes(barIdx, trackIdx, barConflicts, resolutions) {
+  const base = genNotes(barIdx, trackIdx, 0).map(r => [...r]);
+  const mc = barConflicts.find(c => c.type === 'measure');
+  if (mc) {
+    const res = resolutions[mc.id];
+    if (res === 'ours')   return genNotes(barIdx, trackIdx, 0);
+    if (res === 'theirs') return genNotes(barIdx, trackIdx, 1);
+    return base.map(r => r.map(() => null));
+  }
+  barConflicts.filter(c => c.type === 'note').forEach(c => {
+    const res = resolutions[c.id];
+    if (res === 'ours')        base[c.si][c.bi] = c.ours;
+    else if (res === 'theirs') base[c.si][c.bi] = c.theirs;
+    else                       base[c.si][c.bi] = '?';
+  });
+  return base;
+}
+
+// ─── Micro-components ─────────────────────────────────────────────────────
+function TL() {
+  return (
+    <div style={{display:'flex',gap:6,flexShrink:0}}>
+      {['#ff5f57','#ffbd2e','#28ca41'].map((c,i)=>(
+        <div key={i} style={{width:12,height:12,borderRadius:'50%',background:c,opacity:.7}}/>
+      ))}
+    </div>
+  );
+}
+
+function Logo({size=13}) {
+  return <span style={{fontFamily:T.mono,fontWeight:700,fontSize:size,color:T.fg1,letterSpacing:'-0.04em'}}>gp<span style={{color:T.accentBrt}}>t</span></span>;
+}
+
+const ICON_PATHS = {
+  'chevron-left':  <polyline points="15 18 9 12 15 6"/>,
+  'chevron-right': <polyline points="9 6 15 12 9 18"/>,
+  'undo':  <><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></>,
+  'redo':  <><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.51"/></>,
+  'zap':   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+  'check': <polyline points="20 6 9 17 4 12"/>,
+  'music': <><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>,
+  'merge': <><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></>,
+  'x':     <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+};
+function Icon({type, size=14, color}) {
+  const s = {width:size,height:size,stroke:color||'currentColor',fill:'none',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round',display:'block',flexShrink:0};
+  return <svg viewBox="0 0 24 24" style={s}>{ICON_PATHS[type]}</svg>;
+}
+
+const BADGE_STYLES = {
+  bpm:      {color:T.info,    bg:T.infoBg,    brd:T.infoBrd,    label:'BPM'},
+  timesig:  {color:T.info,    bg:T.infoBg,    brd:T.infoBrd,    label:'TIME SIG'},
+  note:     {color:T.changed, bg:T.changedBg, brd:T.changedBrd, label:'NOTE'},
+  measure:  {color:T.accentBrt,bg:T.accentDim,brd:T.accentBrd, label:'MEASURE'},
+};
+function CBadge({type}) {
+  const s = BADGE_STYLES[type] || BADGE_STYLES.note;
+  return <span style={{fontFamily:T.mono,fontSize:9,fontWeight:700,letterSpacing:'0.1em',color:s.color,background:s.bg,border:`1px solid ${s.brd}`,borderRadius:2,padding:'2px 5px'}}>{s.label}</span>;
+}
+
+// ─── TabBar: renders one bar of 6-string tab notation ─────────────────────
+function TabBar({notes, noteConflicts=[], side, hasMeasure, measureRes}) {
+  const SROW = 16;
+  const conflictSis = new Set(noteConflicts.map(c=>c.si));
+
+  let barBg='transparent', barAccent='3px solid transparent';
+  if (hasMeasure || noteConflicts.length > 0) {
+    if (side==='ours')   { barBg=T.infoBg;    barAccent=`3px solid ${T.info}`; }
+    if (side==='theirs') { barBg=T.addedBg;   barAccent=`3px solid ${T.added}`; }
+    if (side==='result') {
+      if      (!measureRes && hasMeasure)      { barBg=T.changedBg; barAccent=`3px solid ${T.changed}`; }
+      else if (measureRes==='ours'||noteConflicts.some(c=>c._r==='ours'))   { barBg=T.infoBg; barAccent=`3px solid ${T.info}`; }
+      else if (measureRes==='theirs'||noteConflicts.some(c=>c._r==='theirs')){ barBg=T.addedBg; barAccent=`3px solid ${T.added}`; }
+      else    { barBg=T.changedBg; barAccent=`3px solid ${T.changed}`; }
+    }
+  }
+
+  return (
+    <div style={{background:barBg, borderLeft:barAccent, paddingLeft:7, paddingRight:4, paddingTop:5, paddingBottom:5}}>
+      {STRINGS.map((str, si) => {
+        const row = notes?.[si] ?? [];
+        const isCStr = conflictSis.has(si);
+        const strColor = isCStr
+          ? (side==='ours' ? T.info : side==='theirs' ? T.added : T.changed)
+          : T.fg3;
+        return (
+          <div key={si} style={{height:SROW, display:'flex', alignItems:'center'}}>
+            <span style={{fontFamily:T.mono,fontSize:9,color:strColor,width:11,flexShrink:0}}>{str}</span>
+            <div style={{flex:1, height:1, background: isCStr ? strColor : T.border, position:'relative', opacity: isCStr ? 0.6 : 1}}>
+              {Array.from({length:BEATS}).map((_,bi) => {
+                const val = row[bi];
+                if (val === null || val === undefined) return null;
+                const isCBeat = noteConflicts.some(c=>c.si===si && c.bi===bi);
+                let fg=T.fg2, bg='transparent', brd='none';
+                if (isCBeat) {
+                  if (side==='ours')   {fg=T.info;    bg=T.infoBg;    brd=`1px solid ${T.infoBrd}`;}
+                  if (side==='theirs') {fg=T.added;   bg=T.addedBg;   brd=`1px solid ${T.addedBrd}`;}
+                  if (side==='result') {
+                    if (val==='?')     {fg=T.changed; bg=T.changedBg; brd=`1px solid ${T.changedBrd}`;}
+                    else               {fg=T.added;   bg=T.addedBg;   brd=`1px solid ${T.addedBrd}`;}
+                  }
+                }
+                return (
+                  <div key={bi} style={{position:'absolute',left:`${((bi+0.5)/BEATS)*100}%`,transform:'translateX(-50%)',minWidth:18,height:14,display:'flex',alignItems:'center',justifyContent:'center',background:bg,border:brd,borderRadius:2}}>
+                    <span style={{fontFamily:T.mono,fontSize:10,color:fg,fontWeight:isCBeat?700:400}}>{val}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {hasMeasure && side==='result' && !measureRes && (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',paddingTop:4}}>
+          <span style={{fontFamily:T.mono,fontSize:9,color:T.changed,fontWeight:700,letterSpacing:'0.05em'}}>CHOOSE A VERSION</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── BarRow: one bar across all 3 panes + gutters ─────────────────────────
+const GW = 30;
+function BarRow({barIdx, trackIdx, resolutions, onResolve, isActive}) {
+  const bcs = CONFLICTS.filter(c => c.bar===barIdx && c.track===trackIdx);
+  const mc  = bcs.find(c=>c.type==='measure');
+  const ncs = bcs.filter(c=>c.type==='note');
+  const hasC = bcs.length > 0;
+
+  const oursNotes   = getBarNotes(barIdx, trackIdx, 'ours',   bcs);
+  const theirsNotes = getBarNotes(barIdx, trackIdx, 'theirs', bcs);
+  const resultNotes = getResultNotes(barIdx, trackIdx, bcs, resolutions);
+  const ncsResult   = ncs.map(c=>({...c, _r: resolutions[c.id]}));
+
+  return (
+    <div style={{display:'flex', borderBottom:`1px solid ${T.borderSubt}`, background: isActive ? 'rgba(255,255,255,0.022)' : 'transparent', position:'relative'}}>
+      {/* Bar number */}
+      <div style={{width:28, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${T.borderSubt}`, position:'relative', gap:3}}>
+        {hasC && <div style={{width:3,height:3,borderRadius:'50%',background: bcs.every(c=>resolutions[c.id]) ? T.added : T.changed,flexShrink:0}}/>}
+        <span style={{fontFamily:T.mono, fontSize:9, color: hasC ? (bcs.every(c=>resolutions[c.id]) ? T.added : T.changed) : T.fg3}}>{barIdx+1}</span>
+      </div>
+      {/* Ours */}
+      <div style={{flex:1, minWidth:0}}>
+        <TabBar notes={oursNotes} noteConflicts={ncs} side="ours" hasMeasure={!!mc} measureRes={null}/>
+      </div>
+      {/* ← Accept ours gutter */}
+      <div style={{width:GW, flexShrink:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:T.bg, borderLeft:`1px solid ${T.borderSubt}`, borderRight:`1px solid ${T.borderSubt}`}}>
+        {bcs.map(c => {
+          const r = resolutions[c.id];
+          return (
+            <button key={c.id} onClick={()=>onResolve(c.id,'ours')} title="Accept ours"
+              style={{width:22,height:20,background:r==='ours'?T.infoBg:'transparent',border:`1px solid ${r==='ours'?T.infoBrd:T.border}`,borderRadius:2,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:r==='ours'?T.info:T.fg3,fontSize:16,lineHeight:1,transition:'all 100ms',fontFamily:'serif'}}>
+              ‹
+            </button>
+          );
+        })}
+      </div>
+      {/* Result */}
+      <div style={{flex:1, minWidth:0, background:'rgba(255,255,255,0.014)'}}>
+        <TabBar notes={resultNotes} noteConflicts={ncsResult} side="result" hasMeasure={!!mc} measureRes={mc?resolutions[mc.id]:null}/>
+      </div>
+      {/* → Accept theirs gutter */}
+      <div style={{width:GW, flexShrink:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:T.bg, borderLeft:`1px solid ${T.borderSubt}`, borderRight:`1px solid ${T.borderSubt}`}}>
+        {bcs.map(c => {
+          const r = resolutions[c.id];
+          return (
+            <button key={c.id} onClick={()=>onResolve(c.id,'theirs')} title="Accept theirs"
+              style={{width:22,height:20,background:r==='theirs'?T.addedBg:'transparent',border:`1px solid ${r==='theirs'?T.addedBrd:T.border}`,borderRadius:2,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:r==='theirs'?T.added:T.fg3,fontSize:16,lineHeight:1,transition:'all 100ms',fontFamily:'serif'}}>
+              ›
+            </button>
+          );
+        })}
+      </div>
+      {/* Theirs */}
+      <div style={{flex:1, minWidth:0}}>
+        <TabBar notes={theirsNotes} noteConflicts={ncs} side="theirs" hasMeasure={!!mc} measureRes={null}/>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared merge state logic ─────────────────────────────────────────────
+function useMergeState() {
+  const [res, setRes] = React.useState({});
+  const [hist, setHist] = React.useState([]);
+  const [fut, setFut] = React.useState([]);
+
+  function resolve(id, from) {
+    setHist(h=>[...h,res]); setFut([]);
+    setRes(p=>({...p,[id]:from}));
+  }
+  function undo() {
+    if (!hist.length) return;
+    setFut(f=>[res,...f]); setRes(hist[hist.length-1]); setHist(h=>h.slice(0,-1));
+  }
+  function redo() {
+    if (!fut.length) return;
+    setHist(h=>[...h,res]); setRes(fut[0]); setFut(f=>f.slice(1));
+  }
+  function acceptAll(side) {
+    setHist(h=>[...h,res]); setFut([]);
+    const all={}; CONFLICTS.forEach(c=>{all[c.id]=side;}); setRes(all);
+  }
+  function autoResolve() {
+    setHist(h=>[...h,res]); setFut([]);
+    setRes(p=>{
+      const n={...p};
+      CONFLICTS.filter(c=>c.type==='bpm'||c.type==='timesig').forEach(c=>{if(!n[c.id])n[c.id]='ours';});
+      return n;
+    });
+  }
+
+  return {
+    resolutions: res, setRes,
+    undo, redo, acceptAll, autoResolve, resolve,
+    canUndo: hist.length>0, canRedo: fut.length>0,
+    resolved: Object.keys(res).length, total: CONFLICTS.length,
+    allDone: Object.keys(res).length === CONFLICTS.length,
+  };
+}
+
+// ─── Shared toolbar ───────────────────────────────────────────────────────
+function MergeToolbar({state, onPrev, onNext, showNav=true}) {
+  const {resolved, total, allDone, undo, redo, canUndo, canRedo, acceptAll, autoResolve} = state;
+  const Btn = ({children, onClick, style={}, disabled=false}) => (
+    <button onClick={onClick} disabled={disabled}
+      style={{background:'none',border:`1px solid ${T.border}`,borderRadius:2,color:disabled?T.fg3:T.fg2,cursor:disabled?'default':'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans,display:'flex',alignItems:'center',gap:4,transition:'background 100ms',flexShrink:0,...style}}>
+      {children}
+    </button>
+  );
+  return (
+    <div style={{height:38,background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',paddingLeft:12,paddingRight:12,gap:7,flexShrink:0}}>
+      <span style={{fontFamily:T.mono,fontSize:11,color:allDone?T.added:T.changed,flexShrink:0}}>{resolved}/{total}</span>
+      <span style={{fontSize:11,color:T.fg3,marginRight:4,flexShrink:0}}>resolved</span>
+      {showNav && <>
+        <div style={{width:1,height:16,background:T.border,flexShrink:0}}/>
+        <Btn onClick={onPrev}><Icon type="chevron-left" size={11}/> Prev</Btn>
+        <Btn onClick={onNext}>Next <Icon type="chevron-right" size={11}/></Btn>
+        <div style={{width:1,height:16,background:T.border,flexShrink:0}}/>
+        <Btn onClick={autoResolve}><Icon type="zap" size={11}/> Auto-resolve</Btn>
+      </>}
+      <Btn onClick={()=>acceptAll('ours')} style={{color:T.info,background:T.infoBg,borderColor:T.infoBrd}}>‹‹ All ours</Btn>
+      <Btn onClick={()=>acceptAll('theirs')} style={{color:T.added,background:T.addedBg,borderColor:T.addedBrd}}>All theirs ››</Btn>
+      <div style={{flex:1}}/>
+      <button onClick={undo} disabled={!canUndo}
+        style={{background:'none',border:'1px solid transparent',borderRadius:2,color:canUndo?T.fg2:T.fg3,cursor:canUndo?'pointer':'default',padding:'3px 5px',display:'flex',alignItems:'center',flexShrink:0}}>
+        <Icon type="undo" size={13}/>
+      </button>
+      <button onClick={redo} disabled={!canRedo}
+        style={{background:'none',border:'1px solid transparent',borderRadius:2,color:canRedo?T.fg2:T.fg3,cursor:canRedo?'pointer':'default',padding:'3px 5px',display:'flex',alignItems:'center',marginRight:6,flexShrink:0}}>
+        <Icon type="redo" size={13}/>
+      </button>
+      <button style={{background:allDone?T.accent:T.raised,border:`1px solid ${allDone?T.accentBrd:T.border}`,borderRadius:2,color:allDone?T.fg1:T.fg3,cursor:allDone?'pointer':'not-allowed',padding:'4px 14px',fontSize:12,fontFamily:T.sans,fontWeight:500,transition:'all 150ms',flexShrink:0}}>
+        Commit merge
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VARIANT A — 3-Pane JetBrains Editor
+// ═══════════════════════════════════════════════════════════════════════════
+function MergeVariantA() {
+  const state = useMergeState();
+  const {resolutions, resolve} = state;
+  const [activeTrack, setActiveTrack] = React.useState(0);
+  const [activeConflictIdx, setActiveConflictIdx] = React.useState(0);
+  const scrollRef = React.useRef(null);
+
+  const metaConflicts  = CONFLICTS.filter(c=>c.track===null);
+  const scoreConflicts = CONFLICTS.filter(c=>c.track!==null);
+
+  function gotoConflict(i) {
+    const idx = Math.max(0, Math.min(scoreConflicts.length-1, i));
+    setActiveConflictIdx(idx);
+    const c = scoreConflicts[idx];
+    if (c && scrollRef.current) {
+      const BAR_H = 120;
+      scrollRef.current.scrollTop = Math.max(0,(c.bar-1)*BAR_H - 80);
+    }
+  }
+
+  const trackData = TRACKS.map(t => ({
+    ...t,
+    count:      CONFLICTS.filter(c=>c.track===t.id).length,
+    unresolved: CONFLICTS.filter(c=>c.track===t.id && !resolutions[c.id]).length,
+  }));
+
+  return (
+    <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:T.bg,fontFamily:T.sans,color:T.fg1,overflow:'hidden'}}>
+      {/* Title bar */}
+      <div style={{height:36,background:T.bg,borderBottom:`1px solid ${T.borderSubt}`,display:'flex',alignItems:'center',paddingLeft:14,paddingRight:14,gap:10,flexShrink:0}}>
+        <TL/>
+        <Logo/>
+        <span style={{color:T.fg3,fontSize:11}}>—</span>
+        <span style={{fontFamily:T.mono,fontSize:11,color:T.fg2}}>~/songs/my-album</span>
+        <div style={{flex:1}}/>
+        <div style={{display:'flex',alignItems:'center',gap:7,fontSize:11,fontFamily:T.mono}}>
+          <Icon type="merge" size={12}/>
+          <span style={{color:T.info}}>feature/bridge</span>
+          <span style={{color:T.fg3}}>←</span>
+          <span style={{color:T.fg3}}>base</span>
+          <span style={{color:T.fg3}}>→</span>
+          <span style={{color:T.added}}>main</span>
+        </div>
+      </div>
+
+      <MergeToolbar state={state}
+        onPrev={()=>gotoConflict(activeConflictIdx-1)}
+        onNext={()=>gotoConflict(activeConflictIdx+1)}/>
+
+      {/* Metadata conflict rows */}
+      {metaConflicts.map(c => {
+        const r = resolutions[c.id];
+        return (
+          <div key={c.id} style={{background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'7px 14px',gap:10,flexShrink:0,flexWrap:'wrap'}}>
+            <CBadge type={c.type}/>
+            <span style={{fontSize:12,color:T.fg2,fontWeight:500}}>{c.label}</span>
+            <span style={{fontSize:11,color:T.fg3}}>{c.desc}</span>
+            <div style={{flex:1}}/>
+            <button onClick={()=>resolve(c.id,'ours')}
+              style={{display:'flex',alignItems:'center',gap:7,background:r==='ours'?T.infoBg:T.raised,border:`1px solid ${r==='ours'?T.infoBrd:T.border}`,borderRadius:2,padding:'5px 14px',cursor:'pointer',transition:'all 100ms',fontFamily:T.sans}}>
+              {r==='ours' && <Icon type="check" size={11} color={T.info}/>}
+              <span style={{fontFamily:T.mono,fontSize:15,fontWeight:700,color:r==='ours'?T.info:T.fg1}}>{c.ours}{c.unit&&' '+c.unit}</span>
+              <span style={{fontSize:10,color:r==='ours'?T.info:T.fg3}}>ours</span>
+            </button>
+            <span style={{fontSize:11,color:T.fg3}}>vs</span>
+            <button onClick={()=>resolve(c.id,'theirs')}
+              style={{display:'flex',alignItems:'center',gap:7,background:r==='theirs'?T.addedBg:T.raised,border:`1px solid ${r==='theirs'?T.addedBrd:T.border}`,borderRadius:2,padding:'5px 14px',cursor:'pointer',transition:'all 100ms',fontFamily:T.sans}}>
+              {r==='theirs' && <Icon type="check" size={11} color={T.added}/>}
+              <span style={{fontFamily:T.mono,fontSize:15,fontWeight:700,color:r==='theirs'?T.added:T.fg1}}>{c.theirs}{c.unit&&' '+c.unit}</span>
+              <span style={{fontSize:10,color:r==='theirs'?T.added:T.fg3}}>theirs</span>
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Track tabs */}
+      <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'stretch',paddingLeft:12,height:30,flexShrink:0}}>
+        {trackData.map(t=>(
+          <button key={t.id} onClick={()=>setActiveTrack(t.id)}
+            style={{padding:'0 14px',fontSize:12,fontFamily:T.sans,cursor:'pointer',background:'transparent',border:'none',borderBottom:activeTrack===t.id?`2px solid ${T.accentBrt}`:'2px solid transparent',color:activeTrack===t.id?T.fg1:T.fg2,display:'flex',alignItems:'center',gap:6,transition:'color 100ms,border-color 100ms'}}>
+            <Icon type="music" size={11}/>
+            {t.label}
+            {t.count>0 && (
+              <span style={{fontFamily:T.mono,fontSize:9,background:t.unresolved>0?T.changedBg:T.addedBg,border:`1px solid ${t.unresolved>0?T.changedBrd:T.addedBrd}`,color:t.unresolved>0?T.changed:T.added,borderRadius:2,padding:'0 4px'}}>
+                {t.unresolved>0?t.unresolved:'✓'}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* 3-pane */}
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        {/* Sticky column headers */}
+        <div style={{display:'flex',borderBottom:`1px solid ${T.border}`,background:T.raised,flexShrink:0}}>
+          <div style={{width:28,flexShrink:0,borderRight:`1px solid ${T.borderSubt}`}}/>
+          <div style={{flex:1,padding:'5px 10px',display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:T.info,opacity:.7}}/>
+            <span style={{fontFamily:T.mono,fontSize:11,color:T.info}}>feature/bridge</span>
+            <span style={{fontSize:10,color:T.fg3}}>(ours)</span>
+          </div>
+          <div style={{width:GW,flexShrink:0,background:T.bg,borderLeft:`1px solid ${T.borderSubt}`,borderRight:`1px solid ${T.borderSubt}`}}/>
+          <div style={{flex:1,padding:'5px 10px',display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.014)'}}>
+            <span style={{fontSize:11,color:T.fg1,fontWeight:500}}>Result</span>
+            <span style={{fontSize:10,color:T.fg3}}>(editable)</span>
+          </div>
+          <div style={{width:GW,flexShrink:0,background:T.bg,borderLeft:`1px solid ${T.borderSubt}`,borderRight:`1px solid ${T.borderSubt}`}}/>
+          <div style={{flex:1,padding:'5px 10px',display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:T.added,opacity:.7}}/>
+            <span style={{fontFamily:T.mono,fontSize:11,color:T.added}}>main</span>
+            <span style={{fontSize:10,color:T.fg3}}>(theirs)</span>
+          </div>
+        </div>
+
+        {/* Scrollable bar rows */}
+        <div ref={scrollRef} style={{flex:1,overflowY:'auto'}}>
+          {Array.from({length:NUM_BARS}).map((_,barIdx)=>(
+            <BarRow key={barIdx} barIdx={barIdx} trackIdx={activeTrack}
+              resolutions={resolutions} onResolve={resolve}
+              isActive={scoreConflicts[activeConflictIdx]?.bar===barIdx && scoreConflicts[activeConflictIdx]?.track===activeTrack}/>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VARIANT B — Step-Through Conflict Wizard
+// ═══════════════════════════════════════════════════════════════════════════
+function MergeVariantB() {
+  const state = useMergeState();
+  const {resolutions, resolve: resolveBase, allDone, resolved, total} = state;
+  const [curIdx, setCurIdx] = React.useState(0);
+
+  function resolve(id, from) {
+    resolveBase(id, from);
+    // Auto-advance after short delay
+    setTimeout(() => {
+      const next = CONFLICTS.findIndex((c,i) => i > curIdx && !{...resolutions,[id]:from}[c.id]);
+      if (next !== -1) setCurIdx(next);
+    }, 350);
+  }
+
+  const cur = CONFLICTS[curIdx];
+  const r = cur ? resolutions[cur.id] : null;
+
+  // Keyboard shortcuts scoped to this component
+  React.useEffect(()=>{
+    function onKey(e) {
+      if (!cur) return;
+      if (e.key==='ArrowLeft')  { e.preventDefault(); resolve(cur.id,'ours'); }
+      if (e.key==='ArrowRight') { e.preventDefault(); resolve(cur.id,'theirs'); }
+      if (e.key==='Tab')        { e.preventDefault(); setCurIdx(i=>(i+1)%CONFLICTS.length); }
+      if ((e.metaKey||e.ctrlKey)&&e.key==='z') { e.preventDefault(); state.undo(); }
+    }
+    document.addEventListener('keydown', onKey);
+    return ()=>document.removeEventListener('keydown', onKey);
+  },[cur, resolutions, state]);
+
+  // ── Conflict content renderers ──────────────────────────────────────────
+  function BpmContent({c}) {
+    const rr = resolutions[c.id];
+    return (
+      <div style={{display:'flex',gap:32,alignItems:'center',justifyContent:'center'}}>
+        {['ours','theirs'].map(side=>{
+          const val = side==='ours'?c.ours:c.theirs;
+          const isSel = rr===side;
+          const col = side==='ours'?T.info:T.added;
+          return (
+            <button key={side} onClick={()=>resolve(c.id,side)}
+              style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`2px solid ${isSel?col:T.border}`,borderRadius:4,padding:'28px 44px',cursor:'pointer',transition:'all 150ms',minWidth:180}}>
+              <span style={{fontFamily:T.mono,fontSize:54,fontWeight:700,color:isSel?col:T.fg1,lineHeight:1}}>{val}</span>
+              <span style={{fontFamily:T.mono,fontSize:14,color:T.fg3}}>{c.unit}</span>
+              <span style={{fontSize:11,color:isSel?col:T.fg3,marginTop:4}}>{side==='ours'?'feature/bridge':'main'}</span>
+              {isSel && <Icon type="check" size={14} color={col}/>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function TimeSigContent({c}) {
+    const rr = resolutions[c.id];
+    return (
+      <div style={{display:'flex',gap:32,alignItems:'center',justifyContent:'center'}}>
+        {['ours','theirs'].map(side=>{
+          const val = side==='ours'?c.ours:c.theirs;
+          const [num,den] = val.split('/');
+          const isSel = rr===side;
+          const col = side==='ours'?T.info:T.added;
+          return (
+            <button key={side} onClick={()=>resolve(c.id,side)}
+              style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`2px solid ${isSel?col:T.border}`,borderRadius:4,padding:'24px 44px',cursor:'pointer',transition:'all 150ms',minWidth:180}}>
+              <div style={{fontFamily:T.mono,textAlign:'center',borderLeft:`3px solid ${isSel?col:T.border}`,paddingLeft:14}}>
+                <div style={{fontSize:52,fontWeight:700,color:isSel?col:T.fg1,lineHeight:1.1,borderBottom:`3px solid ${isSel?col:T.fg3}`,paddingBottom:8,marginBottom:6}}>{num}</div>
+                <div style={{fontSize:52,fontWeight:700,color:isSel?col:T.fg1,lineHeight:1.1}}>{den}</div>
+              </div>
+              <span style={{fontSize:11,color:isSel?col:T.fg3}}>{side==='ours'?'feature/bridge':'main'}</span>
+              {isSel && <Icon type="check" size={14} color={col}/>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function NoteContent({c}) {
+    const rr = resolutions[c.id];
+    return (
+      <div style={{display:'flex',gap:28,alignItems:'flex-start',justifyContent:'center'}}>
+        {['ours','theirs'].map(side=>{
+          const val = side==='ours'?c.ours:c.theirs;
+          const isSel = rr===side;
+          const col = side==='ours'?T.info:T.added;
+          const notes = getBarNotes(c.bar, c.track, side, [c]);
+          return (
+            <button key={side} onClick={()=>resolve(c.id,side)}
+              style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`2px solid ${isSel?col:T.border}`,borderRadius:4,padding:'18px 24px',cursor:'pointer',transition:'all 150ms',width:230}}>
+              <span style={{fontSize:10,color:isSel?col:T.fg3,fontFamily:T.mono,textTransform:'uppercase',letterSpacing:'0.1em'}}>{side==='ours'?'feature/bridge':'main'}</span>
+              {/* Mini tab preview — all 6 strings */}
+              <div style={{width:'100%',background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`1px solid ${isSel?col:T.border}`,borderRadius:3,padding:'8px 10px'}}>
+                {STRINGS.map((str,si)=>{
+                  const row = notes[si]||[];
+                  return (
+                    <div key={str} style={{height:18,display:'flex',alignItems:'center'}}>
+                      <span style={{fontFamily:T.mono,fontSize:9,color:si===c.si?col:T.fg3,width:12}}>{str}</span>
+                      <div style={{flex:1,height:1,background:si===c.si?col:T.border,opacity:si===c.si?0.6:0.4,position:'relative'}}>
+                        {row.map((fret,bi)=>fret!==null&&(
+                          <div key={bi} style={{position:'absolute',left:`${((bi+0.5)/BEATS)*100}%`,transform:'translateX(-50%)',minWidth:20,height:14,display:'flex',alignItems:'center',justifyContent:'center',background:(si===c.si&&bi===c.bi)?col+'22':'transparent',border:(si===c.si&&bi===c.bi)?`1px solid ${col}`:'none',borderRadius:2}}>
+                            <span style={{fontFamily:T.mono,fontSize:11,color:(si===c.si&&bi===c.bi)?col:T.fg2,fontWeight:(si===c.si&&bi===c.bi)?700:400}}>{fret}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{fontFamily:T.mono,fontSize:44,fontWeight:700,color:isSel?col:val===null?T.fg3:T.fg1,lineHeight:1}}>
+                {val===null?'—':val}
+              </div>
+              <div style={{fontSize:11,color:T.fg3}}>fret {val===null?'(empty)':val}</div>
+              {isSel && <Icon type="check" size={14} color={col}/>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function MeasureContent({c}) {
+    const rr = resolutions[c.id];
+    return (
+      <div style={{display:'flex',gap:24,alignItems:'flex-start',justifyContent:'center'}}>
+        {['ours','theirs'].map(side=>{
+          const notes = getBarNotes(c.bar, c.track, side, []);
+          const isSel = rr===side;
+          const col = side==='ours'?T.info:T.added;
+          return (
+            <button key={side} onClick={()=>resolve(c.id,side)}
+              style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`2px solid ${isSel?col:T.border}`,borderRadius:4,padding:'18px 22px',cursor:'pointer',transition:'all 150ms',width:260}}>
+              <span style={{fontSize:10,color:isSel?col:T.fg3,fontFamily:T.mono,textTransform:'uppercase',letterSpacing:'0.1em'}}>{side==='ours'?'feature/bridge':'main'}</span>
+              <div style={{width:'100%',background:isSel?(side==='ours'?T.infoBg:T.addedBg):T.raised,border:`1px solid ${isSel?col:T.border}`,borderRadius:3,padding:'8px 10px',borderLeft:`4px solid ${col}`}}>
+                {STRINGS.map((str,si)=>{
+                  const row = notes[si]||[];
+                  return (
+                    <div key={str} style={{height:19,display:'flex',alignItems:'center'}}>
+                      <span style={{fontFamily:T.mono,fontSize:9,color:T.fg3,width:12}}>{str}</span>
+                      <div style={{flex:1,height:1,background:T.border,position:'relative'}}>
+                        {row.map((fret,bi)=>fret!==null&&(
+                          <div key={bi} style={{position:'absolute',left:`${((bi+0.5)/BEATS)*100}%`,transform:'translateX(-50%)',minWidth:20,height:15,display:'flex',alignItems:'center',justifyContent:'center',background:T.bg,border:`1px solid ${col}`,borderRadius:2}}>
+                            <span style={{fontFamily:T.mono,fontSize:11,color:col,fontWeight:700}}>{fret}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {isSel && <Icon type="check" size={14} color={col}/>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderContent(c) {
+    if (!c) return null;
+    if (c.type==='bpm')      return <BpmContent c={c}/>;
+    if (c.type==='timesig')  return <TimeSigContent c={c}/>;
+    if (c.type==='note')     return <NoteContent c={c}/>;
+    if (c.type==='measure')  return <MeasureContent c={c}/>;
+    return null;
+  }
+
+  return (
+    <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:T.bg,fontFamily:T.sans,color:T.fg1,overflow:'hidden'}}>
+      {/* Title bar */}
+      <div style={{height:36,background:T.bg,borderBottom:`1px solid ${T.borderSubt}`,display:'flex',alignItems:'center',paddingLeft:14,paddingRight:14,gap:10,flexShrink:0}}>
+        <TL/>
+        <Logo/>
+        <span style={{color:T.fg3,fontSize:11}}>—</span>
+        <span style={{fontFamily:T.mono,fontSize:11,color:T.fg2}}>~/songs/my-album</span>
+        <div style={{flex:1}}/>
+        <div style={{display:'flex',alignItems:'center',gap:7,fontSize:11,fontFamily:T.mono}}>
+          <Icon type="merge" size={12}/>
+          <span style={{color:T.info}}>feature/bridge</span>
+          <span style={{color:T.fg3}}>←</span>
+          <span style={{color:T.added}}>main</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{height:3,background:T.raised,flexShrink:0}}>
+        <div style={{height:'100%',width:`${(resolved/total)*100}%`,background:allDone?T.added:T.accent,transition:'width 300ms ease'}}/>
+      </div>
+
+      <MergeToolbar state={state} showNav={false}/>
+
+      {allDone ? (
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20}}>
+          <div style={{width:60,height:60,borderRadius:'50%',background:T.addedBg,border:`2px solid ${T.addedBrd}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <Icon type="check" size={30} color={T.added}/>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:20,fontWeight:600,color:T.fg1,marginBottom:6}}>All {total} conflicts resolved</div>
+            <div style={{fontSize:13,color:T.fg3}}>feature/bridge ← main</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+
+          {/* Conflict sidebar */}
+          <div style={{width:196,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',overflowY:'auto',flexShrink:0}}>
+            <div style={{padding:'8px 12px 4px',fontSize:10,color:T.fg3,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:500}}>Conflicts</div>
+            {CONFLICTS.map((c,i)=>{
+              const rr = resolutions[c.id];
+              const isAct = i===curIdx;
+              return (
+                <div key={c.id} onClick={()=>setCurIdx(i)}
+                  style={{padding:'8px 12px',borderBottom:`1px solid ${T.borderSubt}`,cursor:'pointer',background:isAct?T.raised:'transparent',position:'relative',transition:'background 100ms'}}>
+                  {isAct && <div style={{position:'absolute',left:0,top:0,bottom:0,width:2,background:T.accentBrt}}/>}
+                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4}}>
+                    <CBadge type={c.type}/>
+                    {rr && <span style={{fontSize:10,color:rr==='ours'?T.info:T.added}}>✓</span>}
+                  </div>
+                  <div style={{fontSize:11,color:isAct?T.fg1:T.fg2,lineHeight:1.3}}>{c.label}</div>
+                  {c.desc && <div style={{fontSize:10,color:T.fg3,marginTop:2}}>{c.desc}</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Main conflict view */}
+          <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            {/* Conflict header */}
+            <div style={{padding:'12px 24px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+              <CBadge type={cur?.type}/>
+              <div>
+                <div style={{fontSize:15,fontWeight:600,color:T.fg1}}>{cur?.label}</div>
+                {cur?.desc && <div style={{fontSize:12,color:T.fg3,marginTop:2}}>{cur.desc}</div>}
+              </div>
+              <div style={{flex:1}}/>
+              <span style={{fontFamily:T.mono,fontSize:11,color:T.fg3}}>{curIdx+1} / {CONFLICTS.length}</span>
+              <button onClick={()=>setCurIdx(i=>Math.max(0,i-1))} style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,color:T.fg2,cursor:'pointer',padding:'4px 8px',fontSize:11,fontFamily:T.sans,display:'flex',alignItems:'center',gap:3}}>
+                <Icon type="chevron-left" size={11}/> Prev
+              </button>
+              <button onClick={()=>setCurIdx(i=>Math.min(CONFLICTS.length-1,i+1))} style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,color:T.fg2,cursor:'pointer',padding:'4px 8px',fontSize:11,fontFamily:T.sans,display:'flex',alignItems:'center',gap:3}}>
+                Next <Icon type="chevron-right" size={11}/>
+              </button>
+            </div>
+
+            {/* Conflict content area */}
+            <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:28,overflowY:'auto',padding:24}}>
+              {renderContent(cur)}
+
+              {/* Accept controls */}
+              {!r ? (
+                <div style={{display:'flex',alignItems:'center',gap:16}}>
+                  <button onClick={()=>resolve(cur.id,'ours')}
+                    style={{background:T.infoBg,border:`1px solid ${T.infoBrd}`,borderRadius:2,color:T.info,cursor:'pointer',padding:'9px 22px',fontSize:13,fontFamily:T.sans,fontWeight:500,display:'flex',alignItems:'center',gap:8,transition:'all 150ms'}}>
+                    <span style={{fontFamily:T.mono}}>←</span> Accept ours
+                    <kbd style={{fontFamily:T.mono,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'1px 6px',fontSize:10,color:T.fg3}}>←</kbd>
+                  </button>
+                  <span style={{color:T.fg3,fontSize:12}}>or</span>
+                  <button onClick={()=>resolve(cur.id,'theirs')}
+                    style={{background:T.addedBg,border:`1px solid ${T.addedBrd}`,borderRadius:2,color:T.added,cursor:'pointer',padding:'9px 22px',fontSize:13,fontFamily:T.sans,fontWeight:500,display:'flex',alignItems:'center',gap:8,transition:'all 150ms'}}>
+                    Accept theirs <span style={{fontFamily:T.mono}}>→</span>
+                    <kbd style={{fontFamily:T.mono,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'1px 6px',fontSize:10,color:T.fg3}}>→</kbd>
+                  </button>
+                </div>
+              ) : (
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <span style={{fontSize:12,color:r==='ours'?T.info:T.added,display:'flex',alignItems:'center',gap:5}}>
+                    <Icon type="check" size={13} color={r==='ours'?T.info:T.added}/> Accepted {r}
+                  </span>
+                  <button onClick={()=>{ state.undo(); }}
+                    style={{background:'none',border:`1px solid ${T.border}`,borderRadius:2,color:T.fg3,cursor:'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans}}>
+                    Change
+                  </button>
+                  <button onClick={()=>setCurIdx(i=>Math.min(CONFLICTS.length-1,i+1))}
+                    style={{background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,color:T.fg2,cursor:'pointer',padding:'4px 12px',fontSize:12,fontFamily:T.sans,display:'flex',alignItems:'center',gap:5}}>
+                    Next conflict <Icon type="chevron-right" size={12}/>
+                  </button>
+                </div>
+              )}
+
+              {/* Keyboard hints */}
+              <div style={{display:'flex',gap:20,fontSize:11,color:T.fg3,paddingTop:12,borderTop:`1px solid ${T.borderSubt}`}}>
+                <span><kbd style={{fontFamily:T.mono,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'1px 6px',fontSize:10}}>← →</kbd> accept</span>
+                <span><kbd style={{fontFamily:T.mono,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'1px 6px',fontSize:10}}>Tab</kbd> next</span>
+                <span><kbd style={{fontFamily:T.mono,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'1px 6px',fontSize:10}}>⌘Z</kbd> undo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VARIANT C — Inline Score Diff
+// One pane. The score IS the merge surface. Click conflict → resolve inline.
+// ═══════════════════════════════════════════════════════════════════════════
+function MergeVariantC() {
+  const mergeState = useMergeState();
+  const {resolutions, resolve:doResolve, undo, redo, canUndo, canRedo, acceptAll, autoResolve, resolved, total, allDone} = mergeState;
+  const [activeTrack, setActiveTrack] = React.useState(0);
+  const [expandedBar, setExpandedBar] = React.useState(3); // open bar 3 by default for demo
+  const [playing, setPlaying] = React.useState(false);
+
+  const metaConflicts = CONFLICTS.filter(c=>c.track===null);
+  const trackData = TRACKS.map(t=>({
+    ...t,
+    unresolved: CONFLICTS.filter(c=>c.track===t.id&&!resolutions[c.id]).length,
+  }));
+
+  function toggleBar(barIdx, hasConflict) {
+    if (!hasConflict) return;
+    setExpandedBar(p => p===barIdx ? null : barIdx);
+  }
+
+  return (
+    <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:T.bg,fontFamily:T.sans,color:T.fg1,overflow:'hidden'}}>
+
+      {/* Title bar */}
+      <div style={{height:36,background:T.bg,borderBottom:`1px solid ${T.borderSubt}`,display:'flex',alignItems:'center',paddingLeft:14,paddingRight:14,gap:10,flexShrink:0}}>
+        <TL/>
+        <Logo/>
+        <span style={{color:T.fg3,fontSize:11}}>—</span>
+        <span style={{fontFamily:T.mono,fontSize:11,color:T.fg2}}>~/songs/my-album</span>
+        <div style={{flex:1}}/>
+        <div style={{display:'flex',alignItems:'center',gap:7,fontSize:11}}>
+          <Icon type="merge" size={12}/>
+          <span style={{fontFamily:T.mono,color:T.info}}>feature/bridge</span>
+          <span style={{color:T.fg3}}>←</span>
+          <span style={{fontFamily:T.mono,color:T.added}}>main</span>
+        </div>
+      </div>
+
+      {/* Slim toolbar */}
+      <div style={{height:36,background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',paddingLeft:12,paddingRight:12,gap:8,flexShrink:0}}>
+        {/* Progress pill */}
+        <div style={{display:'flex',alignItems:'center',gap:6,background:T.raised,border:`1px solid ${T.border}`,borderRadius:2,padding:'3px 10px'}}>
+          <div style={{width:64,height:3,background:T.border,borderRadius:2,overflow:'hidden'}}>
+            <div style={{height:'100%',width:`${(resolved/total)*100}%`,background:allDone?T.added:T.changed,transition:'width 300ms'}}/>
+          </div>
+          <span style={{fontFamily:T.mono,fontSize:11,color:allDone?T.added:T.changed}}>{resolved}/{total}</span>
+        </div>
+        <div style={{width:1,height:16,background:T.border}}/>
+        <button onClick={autoResolve} style={{background:'none',border:`1px solid ${T.border}`,borderRadius:2,color:T.fg2,cursor:'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans,display:'flex',alignItems:'center',gap:4}}>
+          <Icon type="zap" size={11}/> Auto-resolve
+        </button>
+        <button onClick={()=>acceptAll('ours')} style={{background:T.infoBg,border:`1px solid ${T.infoBrd}`,borderRadius:2,color:T.info,cursor:'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans}}>‹‹ All ours</button>
+        <button onClick={()=>acceptAll('theirs')} style={{background:T.addedBg,border:`1px solid ${T.addedBrd}`,borderRadius:2,color:T.added,cursor:'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans}}>All theirs ››</button>
+        <div style={{flex:1}}/>
+        <button onClick={undo} disabled={!canUndo} style={{background:'none',border:'1px solid transparent',borderRadius:2,color:canUndo?T.fg2:T.fg3,cursor:canUndo?'pointer':'default',padding:'3px 5px',display:'flex',alignItems:'center'}}>
+          <Icon type="undo" size={13}/>
+        </button>
+        <button onClick={redo} disabled={!canRedo} style={{background:'none',border:'1px solid transparent',borderRadius:2,color:canRedo?T.fg2:T.fg3,cursor:canRedo?'pointer':'default',padding:'3px 5px',display:'flex',alignItems:'center',marginRight:6}}>
+          <Icon type="redo" size={13}/>
+        </button>
+        <button style={{background:allDone?T.accent:T.raised,border:`1px solid ${allDone?T.accentBrd:T.border}`,borderRadius:2,color:allDone?T.fg1:T.fg3,cursor:allDone?'pointer':'not-allowed',padding:'4px 14px',fontSize:12,fontFamily:T.sans,fontWeight:500,transition:'all 150ms'}}>
+          Commit merge
+        </button>
+      </div>
+
+      {/* Metadata conflict rows */}
+      {metaConflicts.map(c=>{
+        const r=resolutions[c.id];
+        return (
+          <div key={c.id} style={{background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'6px 14px',gap:10,flexShrink:0}}>
+            <CBadge type={c.type}/>
+            <span style={{fontSize:12,color:T.fg2,fontWeight:500}}>{c.label}</span>
+            <span style={{fontSize:11,color:T.fg3}}>{c.desc}</span>
+            <div style={{flex:1}}/>
+            <button onClick={()=>doResolve(c.id,'ours')} style={{display:'flex',alignItems:'center',gap:6,background:r==='ours'?T.infoBg:T.raised,border:`1px solid ${r==='ours'?T.infoBrd:T.border}`,borderRadius:2,padding:'4px 12px',cursor:'pointer',fontFamily:T.sans,transition:'all 100ms'}}>
+              {r==='ours'&&<Icon type="check" size={11} color={T.info}/>}
+              <span style={{fontFamily:T.mono,fontSize:14,fontWeight:700,color:r==='ours'?T.info:T.fg1}}>{c.ours}{c.unit&&' '+c.unit}</span>
+              <span style={{fontSize:10,color:r==='ours'?T.info:T.fg3}}>ours</span>
+            </button>
+            <span style={{color:T.fg3,fontSize:11}}>vs</span>
+            <button onClick={()=>doResolve(c.id,'theirs')} style={{display:'flex',alignItems:'center',gap:6,background:r==='theirs'?T.addedBg:T.raised,border:`1px solid ${r==='theirs'?T.addedBrd:T.border}`,borderRadius:2,padding:'4px 12px',cursor:'pointer',fontFamily:T.sans,transition:'all 100ms'}}>
+              {r==='theirs'&&<Icon type="check" size={11} color={T.added}/>}
+              <span style={{fontFamily:T.mono,fontSize:14,fontWeight:700,color:r==='theirs'?T.added:T.fg1}}>{c.theirs}{c.unit&&' '+c.unit}</span>
+              <span style={{fontSize:10,color:r==='theirs'?T.added:T.fg3}}>theirs</span>
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Track tabs */}
+      <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'stretch',paddingLeft:12,height:30,flexShrink:0}}>
+        {trackData.map(t=>(
+          <button key={t.id} onClick={()=>setActiveTrack(t.id)}
+            style={{padding:'0 14px',fontSize:12,fontFamily:T.sans,cursor:'pointer',background:'transparent',border:'none',borderBottom:activeTrack===t.id?`2px solid ${T.accentBrt}`:'2px solid transparent',color:activeTrack===t.id?T.fg1:T.fg2,display:'flex',alignItems:'center',gap:6,transition:'color 100ms,border-color 100ms'}}>
+            <Icon type="music" size={11}/>
+            {t.label}
+            {t.unresolved>0 && <span style={{fontFamily:T.mono,fontSize:9,background:T.changedBg,border:`1px solid ${T.changedBrd}`,color:T.changed,borderRadius:2,padding:'0 4px'}}>{t.unresolved}</span>}
+          </button>
+        ))}
+        <div style={{flex:1}}/>
+        {/* AlphaTab playback controls (decorative) */}
+        <div style={{display:'flex',alignItems:'center',gap:8,paddingRight:12}}>
+          <button onClick={()=>setPlaying(p=>!p)} style={{background:'none',border:'none',cursor:'pointer',color:playing?T.accentBrt:T.fg3,display:'flex',alignItems:'center',gap:4,fontSize:11,fontFamily:T.sans}}>
+            <svg viewBox="0 0 24 24" style={{width:12,height:12,fill:playing?T.accentBrt:'currentColor',stroke:'none'}}><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            {playing?'Pause':'Play score'}
+          </button>
+          <span style={{fontFamily:T.mono,fontSize:10,color:T.fg3}}>via AlphaTab</span>
+        </div>
+      </div>
+
+      {/* Score area — the merge surface */}
+      <div style={{flex:1,overflowY:'auto'}}>
+        {/* Playback progress (decorative) */}
+        {playing && (
+          <div style={{height:2,background:T.raised,flexShrink:0}}>
+            <div style={{height:'100%',width:'35%',background:T.accent,borderRadius:1,transition:'width 8s linear'}}/>
+          </div>
+        )}
+
+        {/* Legend */}
+        <div style={{padding:'6px 42px',borderBottom:`1px solid ${T.borderSubt}`,display:'flex',gap:20,alignItems:'center'}}>
+          <span style={{fontSize:10,color:T.fg3}}>Legend:</span>
+          {[
+            {color:T.changed,bg:T.changedBg,brd:T.changedBrd,label:'unresolved conflict'},
+            {color:T.info,   bg:T.infoBg,   brd:T.infoBrd,   label:'accepted (ours)'},
+            {color:T.added,  bg:T.addedBg,  brd:T.addedBrd,  label:'accepted (theirs)'},
+          ].map(l=>(
+            <div key={l.label} style={{display:'flex',alignItems:'center',gap:5}}>
+              <div style={{width:16,height:11,background:l.bg,border:`1px solid ${l.brd}`,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <span style={{fontFamily:T.mono,fontSize:8,fontWeight:700,color:l.color}}>7</span>
+              </div>
+              <span style={{fontSize:10,color:T.fg3}}>{l.label}</span>
+            </div>
+          ))}
+          <div style={{display:'flex',alignItems:'center',gap:5}}>
+            <div style={{width:4,height:14,background:T.changed,borderRadius:1}}/>
+            <span style={{fontSize:10,color:T.fg3}}>click bar to resolve</span>
+          </div>
+        </div>
+
+        {/* Bar rows */}
+        {Array.from({length:NUM_BARS}).map((_,barIdx)=>{
+          const bcs = CONFLICTS.filter(c=>c.bar===barIdx&&c.track===activeTrack);
+          const mc  = bcs.find(c=>c.type==='measure');
+          const ncs = bcs.filter(c=>c.type==='note');
+          const hasC = bcs.length>0;
+          const allR = hasC && bcs.every(c=>resolutions[c.id]);
+          const isExp = expandedBar===barIdx;
+
+          // Compute display notes for the result
+          const resultNotes = getResultNotes(barIdx, activeTrack, bcs, resolutions);
+
+          const gutterColor = !hasC ? 'transparent' : allR ? T.added : T.changed;
+          const gutterOpacity = !hasC ? 0 : 0.85;
+
+          return (
+            <React.Fragment key={barIdx}>
+              {/* Bar row */}
+              <div
+                onClick={()=>toggleBar(barIdx, hasC)}
+                style={{display:'flex',borderBottom:isExp?'none':`1px solid ${T.borderSubt}`,cursor:hasC&&!allR?'pointer':hasC&&allR?'default':'default',position:'relative',transition:'background 100ms',background:isExp?T.surface:'transparent'}}
+                onMouseEnter={e=>{if(hasC&&!allR)e.currentTarget.style.background=T.raised;}}
+                onMouseLeave={e=>{e.currentTarget.style.background=isExp?T.surface:'transparent';}}
+              >
+                {/* Color gutter strip */}
+                <div style={{width:4,flexShrink:0,background:gutterColor,opacity:gutterOpacity,transition:'background 200ms'}}/>
+
+                {/* Bar number + conflict dot */}
+                <div style={{width:28,flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,borderRight:`1px solid ${T.borderSubt}`,padding:'2px 0'}}>
+                  <span style={{fontFamily:T.mono,fontSize:9,color:!hasC?T.fg3:allR?T.added:T.changed}}>{barIdx+1}</span>
+                  {hasC&&!allR&&<div style={{width:4,height:4,borderRadius:'50%',background:T.changed}}/>}
+                  {allR&&<Icon type="check" size={9} color={T.added}/>}
+                </div>
+
+                {/* Tab content with inline conflict highlights */}
+                <div style={{flex:1,padding:'5px 10px'}}>
+                  {STRINGS.map((str,si)=>{
+                    const row = resultNotes[si]||[];
+                    return (
+                      <div key={si} style={{height:16,display:'flex',alignItems:'center'}}>
+                        <span style={{fontFamily:T.mono,fontSize:9,color:T.fg3,width:11,flexShrink:0}}>{str}</span>
+                        <div style={{flex:1,height:1,background:T.border,position:'relative'}}>
+                          {Array.from({length:BEATS}).map((_,bi)=>{
+                            const val = row[bi];
+                            if(val===null||val===undefined) return null;
+                            const nc = ncs.find(c=>c.si===si&&c.bi===bi);
+                            const isC = !!nc||!!mc;
+                            const ncRes = nc?resolutions[nc.id]:mc?resolutions[mc.id]:null;
+                            const isUnresolved = isC&&!ncRes;
+                            // For unresolved notes, show both values inline: "7↔5"
+                            const displayVal = isUnresolved&&nc
+                              ? `${nc.ours??'–'}↔${nc.theirs??'–'}`
+                              : isUnresolved&&mc ? '?' : val;
+
+                            let fg=T.fg2,bg='transparent',brd='none';
+                            if(isUnresolved)        {fg=T.changed;bg=T.changedBg;brd=`1px solid ${T.changedBrd}`;}
+                            else if(ncRes==='ours'||(!nc&&mcRes==='ours'))   {fg=T.info;  bg=T.infoBg;  brd=`1px solid ${T.infoBrd}`;}
+                            else if(ncRes==='theirs'||(!nc&&mcRes==='theirs')){fg=T.added;bg=T.addedBg;brd=`1px solid ${T.addedBrd}`;}
+                            const mcRes = mc?resolutions[mc.id]:null;
+
+                            return (
+                              <div key={bi} style={{position:'absolute',left:`${((bi+0.5)/BEATS)*100}%`,transform:'translateX(-50%)',minWidth:isUnresolved&&nc?32:20,height:14,display:'flex',alignItems:'center',justifyContent:'center',background:bg,border:brd,borderRadius:2,padding:'0 2px'}}>
+                                <span style={{fontFamily:T.mono,fontSize:isUnresolved&&nc?9:10,color:fg,fontWeight:isC?700:400,whiteSpace:'nowrap'}}>
+                                  {displayVal}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Expand chevron */}
+                {hasC&&(
+                  <div style={{width:22,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',color:allR?T.added:T.changed}}>
+                    {!allR&&<span style={{fontSize:11,fontFamily:'serif',color:T.changed}}>{isExp?'▾':'▸'}</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Inline resolution panel — expands below the bar */}
+              {isExp&&(
+                <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,borderLeft:`3px solid ${T.changed}`}}>
+                  {bcs.map(c=>{
+                    const rr = resolutions[c.id];
+                    const oursVal  = c.type==='note' ? (c.ours===null?'empty':String(c.ours)) : c.type==='measure' ? 'bar version A' : c.ours;
+                    const theirsVal = c.type==='note' ? (c.theirs===null?'empty':String(c.theirs)) : c.type==='measure' ? 'bar version B' : c.theirs;
+                    return (
+                      <div key={c.id} style={{padding:'8px 12px 8px 36px',display:'flex',alignItems:'center',gap:10,borderBottom:`1px solid ${T.borderSubt}`,flexWrap:'wrap'}}>
+                        <CBadge type={c.type}/>
+                        <span style={{fontSize:12,color:T.fg2,fontWeight:500}}>{c.label}</span>
+                        {c.desc&&<span style={{fontSize:11,color:T.fg3}}>{c.desc}</span>}
+                        <div style={{flex:1}}/>
+
+                        {/* Ours option */}
+                        <button onClick={e=>{e.stopPropagation();doResolve(c.id,'ours');}}
+                          style={{display:'flex',alignItems:'center',gap:7,background:rr==='ours'?T.infoBg:T.raised,border:`1px solid ${rr==='ours'?T.infoBrd:T.border}`,borderRadius:2,padding:'5px 14px',cursor:'pointer',transition:'all 100ms',fontFamily:T.sans}}>
+                          {rr==='ours'&&<Icon type="check" size={11} color={T.info}/>}
+                          <span style={{fontFamily:T.mono,fontSize:c.type==='note'?18:13,fontWeight:700,color:rr==='ours'?T.info:T.fg1}}>{oursVal}</span>
+                          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
+                            <span style={{fontSize:9,color:rr==='ours'?T.info:T.fg3,textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:T.mono}}>ours</span>
+                            <span style={{fontSize:9,color:T.fg3,fontFamily:T.mono}}>feature/bridge</span>
+                          </div>
+                        </button>
+
+                        <span style={{color:T.fg3,fontSize:11}}>vs</span>
+
+                        {/* Theirs option */}
+                        <button onClick={e=>{e.stopPropagation();doResolve(c.id,'theirs');}}
+                          style={{display:'flex',alignItems:'center',gap:7,background:rr==='theirs'?T.addedBg:T.raised,border:`1px solid ${rr==='theirs'?T.addedBrd:T.border}`,borderRadius:2,padding:'5px 14px',cursor:'pointer',transition:'all 100ms',fontFamily:T.sans}}>
+                          {rr==='theirs'&&<Icon type="check" size={11} color={T.added}/>}
+                          <span style={{fontFamily:T.mono,fontSize:c.type==='note'?18:13,fontWeight:700,color:rr==='theirs'?T.added:T.fg1}}>{theirsVal}</span>
+                          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
+                            <span style={{fontSize:9,color:rr==='theirs'?T.added:T.fg3,textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:T.mono}}>theirs</span>
+                            <span style={{fontSize:9,color:T.fg3,fontFamily:T.mono}}>main</span>
+                          </div>
+                        </button>
+
+                        {rr&&(
+                          <button onClick={e=>{e.stopPropagation();mergeState.undo();}}
+                            style={{background:'none',border:`1px solid ${T.border}`,borderRadius:2,color:T.fg3,cursor:'pointer',padding:'3px 8px',fontSize:11,fontFamily:T.sans}}>
+                            Undo
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div style={{padding:'6px 12px 6px 36px',display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:10,color:T.fg3}}>
+                      {bcs.filter(c=>resolutions[c.id]).length}/{bcs.length} resolved in this bar
+                    </span>
+                    {bcs.every(c=>resolutions[c.id])&&(
+                      <button onClick={e=>{e.stopPropagation();setExpandedBar(null);}} style={{background:'none',border:'none',cursor:'pointer',color:T.added,fontSize:11,fontFamily:T.sans,display:'flex',alignItems:'center',gap:4}}>
+                        <Icon type="check" size={11} color={T.added}/> Done, collapse
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ─── App ──────────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accentColor":"oklch(55% 0.16 22)"}/*EDITMODE-END*/;
+
+function App() {
+  React.useEffect(()=>{
+    window.addEventListener('message', ()=>{});
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+  },[]);
+  return (
+    <DesignCanvas>
+      <DCSection id="merge" title="Gitarpro — Merge UI" subtitle="Resolving conflicts when merging branches · feature/bridge ← main">
+        <DCArtboard id="a" label="A · 3-Pane Editor (JetBrains)" width={1280} height={900}>
+          <MergeVariantA/>
+        </DCArtboard>
+        <DCArtboard id="b" label="B · Step-Through Wizard" width={1280} height={900}>
+          <MergeVariantB/>
+        </DCArtboard>
+        <DCArtboard id="c" label="C · Inline Score Diff" width={1280} height={900}>
+          <MergeVariantC/>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

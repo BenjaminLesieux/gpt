@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: 'Bauhaus', sans-serif; display: flex; gap: 24px; flex-direction: column; }
+  .specimen { display: flex; align-items: baseline; gap: 32px; }
+  .label { font-size: 10px; color: var(--color-fg-3); font-family: 'Space Mono', monospace; width: 90px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+  <!-- Bauhaus weight comparison -->
+  <div style="display:flex;gap:32px;align-items:baseline;border-bottom:1px solid #1f1f1f;padding-bottom:14px">
+    <span style="font-size:42px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#f0f0f0;letter-spacing:-0.02em">gpt</span>
+    <span style="font-size:42px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#f0f0f0;letter-spacing:-0.02em">gpt</span>
+    <span style="font-size:42px;font-weight:400;font-style:italic;font-family:'Bauhaus',sans-serif;color:#f0f0f0;letter-spacing:-0.02em">gpt</span>
+    <span style="font-size:42px;font-weight:700;font-style:italic;font-family:'Bauhaus',sans-serif;color:oklch(62% 0.18 22);letter-spacing:-0.02em">gpt</span>
+    <div style="display:flex;flex-direction:column;gap:3px;justify-content:center">
+      <span style="font-size:10px;color:#484848;font-family:'Space Mono',monospace">Regular · Bold · Italic · Bold Italic</span>
+      <span style="font-size:10px;color:#333;font-family:'Space Mono',monospace">Bauhaus — brand display font</span>
+    </div>
+  </div>
+  <!-- Alphabet -->
+  <div style="font-size:22px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#2a2a2a;letter-spacing:0.04em;line-height:1.4">
+    ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>
+    <span style="color:#484848">abcdefghijklmnopqrstuvwxyz</span><br>
+    <span style="color:#333">0123456789 !@#$%&amp;</span>
+  </div>
+  <!-- Pairing with mono -->
+  <div style="display:flex;gap:24px;align-items:flex-start">
+    <div>
+      <div style="font-size:9px;color:#333;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Bauhaus / UI</div>
+      <div style="font-size:18px;font-weight:700;font-family:'Bauhaus',sans-serif;color:#f0f0f0">add bridge riff</div>
+      <div style="font-size:13px;font-weight:400;font-family:'Bauhaus',sans-serif;color:#8a8a8a">2 bars changed · Lead Guitar</div>
+    </div>
+    <div>
+      <div style="font-size:9px;color:#333;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Space Mono / data</div>
+      <div style="font-size:13px;font-family:'Space Mono',monospace;color:oklch(60% 0.12 230)">a3f9c12</div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:#484848">~/songs/my-album</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); }
+  .bar { height: 40px; border-radius: var(--radius-sm); display: flex; align-items: center; padding: 0 12px; margin-bottom: 6px; font-size: 12px; font-family: var(--font-mono); border: 1px solid transparent; }
+  .label { font-size: 10px; color: var(--color-fg-3); margin-bottom: 10px; font-family: var(--font-mono); }
+  .row { display: flex; gap: 16px; }
+  .col { flex: 1; }
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="col">
+    <div class="label">diff states</div>
+    <div class="bar" style="background:oklch(58% 0.13 145 / 12%); border-color:oklch(58% 0.13 145 / 30%); color:oklch(58% 0.13 145)">+ bar 4 — added</div>
+    <div class="bar" style="background:oklch(55% 0.16 22 / 12%); border-color:oklch(55% 0.16 22 / 30%); color:oklch(62% 0.18 22)">− bar 7 — removed</div>
+    <div class="bar" style="background:oklch(65% 0.14 60 / 12%); border-color:oklch(65% 0.14 60 / 30%); color:oklch(65% 0.14 60)">~ bar 12 — changed</div>
+    <div class="bar" style="background:var(--color-surface); border-color:var(--color-border); color:var(--color-fg-3)">= bar 1 — equal</div>
+  </div>
+  <div class="col">
+    <div class="label">status labels</div>
+    <div class="bar" style="background:var(--color-surface); border-color:var(--color-border); color:oklch(58% 0.13 145)"><span style="width:70px;display:inline-block">staged</span><span style="color:var(--color-fg-2)">song.gp</span></div>
+    <div class="bar" style="background:var(--color-surface); border-color:var(--color-border); color:oklch(62% 0.18 22)"><span style="width:70px;display:inline-block">modified</span><span style="color:var(--color-fg-2)">bridge.gp</span></div>
+    <div class="bar" style="background:var(--color-surface); border-color:var(--color-border); color:var(--color-fg-3)"><span style="width:70px;display:inline-block">untracked</span><span style="color:var(--color-fg-3)">demo.gp5</span></div>
+    <div class="bar" style="background:var(--color-surface); border-color:var(--color-border); color:var(--color-fg-3)"><span style="width:70px;display:inline-block">deleted</span><span style="color:var(--color-fg-3)">old-intro.gp</span></div>
+  </div>
+</div>
+</body>
+</html>

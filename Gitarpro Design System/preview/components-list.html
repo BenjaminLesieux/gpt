@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: var(--font-sans); }
+  .list { border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; }
+  .list-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-bottom: 1px solid var(--color-border-subtle); cursor: pointer;
+    transition: background var(--transition-fast);
+    position: relative;
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-item:hover { background: var(--color-surface-raised); }
+  .list-item.active { background: var(--color-surface-raised); }
+  .list-item.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background: oklch(55% 0.16 22); }
+  .hash { font-family: var(--font-mono); font-size: 11px; color: oklch(60% 0.12 230); width: 52px; flex-shrink: 0; }
+  .msg { font-size: 13px; color: var(--color-fg-1); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { font-size: 11px; color: var(--color-fg-3); font-family: var(--font-mono); flex-shrink: 0; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: oklch(58% 0.13 145); flex-shrink: 0; }
+  .section-header { padding: 6px 12px; font-size: 10px; color: var(--color-fg-3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500; background: var(--color-bg); border-bottom: 1px solid var(--color-border-subtle); }
+</style>
+</head>
+<body>
+  <div class="list">
+    <div class="section-header">Recent commits</div>
+    <div class="list-item active">
+      <div class="hash">a3f9c12</div>
+      <div class="msg">add bridge riff with hammer-ons</div>
+      <div class="meta">2h ago</div>
+    </div>
+    <div class="list-item">
+      <div class="hash">8b2e047</div>
+      <div class="msg">fix timing in chorus — bars 17–20</div>
+      <div class="meta">1d ago</div>
+    </div>
+    <div class="list-item">
+      <div class="hash">c1d44fa</div>
+      <div class="msg">update bass line for verse 2</div>
+      <div class="meta">2d ago</div>
+    </div>
+    <div class="list-item">
+      <div class="hash">f02b981</div>
+      <div class="msg">init</div>
+      <div class="meta">3d ago</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 24px; font-family: var(--font-sans); display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
+  .logo-block { display: flex; flex-direction: column; gap: 6px; }
+  .label { font-size: 10px; color: var(--color-fg-3); font-family: var(--font-mono); margin-bottom: 8px; }
+  .logotype { font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+  .logotype .t { color: oklch(62% 0.18 22); }
+  .lockup { display: flex; align-items: baseline; gap: 10px; }
+  .tagline { font-size: 13px; color: var(--color-fg-3); letter-spacing: 0.02em; }
+  .mono-tag { font-family: var(--font-mono); font-size: 11px; color: var(--color-fg-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 2px; padding: 2px 6px; }
+  .divider { width: 1px; background: var(--color-border); height: 60px; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="label">logotype — large</div>
+    <div class="logotype" style="font-size:52px">gp<span class="t">t</span></div>
+  </div>
+  <div class="divider" style="margin-top:16px"></div>
+  <div>
+    <div class="label">logotype — medium</div>
+    <div class="logotype" style="font-size:32px">gp<span class="t">t</span></div>
+  </div>
+  <div class="divider" style="margin-top:16px"></div>
+  <div>
+    <div class="label">with tagline</div>
+    <div class="lockup" style="margin-top:4px">
+      <div class="logotype" style="font-size:28px">gp<span class="t">t</span></div>
+      <div class="tagline">git for musicians</div>
+    </div>
+  </div>
+  <div class="divider" style="margin-top:16px"></div>
+  <div>
+    <div class="label">ui usage</div>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:2px;padding:8px 12px">
+      <span class="logotype" style="font-size:18px">gp<span class="t">t</span></span>
+      <span class="mono-tag">v0.1.0</span>
+      <span style="font-size:12px;color:var(--color-fg-3)">~/songs/my-album</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px 24px; font-family: var(--font-sans); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .label { font-size: 10px; color: var(--color-fg-3); font-family: var(--font-mono); margin-bottom: 8px; }
+  button {
+    font-family: var(--font-sans); cursor: pointer; border: none; outline: none;
+    font-size: 13px; font-weight: 500; border-radius: var(--radius-sm);
+    display: inline-flex; align-items: center; gap: 6px; transition: background var(--transition-fast), color var(--transition-fast);
+    padding: 0 14px; height: 32px;
+  }
+  .btn-primary { background: oklch(55% 0.16 22); color: #f0f0f0; }
+  .btn-primary:hover { background: oklch(62% 0.18 22); }
+  .btn-secondary { background: var(--color-surface-raised); color: var(--color-fg-1); border: 1px solid var(--color-border); }
+  .btn-secondary:hover { background: var(--color-surface-hover); }
+  .btn-ghost { background: transparent; color: var(--color-fg-2); border: 1px solid transparent; }
+  .btn-ghost:hover { background: var(--color-surface-raised); color: var(--color-fg-1); }
+  .btn-danger { background: oklch(55% 0.16 22 / 15%); color: oklch(62% 0.18 22); border: 1px solid oklch(55% 0.16 22 / 30%); }
+  .btn-danger:hover { background: oklch(55% 0.16 22 / 25%); }
+  .btn-sm { height: 26px; padding: 0 10px; font-size: 12px; }
+  .btn-lg { height: 40px; padding: 0 20px; font-size: 14px; }
+  .btn-icon { padding: 0; width: 32px; justify-content: center; }
+  .disabled { opacity: 0.4; pointer-events: none; }
+  svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+</style>
+</head>
+<body>
+  <div class="label">primary</div>
+  <div class="row">
+    <button class="btn-primary btn-sm">Commit</button>
+    <button class="btn-primary">Commit</button>
+    <button class="btn-primary btn-lg">Commit changes</button>
+    <button class="btn-primary disabled">Commit</button>
+  </div>
+  <div class="label">secondary</div>
+  <div class="row">
+    <button class="btn-secondary btn-sm">Stage file</button>
+    <button class="btn-secondary">Stage file</button>
+    <button class="btn-secondary btn-lg">Open repository</button>
+  </div>
+  <div class="label">ghost / danger</div>
+  <div class="row">
+    <button class="btn-ghost">Cancel</button>
+    <button class="btn-danger">Discard changes</button>
+    <button class="btn-secondary btn-icon">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button class="btn-secondary btn-icon">
+      <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+</body>
+</html>

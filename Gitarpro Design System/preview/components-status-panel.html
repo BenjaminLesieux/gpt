@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausRegular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausBold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Bauhaus'; src: url('../fonts/BauhausItalic.ttf') format('truetype'); font-weight: 400; font-style: italic; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+</style>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { background: var(--color-bg); padding: 20px; font-family: var(--font-sans); display: flex; gap: 16px; }
+  .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; flex: 1; }
+  .panel-header { padding: 10px 14px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-size: 11px; font-weight: 500; color: var(--color-fg-2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .panel-body { padding: 12px 14px; }
+  .file-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
+  .file-row:hover .fname { color: var(--color-fg-1); }
+  .badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 2px; font-size: 10px; font-family: var(--font-mono); font-weight: 600; border: 1px solid transparent; flex-shrink: 0; }
+  .m { background: oklch(65% 0.14 60 / 15%); color: oklch(65% 0.14 60); border-color: oklch(65% 0.14 60 / 30%); }
+  .a { background: oklch(58% 0.13 145 / 15%); color: oklch(58% 0.13 145); border-color: oklch(58% 0.13 145 / 30%); }
+  .d { background: oklch(55% 0.16 22 / 15%); color: oklch(62% 0.18 22); border-color: oklch(55% 0.16 22 / 30%); }
+  .fname { font-family: var(--font-mono); font-size: 12px; color: var(--color-fg-2); flex: 1; }
+  .summary { font-size: 11px; color: var(--color-fg-3); flex-shrink: 0; }
+  .empty { font-size: 12px; color: var(--color-fg-3); padding: 8px 0; font-style: italic; }
+</style>
+</head>
+<body>
+  <div class="panel" style="max-width:260px">
+    <div class="panel-header">
+      <span class="panel-title">Staged</span>
+      <span style="font-size:11px;color:var(--color-fg-3);font-family:var(--font-mono)">2 files</span>
+    </div>
+    <div class="panel-body">
+      <div class="file-row"><span class="badge m">M</span><span class="fname">song.gp</span><span class="summary">2 bars</span></div>
+      <div class="file-row"><span class="badge a">A</span><span class="fname">bridge.gp</span><span class="summary">new</span></div>
+    </div>
+  </div>
+  <div class="panel" style="max-width:260px">
+    <div class="panel-header">
+      <span class="panel-title">Unstaged</span>
+      <span style="font-size:11px;color:var(--color-fg-3);font-family:var(--font-mono)">1 file</span>
+    </div>
+    <div class="panel-body">
+      <div class="file-row"><span class="badge m">M</span><span class="fname">chorus.gp5</span></div>
+    </div>
+    <div class="panel-header" style="margin-top:0">
+      <span class="panel-title">Untracked</span>
+    </div>
+    <div class="panel-body">
+      <div class="file-row"><span class="badge" style="background:var(--color-surface-hover);color:var(--color-fg-3);border-color:var(--color-border)">?</span><span class="fname">demo-v2.gp</span></div>
+    </div>
+  </div>
+</body>
+</html>
