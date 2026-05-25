@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "include": [],
+  "references": [
+    { "path": "./tsconfig.app.json" }
+  ],
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@gpt/gpt-core": ["../../packages/gpt-core/src/index.ts"],
+      "@gpt/alphatab-react": ["../../packages/alphatab-react/src/index.ts"]
+    }
+  }
+}

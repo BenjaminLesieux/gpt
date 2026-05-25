@@ -1,0 +1,181 @@
+/* ============================================================
+   GITARPRO DESIGN SYSTEM — Tokens
+   Bauhaus-dark / Interpol-cold aesthetic.
+   Adapted from gitarpro-design-system/project/colors_and_type.css
+   ============================================================ */
+
+/* ── Brand fonts ─────────────────────────────────────────── */
+@font-face {
+  font-family: "Bauhaus";
+  src: url("./fonts/BauhausRegular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bauhaus";
+  src: url("./fonts/BauhausItalic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bauhaus";
+  src: url("./fonts/BauhausBold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bauhaus";
+  src: url("./fonts/BauhausBoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+
+/* ── Base palette ─────────────────────────────────────────── */
+:root {
+  --color-bg:             #0c0c0c;
+  --color-surface:        #141414;
+  --color-surface-raised: #1c1c1c;
+  --color-surface-hover:  #242424;
+  --color-overlay:        rgba(0, 0, 0, 0.72);
+
+  --color-border:         #2a2a2a;
+  --color-border-subtle:  #1f1f1f;
+  --color-border-strong:  #3a3a3a;
+
+  --color-fg-1:           #f0f0f0;
+  --color-fg-2:           #8a8a8a;
+  --color-fg-3:           #484848;
+  --color-fg-inverse:     #0c0c0c;
+
+  --color-accent:         oklch(55% 0.16 22);
+  --color-accent-bright:  oklch(62% 0.18 22);
+  --color-accent-dim:     oklch(55% 0.16 22 / 15%);
+  --color-accent-border:  oklch(55% 0.16 22 / 40%);
+
+  --color-added:          oklch(58% 0.13 145);
+  --color-added-bg:       oklch(58% 0.13 145 / 12%);
+  --color-removed:        oklch(55% 0.16 22);
+  --color-removed-bg:     oklch(55% 0.16 22 / 12%);
+  --color-changed:        oklch(65% 0.14 60);
+  --color-changed-bg:     oklch(65% 0.14 60 / 12%);
+
+  --color-success:        var(--color-added);
+  --color-danger:         var(--color-accent);
+  --color-warning:        var(--color-changed);
+  --color-info:           oklch(60% 0.12 230);
+
+  --color-focus:          oklch(55% 0.16 22 / 60%);
+}
+
+/* ── Spacing / radius / shadow ────────────────────────────── */
+:root {
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  --radius-sm:   2px;
+  --radius-md:   2px;
+  --radius-lg:   4px;
+
+  --shadow-focus:   0 0 0 2px var(--color-focus);
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-menu:    0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Typography ───────────────────────────────────────────── */
+:root {
+  --font-sans:  "Bauhaus", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:  "Space Mono", "Fira Code", "Courier New", monospace;
+
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+  --text-2xl:  28px;
+  --text-3xl:  36px;
+  --text-4xl:  48px;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.04em;
+  --tracking-widest:  0.12em;
+
+  --weight-light:    300;
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
+
+/* ── Motion ───────────────────────────────────────────────── */
+:root {
+  --transition-fast: 100ms ease;
+  --transition-base: 150ms ease;
+  --transition-slow: 250ms ease;
+}
+
+/* ── Reset ────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg-1);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer base {
+  code, pre, .mono {
+    font-family: var(--font-mono);
+  }
+
+  a {
+    color: var(--color-accent-bright);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+  a:hover { color: var(--color-fg-1); }
+
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+}
