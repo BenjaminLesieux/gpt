@@ -1,0 +1,23 @@
+{
+  "name": "@gpt/gpt-core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@gpt/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@coderline/alphatab": "^1.8.2",
+    "effect": "^3.21.1",
+    "isomorphic-git": "^1.37.5"
+  }
+}

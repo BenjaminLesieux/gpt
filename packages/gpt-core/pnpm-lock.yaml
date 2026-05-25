@@ -1,0 +1,23 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@coderline/alphatab':
+        specifier: ^1.8.2
+        version: 1.8.2
+
+packages:
+
+  '@coderline/alphatab@1.8.2':
+    resolution: {integrity: sha512-Ab11m2IwCdOG+Wbzbv+v4pvJgJnNqw+UjIgKyaTu9TBTWfE7GlOuuElpswkQ2mLB6E4HcOX1FSBopMZdP41B5g==}
+    engines: {node: '>=6.0.0'}
+
+snapshots:
+
+  '@coderline/alphatab@1.8.2': {}
