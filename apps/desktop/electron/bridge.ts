@@ -60,12 +60,12 @@ export class ServeSupervisor {
   start(): Promise<void> {
     if (this.isRunning) return Promise.resolve();
 
-    const { command, args } = this.resolveCommand();
+    const { command, args, env } = this.resolveCommand();
     const child = spawn(command, args, {
       cwd: this.cwd,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: { ...process.env, ...env, FORCE_COLOR: "0" },
     });
     this.child = child;
 
@@ -127,15 +127,22 @@ export class ServeSupervisor {
     });
   }
 
-  private resolveCommand(): { command: string; args: string[] } {
+  private resolveCommand(): { command: string; args: string[]; env?: NodeJS.ProcessEnv } {
     if (this.mode === "dev") {
       return {
         command: "pnpm",
         args: ["nx", "run", "@gpt/cli:serve"],
       };
     }
-    // Production: the bundled binary lives next to the Electron executable.
-    const bin = process.platform === "win32" ? "gpt.exe" : "gpt";
-    return { command: join(process.resourcesPath ?? ".", "bin", bin), args: ["serve", "--port", String(this.port)] };
+    // Production: the CLI ships as a single self-contained CJS bundle in the
+    // app's resources (Resources/bin/gpt.cjs). It is *not* a native binary, so
+    // we run it with Electron's own embedded Node via ELECTRON_RUN_AS_NODE — no
+    // separate Node install is required on the user's machine.
+    const script = join(process.resourcesPath ?? ".", "bin", "gpt.cjs");
+    return {
+      command: process.execPath,
+      args: [script, "serve", "--port", String(this.port)],
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+    };
   }
 }

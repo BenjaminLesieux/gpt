@@ -1,5 +1,5 @@
 import { model } from "@coderline/alphatab";
-import type { Score, Settings } from "./types/score.js"; // Score = model.Score instance type
+import type { Score, Settings } from "./types/score"; // Score = model.Score instance type
 
 export function serialize(score: Score): string {
   return model.JsonConverter.scoreToJson(score);

@@ -1,4 +1,4 @@
-import type { Score, Bar, Beat, Note, MasterBar, Voice } from "./types/score.js";
+import type { Score, Bar, Beat, Note, MasterBar, Voice } from "./types/score";
 import type {
   MergeResult,
   MergeCell,
@@ -17,8 +17,8 @@ import type {
   StructuralNoteConflict,
   StructuralBeatConflict,
   ConflictLocation,
-} from "./types/merge.js";
-import { barFingerprint, masterBarFingerprint, noteSnapshot } from "./fingerprint.js";
+} from "./types/merge";
+import { barFingerprint } from "./fingerprint";
 
 // ─── Core cell ────────────────────────────────────────────────────────────────
 //
@@ -82,7 +82,7 @@ function mergeMasterBar(
     alternateEndings:         cell(bv.altEnd,   ov.altEnd,   tv.altEnd),
   };
 
-  return { index, fields, hasConflict: anyConflict(fields as Record<string, MergeCell<unknown>>) };
+  return { index, fields, hasConflict: anyConflict(fields as unknown as Record<string, MergeCell<unknown>>) };
 }
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ function mergeNoteFields(base: Note, ours: Note, theirs: Note): NoteFieldsMerge 
 
 function mergeNote(base: Note, ours: Note, theirs: Note): NoteMerge {
   const fields = mergeNoteFields(base, ours, theirs);
-  return { string: ours.string, fields, hasConflict: anyConflict(fields as Record<string, MergeCell<unknown>>) };
+  return { string: ours.string, fields, hasConflict: anyConflict(fields as unknown as Record<string, MergeCell<unknown>>) };
 }
 
 // When a field exists on both sides but has no common ancestor (both sides
@@ -184,7 +184,7 @@ function mergeNoteAddedByBoth(str: number, ours: Note, theirs: Note): NoteMerge 
     rightHandFinger:    newField(ours.rightHandFinger,     theirs.rightHandFinger),
     durationPercent:    newField(ours.durationPercent,     theirs.durationPercent),
   };
-  return { string: str, fields, hasConflict: anyConflict(fields as Record<string, MergeCell<unknown>>) };
+  return { string: str, fields, hasConflict: anyConflict(fields as unknown as Record<string, MergeCell<unknown>>) };
 }
 
 // ─── Beats ────────────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ function mergeBeat(
   }
 
   const hasConflict =
-    anyConflict(fields as Record<string, MergeCell<unknown>>) ||
+    anyConflict(fields as unknown as Record<string, MergeCell<unknown>>) ||
     notes.some((n) => n.hasConflict) ||
     structuralNoteConflicts.length > 0;
 

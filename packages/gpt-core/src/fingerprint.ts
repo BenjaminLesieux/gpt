@@ -1,4 +1,4 @@
-import type { Bar, Beat, Note, MasterBar } from "./types/score.js";
+import type { Bar, Beat, Note, MasterBar } from "./types/score";
 
 // ── MasterBar ─────────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ export function barFingerprint(bar: Bar): string {
 
 // ── Beat ──────────────────────────────────────────────────────────────────────
 
-export function beatSnapshot(beat: Beat) {
+function beatSnapshot(beat: Beat) {
   return {
     duration:          beat.duration,
     dots:              beat.dots,
@@ -55,7 +55,7 @@ export function beatSnapshot(beat: Beat) {
 
 // ── Note ──────────────────────────────────────────────────────────────────────
 
-export function noteSnapshot(note: Note) {
+function noteSnapshot(note: Note) {
   return {
     string:             note.string,
     fret:               note.fret,

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useAppStore } from '@/store';
 import { useCommitLog } from '@/hooks/useGpt';
+import { MasterDetail } from '@/components/layout/MasterDetail';
 import { HistoryBrowser } from '@/features/history/HistoryBrowser';
 import { CommitDetail } from '@/features/history/CommitDetail';
 import { DiffView } from '@/features/history/DiffView';
@@ -27,11 +28,11 @@ export function HistoryView() {
   }, [commits, selectedCommitHash, diffCommitHash]);
 
   return (
-    <>
-      <div className="flex w-[280px] shrink-0 flex-col border-r border-border">
+    <MasterDetail>
+      <MasterDetail.List>
         <HistoryBrowser repoPath={repoPath} />
-      </div>
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      </MasterDetail.List>
+      <MasterDetail.Detail>
         {diffPair ? (
           <DiffView
             repoPath={repoPath}
@@ -42,7 +43,7 @@ export function HistoryView() {
         ) : (
           <CommitDetail repoPath={repoPath} commitHash={selectedCommitHash} />
         )}
-      </div>
-    </>
+      </MasterDetail.Detail>
+    </MasterDetail>
   );
 }

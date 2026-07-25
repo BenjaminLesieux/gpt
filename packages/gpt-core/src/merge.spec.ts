@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { mergeScores } from "./merge.js";
-import type { Score, Bar, Beat, Note, Voice, Track, Staff, MasterBar } from "./types/score.js";
-import type { MergeCell } from "./types/merge.js";
+import { mergeScores } from "./merge";
+import type { Score, Bar, Beat, Note, Voice, Track, Staff, MasterBar } from "./types/score";
+import type { MergeCell } from "./types/merge";
 
 // ─── Helpers — mirrors diff.spec.ts factories ─────────────────────────────────
 

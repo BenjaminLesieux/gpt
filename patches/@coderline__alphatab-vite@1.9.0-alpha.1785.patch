@@ -1,0 +1,57 @@
+diff --git a/dist/bridge/build.mjs b/dist/bridge/build.mjs
+index 3ef2ed1c728045009bc24df87f5a7f9b321464cb..74d2e0b2bd22881812cb35207a087ff39bd8917d 100644
+--- a/dist/bridge/build.mjs
++++ b/dist/bridge/build.mjs
+@@ -175,8 +175,13 @@ function wrapEnvironmentTransform(environment, hook) {
+         return;
+     }
+     const fn = getHookHandler(hook);
+-    const handler = function (code, importer, ...args) {
+-        return fn.call(injectEnvironmentInContext(this, environment), code, importer, injectSsrFlag(args[0], environment));
++    const handler = async function (code, importer, ...args) {
++        const result = await fn.call(injectEnvironmentInContext(this, environment), code, importer, injectSsrFlag(args[0], environment));
++        // rolldown (Vite 8) requires transform hooks to return `moduleType`
++        if (result && typeof result === 'object' && 'code' in result && !('moduleType' in result)) {
++            return { ...result, moduleType: 'js' };
++        }
++        return result;
+     };
+     if ('handler' in hook) {
+         return {
+diff --git a/dist/importMetaPlugin.mjs b/dist/importMetaPlugin.mjs
+index db7ba60ffdf2e5ee8cf8492dfabb9e9fb4672a8f..de5f14d1c616d229c6078a93531c66d865aace0e 100644
+--- a/dist/importMetaPlugin.mjs
++++ b/dist/importMetaPlugin.mjs
+@@ -186,7 +186,8 @@ function importMetaUrlPlugin(options) {
+                     code: s.toString(),
+                     map: resolvedConfig.command === 'build' && resolvedConfig.build.sourcemap
+                         ? s.generateMap({ hires: 'boundary', source: id })
+-                        : null
++                        : null,
++                    moduleType: 'js'
+                 };
+             }
+             return null;
+diff --git a/dist/workerPlugin.mjs b/dist/workerPlugin.mjs
+index 0032b0e8cbc5f0613e5a9d1bdef5fe6ca8202c75..37e07e78a14167f93e0cc0c451b818d3ca491c0c 100644
+--- a/dist/workerPlugin.mjs
++++ b/dist/workerPlugin.mjs
+@@ -136,7 +136,8 @@ function workerPlugin(options) {
+                 s.prepend(injectEnv);
+                 return {
+                     code: s.toString(),
+-                    map: s.generateMap({ hires: 'boundary' })
++                    map: s.generateMap({ hires: 'boundary' }),
++                    moduleType: 'js'
+                 };
+             }
+             return;
+@@ -174,7 +175,7 @@ function workerPlugin(options) {
+             return result();
+         },
+         generateBundle(_, bundle) {
+-            if (isWorker) {
++            if (!isActive || isWorker) {
+                 return;
+             }
+             const workerMap = workerCache.get(resolvedConfig);

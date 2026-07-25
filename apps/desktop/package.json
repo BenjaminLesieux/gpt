@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "bundle:cli": "pnpm nx run @gpt/cli:bundle",
+    "package": "pnpm bundle:cli && electron-vite build && electron-builder --config electron-builder.config.ts",
+    "package:mac": "pnpm bundle:cli && electron-vite build && electron-builder --mac --config electron-builder.config.ts",
+    "package:mac:arm64": "pnpm bundle:cli && electron-vite build && electron-builder --mac --arm64 --config electron-builder.config.ts",
+    "package:mac:x64": "pnpm bundle:cli && electron-vite build && electron-builder --mac --x64 --config electron-builder.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -19,8 +24,6 @@
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
-    "electron": "^41.2.1",
-    "electron-vite": "^5.0.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.8.0",
@@ -34,7 +37,10 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@coderline/alphatab-vite": "^1.8.2",
-    "@electron/rebuild": "^4.0.3"
+    "@coderline/alphatab-vite": "1.9.0-alpha.1785",
+    "@electron/rebuild": "^4.0.3",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "6.0.0-beta.1"
   }
 }

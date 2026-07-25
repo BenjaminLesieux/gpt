@@ -10,9 +10,9 @@ vi.mock("@coderline/alphatab", () => ({
   },
 }));
 
-import { serialize, deserialize } from "./serializer.js";
+import { serialize, deserialize } from "./serializer";
 import { model } from "@coderline/alphatab";
-import type { Score, Settings } from "./types/score.js";
+import type { Score, Settings } from "./types/score";
 
 const { JsonConverter } = model;
 

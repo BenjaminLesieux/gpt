@@ -80,6 +80,31 @@
         ],
         "executor": "nx:noop"
       },
+      "bundle": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "platform": "node",
+          "outputPath": "apps/cli/dist-desktop",
+          "format": [
+            "cjs"
+          ],
+          "bundle": true,
+          "thirdParty": true,
+          "main": "apps/cli/src/main.ts",
+          "tsConfig": "apps/cli/tsconfig.app.json",
+          "outputFileName": "gpt.cjs",
+          "assets": [
+            "apps/cli/src/assets"
+          ],
+          "generatePackageJson": false,
+          "esbuildOptions": {
+            "sourcemap": false
+          }
+        }
+      },
       "serve": {
         "continuous": true,
         "executor": "@nx/js:node",

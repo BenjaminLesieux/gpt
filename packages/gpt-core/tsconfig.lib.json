@@ -4,6 +4,8 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "emitDeclarationOnly": true,
     "forceConsistentCasingInFileNames": true,

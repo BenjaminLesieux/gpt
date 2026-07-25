@@ -142,6 +142,7 @@ function buildAtSettings(
       engine: "html5",
       logLevel: alphaTab.LogLevel.None,
       fontDirectory: "/font/",
+      scriptFile: "/alphaTab.worker.mjs",
       ...json?.core,
     },
     display: {

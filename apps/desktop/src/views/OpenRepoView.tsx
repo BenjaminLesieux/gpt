@@ -46,7 +46,7 @@ export function OpenRepoView() {
       if (validation.isGptRepo) {
         await native.addRecentRepo?.(path);
         setRepoPath(path);
-        router.navigate({ to: '/repo/status' });
+        router.navigate({ to: '/repo/changes' });
         return;
       }
       setScreen({ kind: "needsInit", validation });
@@ -62,7 +62,7 @@ export function OpenRepoView() {
         await gptClient.init(path);
         await window.gptNative?.addRecentRepo?.(path);
         setRepoPath(path);
-        router.navigate({ to: '/repo/status' });
+        router.navigate({ to: '/repo/changes' });
       } catch (err) {
         setScreen({ kind: "error", message: errorMessage(err) });
       }
@@ -79,7 +79,7 @@ export function OpenRepoView() {
         if (validation.isGptRepo) {
           await native?.addRecentRepo?.(path);
           setRepoPath(path);
-          router.navigate({ to: '/repo/status' });
+          router.navigate({ to: '/repo/changes' });
           return;
         }
         setScreen({ kind: "needsInit", validation });

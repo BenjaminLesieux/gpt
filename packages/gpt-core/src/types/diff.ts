@@ -1,4 +1,4 @@
-import type { Score, Bar } from "./score.js";
+import type { Score, Bar } from "./score";
 
 // ── Bar diff ──────────────────────────────────────────────────────────────────
 //

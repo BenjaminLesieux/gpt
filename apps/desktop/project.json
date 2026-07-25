@@ -1,5 +1,25 @@
 {
   "name": "@gpt/desktop",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "projectType": "application"
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "command": "electron-vite dev",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "build": {
+      "command": "electron-vite build",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "package": {
+      "command": "pnpm package",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["@gpt/cli:bundle"]
+    },
+    "package:mac": {
+      "command": "pnpm package:mac",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["@gpt/cli:bundle"]
+    }
+  }
 }

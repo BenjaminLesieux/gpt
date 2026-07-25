@@ -10,6 +10,7 @@ import { showCommand } from "./commands/show.js";
 import { serveCommand } from "./commands/serve.js";
 import { branchListCommand, branchCreateCommand, checkoutCommand } from "./commands/branch.js";
 import { mergeCommand } from "./commands/merge.js";
+import { normalizeGpCommand } from "./commands/normalizeGp.js";
 
 const run = (effect: Effect.Effect<unknown, unknown>) =>
   Effect.runPromise(effect as Effect.Effect<unknown>).catch((e) => {
@@ -97,6 +98,29 @@ const main = defineCommand({
         port: { type: "string", default: "7337", description: "Port to listen on" },
       },
       run: ({ args }) => run(serveCommand({ port: Number(args.port) })),
+    }),
+    "normalize-gp": defineCommand({
+      meta: {
+        description:
+          "Canonicalize a .gp file from stdin to stdout (git clean filter — strips per-save editing-date noise)",
+      },
+      args: {
+        "volatile-elements": {
+          type: "string",
+          description: "Comma-separated XML element names whose content to blank",
+        },
+      },
+      run: ({ args }) =>
+        run(
+          normalizeGpCommand({
+            volatileElements: args["volatile-elements"]
+              ? String(args["volatile-elements"])
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : undefined,
+          }),
+        ),
     }),
   },
 });

@@ -13,9 +13,14 @@ import { toast } from 'sonner';
 
 interface BranchSwitcherProps {
   repoPath: string;
+  /** Override the trigger button styling (e.g. for the top toolbar vs. sidebar). */
+  triggerClassName?: string;
 }
 
-export function BranchSwitcher({ repoPath }: BranchSwitcherProps) {
+const DEFAULT_TRIGGER_CLASS =
+  'mt-2 flex w-full items-center gap-1.5 rounded-sm border border-border bg-secondary px-2 py-1.5 text-[12px] text-foreground transition-colors duration-100 hover:bg-accent';
+
+export function BranchSwitcher({ repoPath, triggerClassName }: BranchSwitcherProps) {
   const { data } = useBranches(repoPath);
   const checkout = useCheckout(repoPath);
   const createBranch = useCreateBranch(repoPath);
@@ -56,7 +61,7 @@ export function BranchSwitcher({ repoPath }: BranchSwitcherProps) {
         render={
           <button
             type="button"
-            className="mt-2 flex w-full items-center gap-1.5 rounded-sm border border-border bg-secondary px-2 py-1.5 text-[12px] text-foreground transition-colors duration-100 hover:bg-accent"
+            className={triggerClassName ?? DEFAULT_TRIGGER_CLASS}
             aria-label={`Current branch: ${current}. Click to switch.`}
           />
         }
