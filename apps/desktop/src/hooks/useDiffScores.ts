@@ -1,14 +1,8 @@
 import { useMemo } from 'react';
-import * as alphaTab from '@coderline/alphatab';
 import { diffScores } from '@gpt/gpt-core';
 import type { ScoreDiff } from '@gpt/gpt-core';
 import { useShowFile } from './useGpt';
-
-function parseScore(bytes: Uint8Array): alphaTab.model.Score {
-  // AlphaTab calls .subarray() internally, so it needs a true Uint8Array.
-  // new Uint8Array(typedArray) always produces a zero-offset copy.
-  return alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(bytes));
-}
+import { parseScore } from './parseScore';
 
 export interface UseDiffScoresResult {
   diff: ScoreDiff | null;

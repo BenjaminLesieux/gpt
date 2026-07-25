@@ -12,20 +12,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { OpenRepoView } from '@/views/OpenRepoView';
 import { RepoShell } from '@/views/RepoShell';
 import { HistoryView } from '@/views/HistoryView';
-import { StatusView } from '@/views/StatusView';
-import { MergeView } from '@/views/MergeView';
+import { ChangesView } from '@/features/changes/ChangesView';
 import { useAppStore } from '@/store';
-
-function ViewPlaceholder({ label }: { label: string }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground/40">
-        {label}
-      </span>
-      <span className="font-mono text-[11px] text-muted-foreground/30">coming soon</span>
-    </div>
-  );
-}
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -62,8 +50,14 @@ const repoIndexRoute = createRoute({
   getParentRoute: () => repoRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/repo/status' });
+    throw redirect({ to: '/repo/changes' });
   },
+});
+
+const changesRoute = createRoute({
+  getParentRoute: () => repoRoute,
+  path: '/changes',
+  component: ChangesView,
 });
 
 const historyRoute = createRoute({
@@ -72,27 +66,9 @@ const historyRoute = createRoute({
   component: HistoryView,
 });
 
-const statusRoute = createRoute({
-  getParentRoute: () => repoRoute,
-  path: '/status',
-  component: StatusView,
-});
-
-const diffRoute = createRoute({
-  getParentRoute: () => repoRoute,
-  path: '/diff',
-  component: () => <ViewPlaceholder label="Diff" />,
-});
-
-const mergeRoute = createRoute({
-  getParentRoute: () => repoRoute,
-  path: '/merge',
-  component: MergeView,
-});
-
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  repoRoute.addChildren([repoIndexRoute, historyRoute, statusRoute, diffRoute, mergeRoute]),
+  repoRoute.addChildren([repoIndexRoute, changesRoute, historyRoute]),
 ]);
 
 const memoryHistory = createMemoryHistory({ initialEntries: ['/'] });

@@ -42,9 +42,6 @@ test.describe('Open repo screen', () => {
 
   test('shows "validating" state while the folder is being checked', async ({ page }) => {
     // Hold the dialog open long enough to observe the intermediate state.
-    let resolveDialog!: (v: string) => void;
-    const dialogPromise = new Promise<string>((res) => { resolveDialog = res; });
-
     await page.addInitScript(() => {
       (window as unknown as Record<string, unknown>)['gptNative'] = {
         openRepoDialog: () => new Promise((res) => {
@@ -66,7 +63,6 @@ test.describe('Open repo screen', () => {
       r?.('/some/repo');
     });
 
-    resolveDialog('/some/repo');
     // The "validating" or "reading folder" busy label should appear momentarily.
     // We don't assert on the exact outcome since we don't control the HTTP server here.
     // This test verifies the intermediate state renders without crashing.

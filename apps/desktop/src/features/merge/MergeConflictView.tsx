@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import {
   GitMerge,
   Check,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Loader2,

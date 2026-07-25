@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { diffScores } from "./diff.js";
-import type { Score, Bar, Beat, Note, Voice, Track, Staff, MasterBar } from "./types/score.js";
+import { diffScores } from "./diff";
+import type { Score, Bar, Beat, Note, Voice, Track, Staff, MasterBar } from "./types/score";
 
 // ─── Test factory helpers ─────────────────────────────────────────────────────
 // Build minimal AlphaTab-shaped mock objects. The diff algorithm only reads

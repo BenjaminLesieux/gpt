@@ -2,9 +2,15 @@
 
 # compiled output
 dist
+dist-desktop
 tmp
 out-tsc
 out/
+release/
+
+# App icon binaries (generated locally from source PNG)
+apps/desktop/build/icons/*.icns
+apps/desktop/build/icons/*.ico
 
 # dependencies
 node_modules

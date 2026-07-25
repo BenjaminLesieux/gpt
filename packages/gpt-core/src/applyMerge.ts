@@ -1,11 +1,11 @@
 import { model } from "@coderline/alphatab";
-import type { Score, MasterBar } from "./types/score.js";
+import type { Score, MasterBar } from "./types/score";
 import type {
   MergeResult,
   ScoreMetaMerge,
   MasterBarMerge,
   TrackMerge,
-} from "./types/merge.js";
+} from "./types/merge";
 
 /**
  * Applies a `MergeResult` to the `ours` Score in-place, producing the merged output.
