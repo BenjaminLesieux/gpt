@@ -1,0 +1,27 @@
+{
+  "name": "@gpt/companion",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "command": "pnpm tauri dev",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "bundle": {
+      "command": "pnpm tauri build",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "cargo-check": {
+      "command": "cargo check --manifest-path src-tauri/Cargo.toml",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "cargo-fmt": {
+      "command": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "cargo-clippy": {
+      "command": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+[package]
+name = "gitarpro-companion"
+version = "0.0.1"
+description = "Gitarpro — companion app for versioning Guitar Pro files"
+authors = ["Benjamin Lesieux"]
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+# The Tauri mobile targets require a lib; the desktop binary just calls into it.
+name = "gitarpro_companion_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `macos-private-api` backs the transparent, frameless panel window
+# (app.macOSPrivateApi in tauri.conf.json).
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

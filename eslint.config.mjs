@@ -129,6 +129,11 @@ export default tseslint.config(
     files: ["apps/desktop/src/**/*.{ts,tsx}"],
     extends: [...react],
   },
+  // apps/companion (Tauri webview: panel + extended window)
+  {
+    files: ["apps/companion/src/**/*.{ts,tsx}"],
+    extends: [...react],
+  },
   // apps/desktop (electron main + preload — no React, Node-like context)
   {
     files: ["apps/desktop/electron/**/*.ts"],

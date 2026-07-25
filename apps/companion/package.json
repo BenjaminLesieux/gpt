@@ -1,0 +1,23 @@
+{
+  "name": "@gpt/companion",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "vite build",
+    "bundle": "tauri build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.4.1",
+    "@tauri-apps/api": "^2.11.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}
