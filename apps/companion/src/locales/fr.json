@@ -1,0 +1,15 @@
+{
+  "panel": {
+    "title": "Gitarpro",
+    "noTrackedFile": "aucun fichier suivi",
+    "quickPanel": "Panneau rapide",
+    "commitFlowComingInM3": "Le flux de commit arrive en M3.",
+    "close": "fermer",
+    "extendedWindow": "Fenêtre complète"
+  },
+  "extended": {
+    "title": "Gitarpro",
+    "windowTitle": "Fenêtre étendue",
+    "comingInM4": "Timeline, diff visuel et restauration arrivent en M4."
+  }
+}
