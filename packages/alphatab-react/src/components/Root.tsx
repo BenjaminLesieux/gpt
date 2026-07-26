@@ -251,6 +251,10 @@ export function Root({
 
     const { layout: l, zoom: z, settings: s } = initSettingsRef.current;
     const atApi = new alphaTab.AlphaTabApi(el, buildAtSettings(l, z, s));
+    // Bound here rather than with the other callbacks below: a byte source is
+    // parsed synchronously inside `api.load()`, so an unreadable file emits
+    // `error` before any effect has had a chance to subscribe.
+    atApi.error.on((e: Error) => callbacksRef.current.onError?.(e));
     apiRef.current = atApi;
     setApi(atApi);
     setViewportEl(el);
@@ -321,7 +325,6 @@ export function Root({
       callbacksRef.current.onRenderFinished?.(e);
     const onResizeH = (e: ResizeEventArgs) => callbacksRef.current.onResize?.(e);
     const onScoreLoadedH = (s: Score) => callbacksRef.current.onScoreLoaded?.(s);
-    const onErrorH = (e: Error) => callbacksRef.current.onError?.(e);
     const onBeatMouseDownH = (b: Beat) => callbacksRef.current.onBeatMouseDown?.(b);
     const onBeatMouseMoveH = (b: Beat) => callbacksRef.current.onBeatMouseMove?.(b);
     const onBeatMouseUpH = (b: Beat | null) => callbacksRef.current.onBeatMouseUp?.(b);
@@ -357,7 +360,6 @@ export function Root({
     api.renderFinished.on(onRenderFinishedH);
     api.resize.on(onResizeH);
     api.scoreLoaded.on(onScoreLoadedH);
-    api.error.on(onErrorH);
     api.beatMouseDown.on(onBeatMouseDownH);
     api.beatMouseMove.on(onBeatMouseMoveH);
     api.beatMouseUp.on(onBeatMouseUpH);
@@ -390,7 +392,6 @@ export function Root({
       api.renderFinished.off(onRenderFinishedH);
       api.resize.off(onResizeH);
       api.scoreLoaded.off(onScoreLoadedH);
-      api.error.off(onErrorH);
       api.beatMouseDown.off(onBeatMouseDownH);
       api.beatMouseMove.off(onBeatMouseMoveH);
       api.beatMouseUp.off(onBeatMouseUpH);
