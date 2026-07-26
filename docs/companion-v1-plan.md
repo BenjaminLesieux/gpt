@@ -49,7 +49,9 @@ packages/alphatab-react/   # unchanged — score rendering
 
 M3 added two commands the contract in M2 did not anticipate, both because the panel was otherwise a dead end: `pickAndTrackFile` (nothing could be tracked from the UI at all) and `setActiveFile` (the switcher needs a manual override — the host only moved the active file on save or commit). The picker runs host-side and holds the panel open while the modal has focus.
 
-**M4 — Extended window.** Timeline of named versions + snapshot recovery view; visual diff (gpt-core + alphatab-react); restore with pre-restore safety snapshot; audio playback of a version.
+**M4 — Extended window.** ✅ Timeline of named versions + snapshot recovery view; visual diff (gpt-core + alphatab-react); restore with pre-restore safety snapshot; audio playback of a version.
+
+M4 needed no new Rust: M2's `listVersions` / `listSnapshots` / `getVersionBlob` / `restoreVersion` covered it. Two things did change outside the UI. The webview CSP had to allow `blob:` scripts and workers — alphaTab renders through a worker and plays through an audio worklet. And bringing alphaTab into a Vite 8 (rolldown) app extended the existing `@coderline/alphatab-vite` patch: the bridge that re-wraps Vite plugins per environment also re-wraps rolldown's *builtin* plugins, whose bindings reject a `transform` whose options carry no `moduleType`.
 
 **M5 — Remote.** Remote URL + auth settings; background push queue after named commits (git2 push, token/SSH); status badge; retry logic. Validate against a bare git server or Forgejo in Docker.
 
