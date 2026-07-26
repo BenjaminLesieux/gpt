@@ -64,6 +64,13 @@ export function ExtendedApp() {
     return tier[tier.findIndex((entry) => entry.id === head.id) + 1] ?? null;
   }, [head, history.versions, history.snapshots]);
 
+  function select(version: Version) {
+    // The pinned base can only be diffed against itself, so reading a click on
+    // it as "show me this one" is the only move that leads anywhere.
+    if (version.id === baseId) setBaseId(null);
+    setHeadId(version.id);
+  }
+
   function compare(version: Version) {
     if (version.id === baseId) {
       setBaseId(null);
@@ -117,7 +124,7 @@ export function ExtendedApp() {
             history={history}
             headId={head?.id ?? null}
             baseId={base?.id ?? null}
-            onSelect={(version) => setHeadId(version.id)}
+            onSelect={select}
             onCompare={compare}
           />
         </aside>

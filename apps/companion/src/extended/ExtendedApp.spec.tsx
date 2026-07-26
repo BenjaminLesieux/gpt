@@ -132,6 +132,23 @@ describe('ExtendedApp', () => {
     );
   });
 
+  it('leaves compare mode when the pinned base is selected as the version to show', async () => {
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: /Compare with previous/ }));
+    await screen.findByText('diff:v1→v2');
+
+    // The base is also named in the stage header — this is the timeline row.
+    const introRow = screen
+      .getAllByRole('listitem')
+      .find((row) => row.textContent?.includes('Intro reworked')) as HTMLElement;
+    await user.click(within(introRow).getByRole('button', { name: /Intro reworked/ }));
+
+    expect(await screen.findByText('score:v1')).toBeTruthy();
+  });
+
   it('lets a history failure be dismissed', async () => {
     ipc.listVersions.mockRejectedValue(new Error('io error: repository is locked'));
     const user = userEvent.setup();
