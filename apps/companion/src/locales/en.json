@@ -1,0 +1,15 @@
+{
+  "panel": {
+    "title": "Gitarpro",
+    "noTrackedFile": "no tracked file",
+    "quickPanel": "Quick panel",
+    "commitFlowComingInM3": "The commit flow lands in M3.",
+    "close": "close",
+    "extendedWindow": "Full window"
+  },
+  "extended": {
+    "title": "Gitarpro",
+    "windowTitle": "Extended window",
+    "comingInM4": "Timeline, visual diff and restore land in M4."
+  }
+}

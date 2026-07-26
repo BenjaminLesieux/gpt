@@ -9,6 +9,7 @@
     "rootDir": "src",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
@@ -23,6 +24,6 @@
     "src/**/*.spec.tsx",
     "src/**/*.test.tsx"
   ],
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/locales/*.json"],
   "references": []
 }

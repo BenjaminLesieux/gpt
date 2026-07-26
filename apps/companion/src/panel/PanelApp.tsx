@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { hidePanel, openExtendedWindow } from '@/lib/ipc';
@@ -11,6 +12,8 @@ import { hidePanel, openExtendedWindow } from '@/lib/ipc';
  * recent versions) lands in M3.
  */
 export function PanelApp() {
+  const { t } = useTranslation();
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -29,26 +32,24 @@ export function PanelApp() {
         className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2"
       >
         <span className="text-xs font-bold tracking-widest uppercase" data-tauri-drag-region>
-          Gitarpro
+          {t('panel.title')}
         </span>
         <span className="text-xs text-muted-foreground" data-tauri-drag-region>
-          aucun fichier suivi
+          {t('panel.noTrackedFile')}
         </span>
       </header>
 
       <main className="flex flex-1 flex-col items-start justify-center gap-1 px-4">
-        <p className="text-sm text-muted-foreground">Panneau rapide</p>
-        <p className="text-xs text-muted-foreground">
-          Le flux de commit arrive en M3.
-        </p>
+        <p className="text-sm text-muted-foreground">{t('panel.quickPanel')}</p>
+        <p className="text-xs text-muted-foreground">{t('panel.commitFlowComingInM3')}</p>
       </main>
 
       <footer className="flex shrink-0 items-center justify-between border-t border-border px-4 py-2">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Kbd>Esc</Kbd> fermer
+          <Kbd>Esc</Kbd> {t('panel.close')}
         </span>
         <Button variant="ghost" size="sm" onClick={() => void openExtendedWindow()}>
-          Fenêtre complète
+          {t('panel.extendedWindow')}
         </Button>
       </footer>
     </div>
