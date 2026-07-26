@@ -2,14 +2,16 @@ diff --git a/dist/bridge/build.mjs b/dist/bridge/build.mjs
 index 3ef2ed1c728045009bc24df87f5a7f9b321464cb..74d2e0b2bd22881812cb35207a087ff39bd8917d 100644
 --- a/dist/bridge/build.mjs
 +++ b/dist/bridge/build.mjs
-@@ -175,8 +175,13 @@ function wrapEnvironmentTransform(environment, hook) {
+@@ -175,8 +175,15 @@ function wrapEnvironmentTransform(environment, hook) {
          return;
      }
      const fn = getHookHandler(hook);
 -    const handler = function (code, importer, ...args) {
 -        return fn.call(injectEnvironmentInContext(this, environment), code, importer, injectSsrFlag(args[0], environment));
 +    const handler = async function (code, importer, ...args) {
-+        const result = await fn.call(injectEnvironmentInContext(this, environment), code, importer, injectSsrFlag(args[0], environment));
++        // rolldown's builtin plugins are callable through this bridge too, and
++        // their bindings reject a transform whose options carry no `moduleType`
++        const result = await fn.call(injectEnvironmentInContext(this, environment), code, importer, { moduleType: 'js', ...injectSsrFlag(args[0], environment) });
 +        // rolldown (Vite 8) requires transform hooks to return `moduleType`
 +        if (result && typeof result === 'object' && 'code' in result && !('moduleType' in result)) {
 +            return { ...result, moduleType: 'js' };

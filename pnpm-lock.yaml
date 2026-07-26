@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@coderline/alphatab-vite@1.9.0-alpha.1785':
-    hash: b6f418022f7df7d0c7836638c82ee3c5a31ecf74a93c1889574dc3211448fbb2
+    hash: 11a6d58e4ef4c4e21d379934253545ae5e5722b7c1396302717e34ccee761a91
     path: patches/@coderline__alphatab-vite@1.9.0-alpha.1785.patch
 
 importers:
@@ -206,6 +206,15 @@ importers:
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.4.1(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@coderline/alphatab':
+        specifier: ^1.8.2
+        version: 1.8.2
+      '@gpt/alphatab-react':
+        specifier: workspace:^
+        version: link:../../packages/alphatab-react
+      '@gpt/gpt-core':
+        specifier: workspace:^
+        version: link:../../packages/gpt-core
       '@tauri-apps/api':
         specifier: ^2.11.1
         version: 2.11.1
@@ -234,6 +243,9 @@ importers:
         specifier: ^3.5.0
         version: 3.5.0
     devDependencies:
+      '@coderline/alphatab-vite':
+        specifier: 1.9.0-alpha.1785
+        version: 1.9.0-alpha.1785(patch_hash=11a6d58e4ef4c4e21d379934253545ae5e5722b7c1396302717e34ccee761a91)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
       '@tauri-apps/cli':
         specifier: ^2.11.4
         version: 2.11.4
@@ -306,7 +318,7 @@ importers:
     devDependencies:
       '@coderline/alphatab-vite':
         specifier: 1.9.0-alpha.1785
-        version: 1.9.0-alpha.1785(patch_hash=b6f418022f7df7d0c7836638c82ee3c5a31ecf74a93c1889574dc3211448fbb2)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
+        version: 1.9.0-alpha.1785(patch_hash=11a6d58e4ef4c4e21d379934253545ae5e5722b7c1396302717e34ccee761a91)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
       '@electron/rebuild':
         specifier: ^4.0.3
         version: 4.0.3
@@ -9172,7 +9184,7 @@ snapshots:
       fast-wrap-ansi: 0.1.6
       sisteransi: 1.0.5
 
-  '@coderline/alphatab-vite@1.9.0-alpha.1785(patch_hash=b6f418022f7df7d0c7836638c82ee3c5a31ecf74a93c1889574dc3211448fbb2)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)':
+  '@coderline/alphatab-vite@1.9.0-alpha.1785(patch_hash=11a6d58e4ef4c4e21d379934253545ae5e5722b7c1396302717e34ccee761a91)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)':
     dependencies:
       magic-string: 0.30.21
       vite: 7.3.3(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3)
