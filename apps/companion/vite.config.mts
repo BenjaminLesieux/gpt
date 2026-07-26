@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { alphaTab } from '@coderline/alphatab-vite';
 import { resolve } from 'node:path';
 
 // Tauri injects TAURI_DEV_HOST when developing against a physical device.
@@ -17,6 +18,7 @@ export default defineConfig(() => ({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@gpt/gpt-core': resolve(__dirname, '../../packages/gpt-core/src/index.ts'),
+      '@gpt/alphatab-react': resolve(__dirname, '../../packages/alphatab-react/src/index.ts'),
     },
   },
   server: {
@@ -30,7 +32,12 @@ export default defineConfig(() => ({
       ignored: ['**/src-tauri/**'],
     },
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), alphaTab()],
+  // esbuild pre-bundling would rewrite alphaTab's import.meta.url references
+  // before the alphaTab plugin gets to see its worker/worklet entry points.
+  optimizeDeps: {
+    exclude: ['@coderline/alphatab'],
+  },
   build: {
     outDir: './dist',
     emptyOutDir: true,
@@ -38,6 +45,9 @@ export default defineConfig(() => ({
     target: 'safari15',
     minify: isTauriDebug ? false : 'esbuild',
     sourcemap: isTauriDebug,
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
     rollupOptions: {
       input: {
         // Hotkey panel — created hidden at startup, toggled by the shortcut.

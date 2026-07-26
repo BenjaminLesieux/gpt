@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@coderline/alphatab": "^1.8.2",
+    "@gpt/alphatab-react": "workspace:^",
+    "@gpt/gpt-core": "workspace:^",
     "@tauri-apps/api": "^2.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -22,6 +25,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@coderline/alphatab-vite": "1.9.0-alpha.1785",
     "@tauri-apps/cli": "^2.11.4"
   }
 }
