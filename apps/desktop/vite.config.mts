@@ -10,6 +10,12 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      // Both workspace packages resolve to source, matching tsconfig.base.json
+      // and apps/companion. Without the gpt-core entry Vite falls through to its
+      // package exports and serves packages/gpt-core/dist — so edits to the diff
+      // engine appear in typecheck and tests but silently not in the running app
+      // until someone remembers to rebuild.
+      '@gpt/gpt-core': resolve(__dirname, '../../packages/gpt-core/src/index.ts'),
       '@gpt/alphatab-react': resolve(
         __dirname,
         '../../packages/alphatab-react/src/index.ts',

@@ -54,8 +54,14 @@ function makeStaff(bars: Bar[]): Staff {
   return { bars } as unknown as Staff;
 }
 
-function makeTrack(name: string, bars: Bar[]): Track {
-  return { index: 0, name, staves: [makeStaff(bars)] } as unknown as Track;
+function makeTrack(name: string, bars: Bar[], overrides: Partial<Track> = {}): Track {
+  return {
+    index: 0,
+    name,
+    staves: [makeStaff(bars)],
+    playbackInfo: { primaryChannel: 0, program: 24 },
+    ...overrides,
+  } as unknown as Track;
 }
 
 function makeScore(tracks: Track[], masterBarCount: number, overrides: Partial<Score> = {}): Score {
@@ -249,6 +255,273 @@ describe("diffScores", () => {
 
       // Then all bars of the dropped track are removed
       expect(result.tracks[0]!.bars[0]!.type).toBe("removed");
+    });
+  });
+
+  describe("edits the fingerprint used to miss", () => {
+    // Each case is an edit a musician can make in Guitar Pro that produced no
+    // diff at all, because the field was absent from the bar fingerprint.
+
+    function barWithNote(overrides: Partial<Note>): Bar {
+      return makeBar([makeVoice([makeBeat([makeNote(1, 5, overrides)])])]);
+    }
+
+    function barWithBeat(overrides: Partial<Beat>): Bar {
+      return makeBar([makeVoice([makeBeat([makeNote(1, 5)], overrides)])]);
+    }
+
+    function expectChanged(baseBar: Bar, headBar: Bar) {
+      const result = diffScores(
+        makeScore([makeTrack("Guitar", [baseBar])], 1),
+        makeScore([makeTrack("Guitar", [headBar])], 1)
+      );
+      return expect(result.tracks[0]!.bars[0]!.type);
+    }
+
+    it("should detect a change when a bend's shape is edited", () => {
+      // Given the same bend type but a different curve
+      const base = barWithNote({ bendType: 1, bendPoints: [{ offset: 0, value: 0 }, { offset: 60, value: 4 }] as Note["bendPoints"] });
+      const head = barWithNote({ bendType: 1, bendPoints: [{ offset: 0, value: 0 }, { offset: 60, value: 8 }] as Note["bendPoints"] });
+
+      // When diffed / Then the bar is changed
+      expectChanged(base, head).toBe("changed");
+    });
+
+    it("should detect a change when a note becomes tied to the previous one", () => {
+      // Given a note that gains a tie
+      expectChanged(
+        barWithNote({ isTieDestination: false }),
+        barWithNote({ isTieDestination: true })
+      ).toBe("changed");
+    });
+
+    it("should detect a change when a beat's dynamics are edited", () => {
+      // Given a beat that goes from mezzo-forte to fortissimo
+      expectChanged(barWithBeat({ dynamics: 4 as Beat["dynamics"] }), barWithBeat({ dynamics: 7 as Beat["dynamics"] })).toBe("changed");
+    });
+
+    it("should detect a change when a beat becomes a grace note", () => {
+      // Given a beat turned into a grace note
+      expectChanged(
+        barWithBeat({ graceType: 0 as Beat["graceType"] }),
+        barWithBeat({ graceType: 2 as Beat["graceType"] })
+      ).toBe("changed");
+    });
+
+    it("should detect a change when a whammy bar dive is edited", () => {
+      // Given a beat whose whammy curve moves
+      expectChanged(
+        barWithBeat({ whammyBarType: 2 as Beat["whammyBarType"], whammyBarPoints: [{ offset: 0, value: 0 }] as Beat["whammyBarPoints"] }),
+        barWithBeat({ whammyBarType: 2 as Beat["whammyBarType"], whammyBarPoints: [{ offset: 0, value: -4 }] as Beat["whammyBarPoints"] })
+      ).toBe("changed");
+    });
+
+    it.each([
+      ["a bend curve", { bendType: 1, bendPoints: [{ offset: 0, value: 4 }] }, { bendType: 1, bendPoints: [{ offset: 0, value: 8 }] }],
+      ["a tie", { isTieDestination: false }, { isTieDestination: true }],
+      ["a fingering", { leftHandFinger: 1 }, { leftHandFinger: 3 }],
+    ])(
+      "should always name at least one changed field when %s changes",
+      (_label, baseOverrides, headOverrides) => {
+        // Given a bar whose only edit is the field under test
+        const result = diffScores(
+          makeScore([makeTrack("Guitar", [barWithNote(baseOverrides as Partial<Note>)])], 1),
+          makeScore([makeTrack("Guitar", [barWithNote(headOverrides as Partial<Note>)])], 1)
+        );
+        const bar = result.tracks[0]!.bars[0]!;
+
+        // Then the diff both flags the bar and explains it — an unexplained
+        // "changed" bar renders as a highlight with no chip in the UI
+        expect(bar.type).toBe("changed");
+        if (bar.type === "changed") {
+          expect(bar.changedFields.length).toBeGreaterThan(0);
+        }
+      }
+    );
+
+    it.each([
+      ["dynamics", { dynamics: 4 }, { dynamics: 7 }],
+      ["a grace note", { graceType: 0 }, { graceType: 2 }],
+      ["a whammy dive", { whammyBarType: 2, whammyBarPoints: [{ offset: 0, value: 0 }] }, { whammyBarType: 2, whammyBarPoints: [{ offset: 0, value: -4 }] }],
+      ["a pick stroke", { pickStroke: 0 }, { pickStroke: 1 }],
+    ])(
+      "should always name at least one changed field when beat %s changes",
+      (_label, baseOverrides, headOverrides) => {
+        // Given a bar whose only edit is the beat-level field under test
+        const result = diffScores(
+          makeScore([makeTrack("Guitar", [barWithBeat(baseOverrides as Partial<Beat>)])], 1),
+          makeScore([makeTrack("Guitar", [barWithBeat(headOverrides as Partial<Beat>)])], 1)
+        );
+        const bar = result.tracks[0]!.bars[0]!;
+
+        // Then the bar is both flagged and explained
+        expect(bar.type).toBe("changed");
+        if (bar.type === "changed") {
+          expect(bar.changedFields.length).toBeGreaterThan(0);
+        }
+      }
+    );
+
+    it("should detect a pitch change on an instrument written without frets", () => {
+      // Given a piano-style note, where pitch lives in octave/tone rather than
+      // string/fret — both of which stay at -1
+      expectChanged(
+        barWithNote({ string: -1, fret: -1, octave: 4, tone: 0 }),
+        barWithNote({ string: -1, fret: -1, octave: 4, tone: 7 })
+      ).toBe("changed");
+    });
+  });
+
+  describe("percussion tracks", () => {
+    // Drum notes carry no string — alphaTab reports string === -1 for every one
+    // of them — and identify their instrument via percussionArticulation.
+    function drumNote(articulation: number): Note {
+      return makeNote(-1, 0, { percussionArticulation: articulation });
+    }
+
+    it("should mark the bar as changed when a drum note swaps to a different instrument", () => {
+      // Given one drum hit that becomes a different articulation (kick → snare)
+      const base = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([makeBeat([drumNote(35)])])])])],
+        1
+      );
+      const head = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([makeBeat([drumNote(38)])])])])],
+        1
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then the change is visible
+      expect(result.tracks[0]!.bars[0]!.type).toBe("changed");
+    });
+
+    it("should detect a change to one of several drum notes sharing the same beat", () => {
+      // Given a beat with three simultaneous hits, one of which changes
+      const baseBeat = makeBeat([drumNote(35), drumNote(42), drumNote(38)]);
+      const headBeat = makeBeat([drumNote(35), drumNote(46), drumNote(38)]);
+      const base = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([baseBeat])])])],
+        1
+      );
+      const head = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([headBeat])])])],
+        1
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+      const bar = result.tracks[0]!.bars[0]!;
+
+      // Then the bar is changed and attributed to notes — not silently collapsed
+      // by keying every same-string note into one map entry
+      expect(bar.type).toBe("changed");
+      if (bar.type === "changed") {
+        expect(bar.changedFields).toContain("notes");
+      }
+    });
+
+    it("should report no change when simultaneous drum hits are listed in a different order", () => {
+      // Given the same chord of drum hits, written in a different order
+      const base = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([makeBeat([drumNote(35), drumNote(42)])])])])],
+        1
+      );
+      const head = makeScore(
+        [makeTrack("Drums", [makeBar([makeVoice([makeBeat([drumNote(42), drumNote(35)])])])])],
+        1
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then ordering alone is not a change
+      expect(result.tracks[0]!.bars[0]!.type).toBe("equal");
+    });
+  });
+
+  describe("when a bar is inserted in the middle", () => {
+    it("should mark only the inserted bar as added and leave shifted bars equal", () => {
+      // Given head inserts one new bar between the first and second bar
+      const base = makeScore(
+        [makeTrack("Guitar", [simpleBar(1), simpleBar(2), simpleBar(3)])],
+        3
+      );
+      const head = makeScore(
+        [makeTrack("Guitar", [simpleBar(1), simpleBar(99), simpleBar(2), simpleBar(3)])],
+        4
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then the shift does not cascade — the three original bars stay equal
+      expect(result.tracks[0]!.bars.map((b) => b.type)).toEqual([
+        "equal",
+        "added",
+        "equal",
+        "equal",
+      ]);
+    });
+
+    it("should address the base and head panes with separate indexes when bars shift", () => {
+      // Given a bar inserted at position 1, so every later bar sits one further right in head
+      const base = makeScore([makeTrack("Guitar", [simpleBar(1), simpleBar(2)])], 2);
+      const head = makeScore(
+        [makeTrack("Guitar", [simpleBar(1), simpleBar(99), simpleBar(2)])],
+        3
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+      const bars = result.tracks[0]!.bars;
+
+      // Then the shifted bar reports where it lives in each score
+      expect(bars.map((b) => [b.baseIndex, b.headIndex])).toEqual([
+        [0, 0],
+        [null, 1],
+        [1, 2],
+      ]);
+    });
+  });
+
+  describe("when a bar is deleted from the middle", () => {
+    it("should mark only the deleted bar as removed and leave shifted bars equal", () => {
+      // Given head drops the second of three bars
+      const base = makeScore(
+        [makeTrack("Guitar", [simpleBar(1), simpleBar(2), simpleBar(3)])],
+        3
+      );
+      const head = makeScore([makeTrack("Guitar", [simpleBar(1), simpleBar(3)])], 2);
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then only the dropped bar is removed
+      expect(result.tracks[0]!.bars.map((b) => b.type)).toEqual([
+        "equal",
+        "removed",
+        "equal",
+      ]);
+    });
+  });
+
+  describe("when tracks are reordered", () => {
+    it("should report no content changes when two unchanged tracks swap positions", () => {
+      // Given the same two tracks, listed in the opposite order in head
+      const guitar = () => makeTrack("Guitar", [simpleBar(5)], { playbackInfo: { primaryChannel: 0, program: 24 } as Track["playbackInfo"] });
+      const bass = () => makeTrack("Bass", [simpleBar(3)], { playbackInfo: { primaryChannel: 1, program: 33 } as Track["playbackInfo"] });
+      const base = makeScore([guitar(), bass()], 1);
+      const head = makeScore([bass(), guitar()], 1);
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then every bar of every track is equal — reordering is not a content change
+      const allBars = result.tracks.flatMap((t) => t.bars);
+      expect(allBars.every((b) => b.type === "equal")).toBe(true);
+      expect(result.summary).toBe("No changes");
     });
   });
 
