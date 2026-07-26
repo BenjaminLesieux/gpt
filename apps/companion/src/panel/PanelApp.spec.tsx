@@ -117,6 +117,26 @@ describe('PanelApp', () => {
     expect(ipc.hidePanel).not.toHaveBeenCalled();
   });
 
+  it('leaves the cursor in the message field after a failed commit', async () => {
+    ipc.commitNamed.mockImplementation(async () => {
+      // A browser drops focus when the field it sits in is disabled for the
+      // save; jsdom keeps it, so the eviction has to be played out by hand.
+      (document.activeElement as HTMLElement | null)?.blur();
+      throw new Error('repository is locked');
+    });
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    const message = await screen.findByLabelText('Version name');
+    await user.type(message, 'Bridge take 3{Enter}');
+    await screen.findByRole('alert');
+
+    expect(document.activeElement).toBe(message);
+    // And the retry is one keystroke away — the message is still there.
+    await user.keyboard('!');
+    expect((message as HTMLInputElement).value).toBe('Bridge take 3!');
+  });
+
   it('escapes out of the switcher first, and only then out of the panel', async () => {
     const user = userEvent.setup();
     render(<PanelApp />);

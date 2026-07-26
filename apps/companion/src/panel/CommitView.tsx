@@ -40,6 +40,7 @@ export function CommitView({
   const [phase, setPhase] = useState<Phase>('idle');
   const [committed, setCommitted] = useState<Version | null>(null);
   const [rejected, setRejected] = useState(false);
+  const [failures, setFailures] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const dismissal = useRef<number>(undefined);
 
@@ -47,6 +48,12 @@ export function CommitView({
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [focusToken]);
+
+  // The field is disabled while saving, which evicts focus. After a failure the
+  // retry should be one keystroke away, not one click and one keystroke.
+  useEffect(() => {
+    if (failures > 0) inputRef.current?.focus();
+  }, [failures]);
 
   useEffect(() => () => window.clearTimeout(dismissal.current), []);
 
@@ -73,6 +80,7 @@ export function CommitView({
       }, CONFIRM_MS);
     } catch (cause) {
       setPhase('idle');
+      setFailures((count) => count + 1);
       session.reportError(String(cause));
     }
   }
