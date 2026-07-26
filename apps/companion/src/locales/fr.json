@@ -35,6 +35,49 @@
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Fenêtre étendue",
-    "comingInM4": "Timeline, diff visuel et restauration arrivent en M4."
+    "trackAnotherFile": "Suivre un autre fichier…",
+    "timeline": {
+      "versions": "Versions",
+      "noVersions": "Aucune version nommée pour l'instant.",
+      "recovery": "Récupération",
+      "noSnapshots": "Aucun instantané automatique pour l'instant.",
+      "autoSnapshot": "Sauvegarde automatique",
+      "compareFrom": "Comparer depuis ici",
+      "clearCompare": "Arrêter la comparaison"
+    },
+    "stage": {
+      "allTracks": "Toutes les pistes",
+      "loadingScore": "Chargement de la version…",
+      "computingDiff": "Comparaison des versions…",
+      "noScore": "Cette version n'a pas pu être lue.",
+      "noDiff": "Ces versions n'ont pas pu être comparées.",
+      "noVersions": "Rien d'enregistré pour ce fichier — sauvegarde-le dans Guitar Pro, ou nomme une version depuis le panneau.",
+      "identical": "aucun changement sur cette piste",
+      "changedBars_one": "{{count}} mesure modifiée",
+      "changedBars_other": "{{count}} mesures modifiées",
+      "addedBars_one": "{{count}} mesure ajoutée",
+      "addedBars_other": "{{count}} mesures ajoutées",
+      "removedBars_one": "{{count}} mesure supprimée",
+      "removedBars_other": "{{count}} mesures supprimées",
+      "compareWithPrevious": "Comparer à la précédente",
+      "exitCompare": "Quitter la comparaison",
+      "restore": "Restaurer"
+    },
+    "playback": {
+      "play": "Lecture",
+      "pause": "Pause",
+      "stop": "Stop",
+      "loop": "Boucle",
+      "speed": "Vitesse de lecture",
+      "position": "Position de lecture"
+    },
+    "restore": {
+      "title": "Restaurer cette version ?",
+      "description": "« {{version}} » va écraser {{file}} sur le disque. Le contenu actuel est d'abord mis en instantané, tu pourras y revenir.",
+      "cancel": "Annuler",
+      "confirm": "Restaurer",
+      "done": "Version restaurée.",
+      "doneWithSafety": "Version restaurée — le contenu précédent a été mis en instantané."
+    }
   }
 }

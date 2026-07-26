@@ -35,6 +35,49 @@
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Extended window",
-    "comingInM4": "Timeline, visual diff and restore land in M4."
+    "trackAnotherFile": "Track another file…",
+    "timeline": {
+      "versions": "Versions",
+      "noVersions": "No named version yet.",
+      "recovery": "Recovery",
+      "noSnapshots": "No automatic snapshot yet.",
+      "autoSnapshot": "Automatic save",
+      "compareFrom": "Compare from here",
+      "clearCompare": "Stop comparing"
+    },
+    "stage": {
+      "allTracks": "All tracks",
+      "loadingScore": "Loading version…",
+      "computingDiff": "Comparing versions…",
+      "noScore": "This version could not be read.",
+      "noDiff": "These versions could not be compared.",
+      "noVersions": "Nothing recorded for this file yet — save it in Guitar Pro, or name a version from the panel.",
+      "identical": "no change on this track",
+      "changedBars_one": "{{count}} bar changed",
+      "changedBars_other": "{{count}} bars changed",
+      "addedBars_one": "{{count}} bar added",
+      "addedBars_other": "{{count}} bars added",
+      "removedBars_one": "{{count}} bar removed",
+      "removedBars_other": "{{count}} bars removed",
+      "compareWithPrevious": "Compare with previous",
+      "exitCompare": "Exit compare",
+      "restore": "Restore"
+    },
+    "playback": {
+      "play": "Play",
+      "pause": "Pause",
+      "stop": "Stop",
+      "loop": "Loop",
+      "speed": "Playback speed",
+      "position": "Playback position"
+    },
+    "restore": {
+      "title": "Restore this version?",
+      "description": "“{{version}}” will overwrite {{file}} on disk. The current contents are snapshotted first, so you can come back to them.",
+      "cancel": "Cancel",
+      "confirm": "Restore",
+      "done": "Version restored.",
+      "doneWithSafety": "Version restored — the previous contents were snapshotted."
+    }
   }
 }
