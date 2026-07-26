@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { FSError } from "../errors.js";
+import { FSError } from "../errors";
 
 export class FSLayer extends Context.Tag("FSLayer")<
   FSLayer,

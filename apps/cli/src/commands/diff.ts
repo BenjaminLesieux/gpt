@@ -2,9 +2,9 @@ import { Effect } from "effect";
 import { join } from "node:path";
 import { diffScores } from "@gpt/gpt-core";
 import type { ScoreDiff, TrackDiff } from "@gpt/gpt-core";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { AlphaTabLayer } from "../runtime/AlphaTabLayer.js";
-import { FSLayer } from "../runtime/FSLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
+import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
+import { FSLayer } from "../runtime/FSLayer";
 
 interface DiffOptions {
   hash1?: string;

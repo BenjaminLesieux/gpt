@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { intro, outro, text } from "@clack/prompts";
-import { GitLayer } from "../runtime/GitLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
 
 interface CommitOptions {
   message?: string;

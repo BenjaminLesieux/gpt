@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { intro, outro, spinner } from "@clack/prompts";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { FSLayer } from "../runtime/FSLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
+import { FSLayer } from "../runtime/FSLayer";
 
 /**
  * Pure init effect. Ensures the directory is a git repo with a `.gpt` marker.

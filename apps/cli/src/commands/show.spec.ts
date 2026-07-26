@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Effect, Layer } from "effect";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { AlphaTabLayer } from "../runtime/AlphaTabLayer.js";
-import { FSLayer } from "../runtime/FSLayer.js";
-import { showEffect } from "./show.js";
+import { GitLayer } from "../runtime/GitLayer";
+import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
+import { FSLayer } from "../runtime/FSLayer";
+import { showEffect } from "./show";
 import type { Commit, Score, Track, Staff, Bar, Voice, Beat, Note, MasterBar } from "@gpt/gpt-core";
 
 // ─── Mock Score factories ─────────────────────────────────────────────────────

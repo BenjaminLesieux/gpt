@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { GitLayer } from "../runtime/GitLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
 
 interface BranchListOptions {
   dir?: string;

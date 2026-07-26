@@ -1,12 +1,12 @@
-import type { Bar, Beat, Note, Score } from './types/score.js';
+import type { Bar, Beat, Note, Score } from './types/score';
 import type {
   BarChangedField,
   BarDiff,
   MetaDiff,
   ScoreDiff,
   TrackDiff,
-} from './types/diff.js';
-import { barFingerprint, masterBarFingerprint } from './fingerprint.js';
+} from './types/diff';
+import { barFingerprint, masterBarFingerprint } from './fingerprint';
 
 export function diffScores(base: Score, head: Score): ScoreDiff {
   const meta = diffMeta(base, head);

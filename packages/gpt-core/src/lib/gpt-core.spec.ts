@@ -1,4 +1,4 @@
-import { gptCore } from './gpt-core.js';
+import { gptCore } from './gpt-core';
 
 describe('gptCore', () => {
   it('should work', () => {

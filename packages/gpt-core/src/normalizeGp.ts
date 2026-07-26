@@ -83,13 +83,18 @@ function blankVolatileElements(
 ): Uint8Array<ArrayBuffer> {
   let text = new TextDecoder().decode(data);
   for (const el of elements) {
-    const re = new RegExp(`(<${el}(?:\\s[^>]*)?>)([\\s\\S]*?)(</${el}>)`, "g");
+    const tag = escapeRegExp(el);
+    const re = new RegExp(`(<${tag}(?:\\s[^>]*)?>)([\\s\\S]*?)(</${tag}>)`, "g");
     text = text.replace(re, "$1$3");
   }
   // Wrap in a fresh Uint8Array so the result is Uint8Array<ArrayBuffer> — Node's
   // TextEncoder is typed as ArrayBufferLike, which doesn't unify with fflate's
   // ArrayBuffer-backed entry type under TS 5.7's generic typed arrays.
   return new Uint8Array(new TextEncoder().encode(text));
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // ── Timestamp scrubbing ───────────────────────────────────────────────────────

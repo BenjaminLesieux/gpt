@@ -1,16 +1,16 @@
 import { defineCommand, runMain } from "citty";
 import { Effect } from "effect";
-import { initCommand } from "./commands/init.js";
-import { addCommand } from "./commands/add.js";
-import { commitCommand } from "./commands/commit.js";
-import { logCommand } from "./commands/log.js";
-import { diffCommand } from "./commands/diff.js";
-import { statusCommand } from "./commands/status.js";
-import { showCommand } from "./commands/show.js";
-import { serveCommand } from "./commands/serve.js";
-import { branchListCommand, branchCreateCommand, checkoutCommand } from "./commands/branch.js";
-import { mergeCommand } from "./commands/merge.js";
-import { normalizeGpCommand } from "./commands/normalizeGp.js";
+import { initCommand } from "./commands/init";
+import { addCommand } from "./commands/add";
+import { commitCommand } from "./commands/commit";
+import { logCommand } from "./commands/log";
+import { diffCommand } from "./commands/diff";
+import { statusCommand } from "./commands/status";
+import { showCommand } from "./commands/show";
+import { serveCommand } from "./commands/serve";
+import { branchListCommand, branchCreateCommand, checkoutCommand } from "./commands/branch";
+import { mergeCommand } from "./commands/merge";
+import { normalizeGpCommand } from "./commands/normalizeGp";
 
 const run = (effect: Effect.Effect<unknown, unknown>) =>
   Effect.runPromise(effect as Effect.Effect<unknown>).catch((e) => {

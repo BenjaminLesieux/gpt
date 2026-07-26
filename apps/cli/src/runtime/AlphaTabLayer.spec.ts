@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AlphaTabLayer } from "./AlphaTabLayer.js";
+import { AlphaTabLayer } from "./AlphaTabLayer";
 
 const fixturePath = join(import.meta.dirname, "../__fixtures__/sample.gp");
 
