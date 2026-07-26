@@ -101,8 +101,11 @@
   color: var(--color-fg-1);
 }
 
-/* Focus visible ring — keyboard only */
-:focus-visible {
+/* Focus-visible ring — keyboard only, and only for elements that don't draw
+   their own. This rule is unlayered, so it outranks every Tailwind utility
+   whatever the specificity; shadcn controls all ship focus styles and would
+   otherwise end up wearing two rings. `[data-slot]` is what marks them. */
+:focus-visible:not([data-slot]) {
   outline: none;
   box-shadow: var(--shadow-focus);
 }
@@ -130,4 +133,112 @@ html[data-window='panel'] input,
 html[data-window='panel'] textarea {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* ── Panel motion ─────────────────────────────────────────────────────────
+   The panel's webview is created once and only shown/hidden, so these never
+   replay on their own — useEnterAnimation restarts them by name. Keeping the
+   `panel-` prefix is what lets it tell them apart from everything else. */
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+}
+
+@keyframes panel-stagger {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* The commit landed: the field is replaced for a beat by its confirmation. */
+@keyframes panel-confirm {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* Enter with nothing to commit: nudge the field rather than failing silently. */
+@keyframes panel-reject {
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+/* No fill mode and no delay on purpose: with `both`, an animation whose
+   timeline has not started yet holds the `from` frame — an invisible panel.
+   The slower body duration carries the stagger instead. */
+html[data-window='panel'] [data-panel-enter] {
+  animation: panel-enter 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-window='panel'] [data-panel-stagger] {
+  animation: panel-stagger 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-window='panel'] [data-panel-enter],
+  html[data-window='panel'] [data-panel-stagger] {
+    animation: none;
+  }
+}
+
+/* ── Command palette, panel-flavoured ──────────────────────────────────────
+   The shadcn command input ships as a rounded, ringed card — right on a page,
+   wrong inside a 420px overlay that is already a card. Restyled here rather
+   than in the component so `shadcn add` can overwrite it freely. */
+
+html[data-window='panel'] [data-slot='command-input-wrapper'] {
+  padding: 0;
+}
+
+html[data-window='panel'] [data-slot='command-input-wrapper'] [data-slot='input-group'] {
+  height: 2.25rem;
+  border-radius: 0;
+  border-width: 0 0 1px 0;
+  border-color: var(--color-border);
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-window='panel'] [data-slot='command-input-wrapper'] [data-slot='input-group']:has([data-slot='command-input']:focus-visible) {
+  border-color: var(--color-brand-border);
+  box-shadow: none;
+}
+
+/* The group draws the focus state; the control inside must not draw a second. */
+html[data-window='panel'] [data-slot='command-input']:focus-visible {
+  box-shadow: none;
+}
+
+/* cmdk marks every item with `data-selected`, "false" included, so Tailwind's
+   presence-based `data-selected:` variant highlights the entire list. Only the
+   one the keyboard is on is selected. */
+html[data-window='panel'] [data-slot='command-item'] {
+  background-color: transparent;
+}
+
+/* NOT `--color-accent`: tokens.css defines that as the brand red, while the
+   `@theme inline` block above maps shadcn's `accent` onto the hover surface.
+   Only the utility classes see the shadcn meaning — raw CSS must name the
+   token it actually wants. */
+html[data-window='panel'] [data-slot='command-item'][data-selected='true'] {
+  background-color: var(--color-surface-hover);
+}
+
+/* Five hairlines fading to the right — a staff, behind the panel wordmark. */
+.panel-staff {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--color-foreground) 7%, transparent) 0 1px,
+    transparent 1px 5px
+  );
+  mask-image: linear-gradient(to right, transparent, black 80%);
 }

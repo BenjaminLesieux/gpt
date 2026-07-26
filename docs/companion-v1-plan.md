@@ -15,7 +15,7 @@ Gitarpro pivots from a full Electron desktop app to a **resident companion app**
    - Hotkey commit → **named version**. Only named versions form the official history and get pushed.
 4. **Real git, fully hidden.** One bare repo per tracked file under the app data dir. Named versions = commits on `main`; auto-snapshots = commits on `refs/snapshots` (pruning = dropping/rewriting that ref). Git only stores; all semantic diffing stays in `gpt-core`. User never sees git concepts.
 5. **Tauri v2** (not Electron). macOS first, Windows later. Rust side: libgit2 (`git2` crate), fs watching (`notify` crate), tray, global shortcut. UI stays React; `gpt-core` and `alphatab-react` are reused in the webview.
-6. **Keep the Nx workspace.** Keep `packages/gpt-core` and `packages/alphatab-react`. New app: `apps/companion`. Delete `apps/desktop` and `apps/desktop-e2e` once companion replaces them. `apps/cli` stays but is unmaintained (debugging aid).
+6. **Keep the Nx workspace.** Keep `packages/gpt-core` and `packages/alphatab-react`. New app: `apps/companion`. Delete `apps/desktop`, `apps/desktop-e2e` and `apps/cli` once companion replaces them (M6) — the CLI's only unique feature is the `normalize-gp` git clean filter, which decision 4 and the constraints below forbid using anyway.
 7. **Optional git remote from v1.** Per-file (or global) remote URL + token/SSH auth. Push is async, background, best-effort (silent retry, discreet failure badge). **A local commit must never fail or block because of the network.**
 8. **No merge / no branches in v1.** gpt-core's merge code stays in the package (tested), zero UI on it. Extended window v1 scope: version timeline (+ access to auto-snapshots for recovery), visual diff between any two versions, restore a version (safety snapshot first), audio playback via alphaTab.
 9. **Hosting platform: deferred, contract sealed.** Later platform = vanilla unmodified git server (Forgejo/Gitea) + separate Gitarpro web app with its own DB (accounts, share links, comments, parsed-score cache). Git = source of truth for scores/history; DB = social/meta only. **No custom sync protocol, ever.** v1 only needs to push to a standard git URL.
@@ -33,7 +33,7 @@ packages/alphatab-react/   # unchanged — score rendering
 
 - **App data** (`~/Library/Application Support/Gitarpro/`): `config.json` (tracked files: id, absolute path, remote URL, prefs) + `repos/<id>/` (bare git repos).
 - **Windows (Tauri):** panel = frameless, always-created-hidden webview toggled by hotkey/tray (show/hide, never recreate — must appear <100ms), hides on blur. Extended window = normal decorated window, lazily created.
-- **Commit pipeline (both tiers):** read `.gp` → normalize via `gpt-core/normalizeGp` **in app code** (git filters are forbidden by design; normalization is always app-level) → write blob/tree/commit to the bare repo via git2.
+- **Commit pipeline (both tiers):** read `.gp` → normalize → write blob/tree/commit to the bare repo via git2. All of it in the Rust host: auto-snapshots fire from the watcher thread and must never depend on a live webview. Normalization is therefore a Rust port of `gpt-core/normalizeGp` (`src-tauri/src/normalize.rs`) — pure zip-container surgery, no score semantics. Git filters remain forbidden by design.
 - **IPC surface (Rust commands, roughly):** `listTrackedFiles`, `trackFile(path)`, `untrackFile(id)`, `getActiveFile`, `commitNamed(id, message)`, `listVersions(id)`, `listSnapshots(id)`, `getVersionBlob(id, ref)`, `restoreVersion(id, ref)`, `setRemote(id, url, auth)`, `pushStatus(id)`. Watcher emits `file-saved` events to the webview.
 - **Diff view:** load two blobs → `gpt-core` parse + diff → render with `alphatab-react` + custom annotations (changed measures/tracks highlighted). This is the killer feature; budget polish time for it.
 
@@ -45,13 +45,20 @@ packages/alphatab-react/   # unchanged — score rendering
 
 **M2 — Core domain (Rust).** config.json store; `notify` watcher on tracked files (debounce saves); git2 bare-repo init; auto-snapshot on save to `refs/snapshots`; named commit on `main`; snapshot pruning (keep N days / M count); IPC commands above.
 
-**M3 — Panel UI.** Active file display, message input, Enter-to-commit, recent named versions list, file switcher, "open extended window" affordance. Optimize for keyboard-only flow and dismissal speed.
+**M3 — Panel UI.** ✅ Active file display, message input, Enter-to-commit, recent named versions list, file switcher (`⌘K`), "open extended window" affordance. Optimize for keyboard-only flow and dismissal speed.
+
+M3 added two commands the contract in M2 did not anticipate, both because the panel was otherwise a dead end: `pickAndTrackFile` (nothing could be tracked from the UI at all) and `setActiveFile` (the switcher needs a manual override — the host only moved the active file on save or commit). The picker runs host-side and holds the panel open while the modal has focus.
 
 **M4 — Extended window.** Timeline of named versions + snapshot recovery view; visual diff (gpt-core + alphatab-react); restore with pre-restore safety snapshot; audio playback of a version.
 
 **M5 — Remote.** Remote URL + auth settings; background push queue after named commits (git2 push, token/SSH); status badge; retry logic. Validate against a bare git server or Forgejo in Docker.
 
-**M6 — Cleanup & ship.** Delete `apps/desktop`, `apps/desktop-e2e`; macOS bundle/signing via Tauri bundler; smoke-test the full loop (track → save → snapshot → hotkey commit → diff → restore → push).
+**M6 — Cleanup & ship.** Delete `apps/desktop`, `apps/desktop-e2e`, `apps/cli`; macOS bundle/signing via Tauri bundler; smoke-test the full loop (track → save → snapshot → hotkey commit → diff → restore → push).
+
+Deleting the CLI orphans the TypeScript `normalizeGp` (`packages/gpt-core/src/normalizeGp.ts` + spec + the `index.ts` exports) — the CLI is its last consumer, so it goes too, leaving `apps/companion/src-tauri/src/normalize.rs` as the single implementation. Two caveats:
+
+- The Rust port does **not** implement the `volatileElements` option (blanking named XML elements). It is unused today; if a Guitar Pro version turns out to rewrite an element inside `score.gpif` on every save, port the option to Rust *before* deleting the TS version.
+- `docs/normalize-gp.md` explains why `.gp` bytes churn — worth keeping, but retarget it at `normalize.rs` and drop the `.gitattributes` clean-filter recipe.
 
 ### Parallelization
 
@@ -61,7 +68,7 @@ packages/alphatab-react/   # unchanged — score rendering
 
 ## Constraints & pitfalls
 
-- **Normalization is app-level, always.** Never attempt git clean/smudge filters (prior project doctrine; also irrelevant with git2 but the rule stands: normalize before writing blobs so diffs stay stable).
+- **Normalization is app-level, always.** Never attempt git clean/smudge filters (prior project doctrine; also irrelevant with git2 but the rule stands: normalize before writing blobs so diffs stay stable). It lives in `normalize.rs`; everything that understands a *score* (parse/diff/merge) stays in `gpt-core`.
 - `.gp` files are binary zips (~hundreds of KB); git won't delta them well — acceptable, don't optimize.
 - TS packages use `moduleResolution: bundler` (overriding the nodenext base) — no `.js` import extensions.
 - Prefer `pnpm nx ...` for all tasks; use the shadcn MCP for any new UI primitive (see CLAUDE.md).

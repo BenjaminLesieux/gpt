@@ -19,8 +19,24 @@ tauri-build = { version = "2", features = [] }
 # (app.macOSPrivateApi in tauri.conf.json).
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
+# Native "add a file" picker. Driven from Rust, so the webview needs no
+# dialog capability of its own.
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Storage: one bare repo per tracked file. No network features until M5 wires
+# pushing — they drag in openssl/libssh2 and we have nothing to push yet.
+git2 = { version = "0.21", default-features = false }
+# Save detection. Watching is per parent directory (Guitar Pro saves
+# atomically, so the inode of the file itself is replaced).
+notify = "8"
+# `.gp` container rebuild (see normalize.rs). Only deflate is needed to read
+# what Guitar Pro writes; we write everything back stored.
+zip = { version = "5", default-features = false, features = ["deflate"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 codegen-units = 1

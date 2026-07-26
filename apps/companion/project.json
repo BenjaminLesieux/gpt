@@ -11,6 +11,10 @@
       "command": "pnpm tauri build",
       "options": { "cwd": "{projectRoot}" }
     },
+    "cargo-test": {
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml",
+      "options": { "cwd": "{projectRoot}" }
+    },
     "cargo-check": {
       "command": "cargo check --manifest-path src-tauri/Cargo.toml",
       "options": { "cwd": "{projectRoot}" }
