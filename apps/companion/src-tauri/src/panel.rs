@@ -3,14 +3,47 @@
 //! Latency is the product here: the window exists from startup (hidden) and we
 //! only ever toggle visibility, so hotkey → visible stays a few milliseconds.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{AppHandle, Manager, PhysicalPosition, WebviewWindow};
 
 /// Gap kept between the panel and the edges of the screen, in logical pixels.
 /// Roughly clears the macOS menu bar so the panel reads as hanging from it.
 const SCREEN_MARGIN: f64 = 32.0;
 
+/// Set while a native modal is up. The panel dismisses itself on blur, and a
+/// file picker steals focus — without this, choosing a file would close the
+/// panel out from under the user.
+static HELD: AtomicBool = AtomicBool::new(false);
+
 fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(crate::PANEL_LABEL)
+}
+
+/// Guard rather than a pair of calls: an early return or a `?` must not leave
+/// the panel pinned open forever.
+pub struct Hold;
+
+pub fn hold() -> Hold {
+    HELD.store(true, Ordering::SeqCst);
+    Hold
+}
+
+impl Drop for Hold {
+    fn drop(&mut self) {
+        HELD.store(false, Ordering::SeqCst);
+    }
+}
+
+pub fn is_held() -> bool {
+    HELD.load(Ordering::SeqCst)
+}
+
+/// Hand focus back after a modal closes, so typing goes to the panel again.
+pub fn focus(app: &AppHandle) {
+    if let Some(window) = window(app) {
+        let _ = window.set_focus();
+    }
 }
 
 /// Hide the panel if it is showing, show it (near the cursor) otherwise.
@@ -47,7 +80,9 @@ fn position_near_cursor(app: &AppHandle, window: &WebviewWindow) {
         .or_else(|| app.primary_monitor().ok().flatten());
     let Some(monitor) = monitor else { return };
 
-    let Ok(size) = window.outer_size() else { return };
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
 
     let margin = (SCREEN_MARGIN * monitor.scale_factor()).round() as i32;
     let screen_pos = monitor.position();

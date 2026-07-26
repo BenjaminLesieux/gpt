@@ -65,3 +65,6 @@ test-output
 .gemini/
 .opencode/
 opencode.json
+
+# TypeScript build-mode artifact (nx typecheck runs `tsc --build`)
+*.tsbuildinfo
