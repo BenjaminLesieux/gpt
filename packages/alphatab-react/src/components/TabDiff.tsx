@@ -361,18 +361,22 @@ export function TabDiff({
   };
 
   // ── Overlay specs ──────────────────────────────────────────────────────────
+  // Each pane renders its own score, so each is addressed by its own index.
+  // They diverge as soon as a measure is inserted or deleted: bar 12 of base can
+  // be bar 13 of head. Using one index for both panes misaligns every highlight
+  // after the first structural edit.
   const baseSpecs = useMemo<OverlaySpec[]>(() => {
     if (!trackDiff) return [];
     return trackDiff.bars
       .filter((b) => b.type === "removed" || b.type === "changed")
-      .map((b) => ({ masterBarIndex: b.masterBarIndex, type: b.type as BarChangeType }));
+      .map((b) => ({ masterBarIndex: b.baseIndex!, type: b.type as BarChangeType }));
   }, [trackDiff]);
 
   const headSpecs = useMemo<OverlaySpec[]>(() => {
     if (!trackDiff) return [];
     return trackDiff.bars
       .filter((b) => b.type === "added" || b.type === "changed")
-      .map((b) => ({ masterBarIndex: b.masterBarIndex, type: b.type as BarChangeType }));
+      .map((b) => ({ masterBarIndex: b.headIndex!, type: b.type as BarChangeType }));
   }, [trackDiff]);
 
   const paneSettings = useMemo<AlphaTabSettings>(

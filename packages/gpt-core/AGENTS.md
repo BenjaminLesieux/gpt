@@ -40,7 +40,7 @@ src/
 
 1. **`serialize` is deterministic.** Given the same logical score, it always produces the same string, regardless of input ordering. This is what makes diffing reliable.
 2. **Diff never mutates inputs.** Both `base` and `head` are treated as immutable.
-3. **Measure index is the diff key.** Two measures are "the same measure" iff they share the same `index`. Reordering measures is treated as removal + addition.
+3. **Measures are aligned by content, not by index.** `diffScores` runs an LCS over bar fingerprints, so inserting or deleting a measure reports one added/removed bar instead of marking every later measure as changed. Consequently a `BarDiff` carries **two** positions — `baseIndex` and `headIndex` — which diverge after any structural edit; anything rendering base and head side by side must address each pane with its own index. `masterBarIndex` is the display measure number only. Tracks are paired the same way: on identity (name + instrument + tuning) first, falling back to position.
 4. **`ScoreDiff.summary` is human-readable.** It is shown directly in the desktop UI and CLI output. Keep it musician-friendly (no technical jargon).
 
 ## Adding new logic
