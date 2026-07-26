@@ -27,7 +27,6 @@ export function ScoreStage({ fileId, version }: ScoreStageProps) {
   const { t } = useTranslation();
   const { bytes, loading, error } = useVersionBytes(fileId, version.id);
   const [track, setTrack] = useState<number | null>(null);
-  const [renderError, setRenderError] = useState<Error | null>(null);
 
   if (loading) return <StageSpinner label={t('extended.stage.loadingScore')} />;
   if (error || !bytes) return <StageMessage message={error ?? t('extended.stage.noScore')} />;
@@ -40,26 +39,54 @@ export function ScoreStage({ fileId, version }: ScoreStageProps) {
       src={bytes}
       tracks={track === null ? undefined : [track]}
       settings={SETTINGS}
-      onError={setRenderError}
     >
-      <ScoreToolbar track={track} onTrackChange={setTrack} />
-      <PlaybackBar />
+      <StageContent track={track} onTrackChange={setTrack} />
+    </AlphaTab.Root>
+  );
+}
+
+/**
+ * Inside `<AlphaTab.Root>`: whether the bytes parsed is only known here, and
+ * reading it from the score state means it resets with the remount rather
+ * than outliving the version it belongs to.
+ */
+function StageContent({
+  track,
+  onTrackChange,
+}: {
+  track: number | null;
+  onTrackChange(value: number | null): void;
+}) {
+  const { t } = useTranslation();
+  const { error } = useScore();
+
+  return (
+    <>
+      {!error && (
+        <>
+          <ScoreToolbar track={track} onTrackChange={onTrackChange} />
+          <PlaybackBar />
+        </>
+      )}
 
       <div className="relative min-h-0 flex-1 overflow-auto bg-background">
-        {renderError ? (
-          <StageMessage message={renderError.message} />
-        ) : (
-          <AlphaTab.Viewport
-            cursorClassNames={{
-              bar: 'bg-accent/20',
-              beat: 'bg-brand/80',
-              selection: 'bg-brand-dim',
-              highlightColor: 'oklch(65% 0.14 60)',
-            }}
-          />
+        <AlphaTab.Viewport
+          cursorClassNames={{
+            bar: 'bg-accent/20',
+            beat: 'bg-brand/80',
+            selection: 'bg-brand-dim',
+            highlightColor: 'oklch(65% 0.14 60)',
+          }}
+        />
+        {error && (
+          // Covered rather than replaced: unmounting the viewport destroys the
+          // alphaTab instance, and the next one would load the same bytes again.
+          <div className="absolute inset-0 flex bg-background">
+            <StageMessage message={t('extended.stage.noScore')} />
+          </div>
         )}
       </div>
-    </AlphaTab.Root>
+    </>
   );
 }
 
