@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { outro } from "@clack/prompts";
-import { GitLayer } from "../runtime/GitLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
 
 export const addCommand = (filepath: string, dir: string = process.cwd()) =>
   Effect.gen(function* () {

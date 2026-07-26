@@ -12,10 +12,6 @@ import { cn } from '@/lib/utils';
 //     <MasterDetail.Detail>…</MasterDetail.Detail>
 //   </MasterDetail>
 
-export function MasterDetail({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>;
-}
-
 function List({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn('flex w-[300px] shrink-0 flex-col border-r border-border', className)}>
@@ -32,5 +28,9 @@ function Detail({ children, className }: { children: ReactNode; className?: stri
   );
 }
 
-MasterDetail.List = List;
-MasterDetail.Detail = Detail;
+export const MasterDetail = Object.assign(
+  function MasterDetail({ children }: { children: ReactNode }) {
+    return <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>;
+  },
+  { List, Detail },
+);

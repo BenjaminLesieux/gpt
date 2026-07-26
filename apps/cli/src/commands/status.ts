@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { join } from "node:path";
 import { diffScores } from "@gpt/gpt-core";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { AlphaTabLayer } from "../runtime/AlphaTabLayer.js";
-import { FSLayer } from "../runtime/FSLayer.js";
+import { GitLayer } from "../runtime/GitLayer";
+import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
+import { FSLayer } from "../runtime/FSLayer";
 
 const GP_EXTENSIONS = [".gp", ".gp5", ".gpx"];
 const isGpFile = (f: string) => GP_EXTENSIONS.some((ext) => f.endsWith(ext));

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { Effect, Layer } from "effect";
-import { FSLayer } from "../runtime/FSLayer.js";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { initData } from "./init.js";
+import { FSLayer } from "../runtime/FSLayer";
+import { GitLayer } from "../runtime/GitLayer";
+import { initData } from "./init";
 
 const notImplemented = () => Effect.die("not implemented in test");
 

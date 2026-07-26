@@ -1,7 +1,7 @@
 import { importer, exporter } from "@coderline/alphatab";
 import { Context, Effect, Layer } from "effect";
 import type { Score } from "@gpt/gpt-core";
-import { AlphaTabParseError, AlphaTabExportError } from "../errors.js";
+import { AlphaTabParseError, AlphaTabExportError } from "../errors";
 
 export class AlphaTabLayer extends Context.Tag("AlphaTabLayer")<
   AlphaTabLayer,

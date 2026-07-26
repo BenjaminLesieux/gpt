@@ -2,7 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import git from "isomorphic-git";
 import * as fsNode from "node:fs";
 import type { Commit } from "@gpt/gpt-core";
-import { GitError } from "../errors.js";
+import { GitError } from "../errors";
 
 const fs = fsNode;
 

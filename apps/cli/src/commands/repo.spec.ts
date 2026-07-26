@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
-import { FSLayer } from "../runtime/FSLayer.js";
-import { validateRepoData } from "./repo.js";
+import { FSLayer } from "../runtime/FSLayer";
+import { validateRepoData } from "./repo";
 
 /**
  * Build an `FSLayer` whose `exists` answers from a provided set of paths.

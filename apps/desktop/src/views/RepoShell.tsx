@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Folder, FileDiff, History } from 'lucide-react';
@@ -112,7 +113,7 @@ function TabLink({
 }: {
   to: string;
   active: boolean;
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   badge?: string | null;
   badgeTone?: 'default' | 'alert';

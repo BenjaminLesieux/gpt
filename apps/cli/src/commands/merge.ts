@@ -3,10 +3,10 @@ import { join } from "node:path";
 import * as fsNode from "node:fs";
 import { mergeScores, applyMerge, CONFLICT_SIDECAR, isFullyResolved, unresolvedCount } from "@gpt/gpt-core";
 import type { ConflictSidecar, FileConflictState } from "@gpt/gpt-core";
-import { GitLayer } from "../runtime/GitLayer.js";
-import { AlphaTabLayer } from "../runtime/AlphaTabLayer.js";
-import { FSLayer } from "../runtime/FSLayer.js";
-import { FSError, NoCommonAncestorError, NoMergeInProgressError, UnresolvedConflictsError } from "../errors.js";
+import { GitLayer } from "../runtime/GitLayer";
+import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
+import { FSLayer } from "../runtime/FSLayer";
+import { FSError, NoCommonAncestorError, NoMergeInProgressError, UnresolvedConflictsError } from "../errors";
 
 const GP_EXT = /\.(gp|gp5|gp4|gpx|gp6|gp7)$/i;
 const isGpFile = (f: string) => GP_EXT.test(f);

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { FSLayer } from "../runtime/FSLayer.js";
+import { FSLayer } from "../runtime/FSLayer";
 
 /**
  * Shape returned by `GET /repo/validate`.
