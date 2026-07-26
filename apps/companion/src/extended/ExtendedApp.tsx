@@ -105,6 +105,7 @@ export function ExtendedApp() {
           onDismiss={() => {
             setFailure(null);
             library.clearError();
+            history.clearError();
           }}
         />
       )}

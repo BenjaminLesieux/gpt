@@ -9,6 +9,7 @@ export interface History {
   loading: boolean;
   error: string | null;
   reload(): void;
+  clearError(): void;
 }
 
 const EMPTY: Pick<History, 'versions' | 'snapshots'> = { versions: [], snapshots: [] };
@@ -48,6 +49,7 @@ export function useHistory(fileId: string | null): History {
   }, [fileId, nonce]);
 
   const reload = useCallback(() => setNonce((current) => current + 1), []);
+  const clearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
     const subscription = onFileSaved((event) => {
@@ -58,5 +60,5 @@ export function useHistory(fileId: string | null): History {
     };
   }, [fileId, reload]);
 
-  return { ...entries, loading, error, reload };
+  return { ...entries, loading, error, reload, clearError };
 }

@@ -132,6 +132,19 @@ describe('ExtendedApp', () => {
     );
   });
 
+  it('lets a history failure be dismissed', async () => {
+    ipc.listVersions.mockRejectedValue(new Error('io error: repository is locked'));
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+
+    const strip = await screen.findByRole('alert');
+    expect(strip.textContent).toMatch(/repository is locked/);
+
+    await user.click(within(strip).getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('sends the user to the file picker when nothing is tracked', async () => {
     ipc.listTrackedFiles.mockResolvedValue([]);
     ipc.getActiveFile.mockResolvedValue(null);
