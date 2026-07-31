@@ -124,9 +124,9 @@ type BarPair = [number | null, number | null];
 /** A pair the LCS matched outright — both sides always present. */
 type Anchor = [number, number];
 
-// Guard on the LCS table so a pathologically long score can't blow up memory.
-// Beyond this the middle section falls back to positional pairing, which is
-// exactly the old behaviour — degraded, never wrong.
+// Guard on the LCS tables (two of them, four bytes a cell) so a pathologically
+// long score can't blow up memory. Beyond this the middle section falls back to
+// positional pairing — degraded, never wrong.
 const MAX_LCS_CELLS = 4_000_000;
 
 function alignBars(baseBars: Bar[], headBars: Bar[]): BarPair[] {
@@ -203,7 +203,17 @@ function alignMiddle(
   return pairs;
 }
 
-/** Longest common subsequence of bar fingerprints, as [baseIndex, headIndex] pairs. */
+/**
+ * Longest common subsequence of bar fingerprints, as [baseIndex, headIndex] pairs.
+ *
+ * Music repeats itself, so a track routinely offers dozens of ways to match the
+ * same number of bars — a riff played in bar 12 is byte-identical to the one in
+ * bar 92. Length alone does not choose between them, and the arbitrary winner is
+ * often one that pairs a bar with a far-away twin, which then reads as a long
+ * deletion plus a long insertion instead of an edit in place. So the table
+ * carries a second number: among the alignments of maximal length, prefer the
+ * one whose matches sit closest to the diagonal.
+ */
 function lcsAnchors(
   base: string[],
   head: string[],
@@ -214,35 +224,84 @@ function lcsAnchors(
   const n = baseEnd - lo;
   const m = headEnd - lo;
 
-  // dp[i][j] = LCS length of base[lo+i..] and head[lo+j..]
-  const dp: Uint32Array[] = Array.from(
+  // len[i][j] = LCS length of base[lo+i..] and head[lo+j..]
+  // drift[i][j] = smallest total |i-j| over the matches of any such alignment
+  const len: Uint32Array[] = Array.from(
     { length: n + 1 },
     () => new Uint32Array(m + 1),
   );
+  const drift: Uint32Array[] = Array.from(
+    { length: n + 1 },
+    () => new Uint32Array(m + 1),
+  );
+
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      dp[i]![j] =
-        base[lo + i] === head[lo + j]
-          ? dp[i + 1]![j + 1]! + 1
-          : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+      const matches = base[lo + i] === head[lo + j];
+      // Taking a match never shortens the LCS, but it can drag the alignment off
+      // the diagonal, so it competes with the two skips rather than short-
+      // circuiting them.
+      let bestLen = len[i + 1]![j]!;
+      let bestDrift = drift[i + 1]![j]!;
+
+      const skipHeadLen = len[i]![j + 1]!;
+      const skipHeadDrift = drift[i]![j + 1]!;
+      if (better(skipHeadLen, skipHeadDrift, bestLen, bestDrift)) {
+        bestLen = skipHeadLen;
+        bestDrift = skipHeadDrift;
+      }
+
+      if (matches) {
+        const matchLen = len[i + 1]![j + 1]! + 1;
+        const matchDrift = drift[i + 1]![j + 1]! + Math.abs(i - j);
+        if (better(matchLen, matchDrift, bestLen, bestDrift)) {
+          bestLen = matchLen;
+          bestDrift = matchDrift;
+        }
+      }
+
+      len[i]![j] = bestLen;
+      drift[i]![j] = bestDrift;
     }
   }
 
+  // Replay the same choice forwards, collecting the matches it takes.
   const anchors: Anchor[] = [];
   let i = 0;
   let j = 0;
   while (i < n && j < m) {
-    if (base[lo + i] === head[lo + j]) {
+    if (
+      base[lo + i] === head[lo + j] &&
+      len[i]![j] === len[i + 1]![j + 1]! + 1 &&
+      drift[i]![j] === drift[i + 1]![j + 1]! + Math.abs(i - j)
+    ) {
       anchors.push([lo + i, lo + j]);
       i++;
       j++;
-    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+    } else if (
+      better(
+        len[i + 1]![j]!,
+        drift[i + 1]![j]!,
+        len[i]![j + 1]!,
+        drift[i]![j + 1]!,
+      )
+    ) {
       i++;
     } else {
       j++;
     }
   }
   return anchors;
+}
+
+/** Longer wins; equal length is settled by staying nearer the diagonal. */
+function better(
+  len: number,
+  drift: number,
+  bestLen: number,
+  bestDrift: number,
+): boolean {
+  return len > bestLen || (len === bestLen && drift < bestDrift);
 }
 
 // ─── Tracks ───────────────────────────────────────────────────────────────────
@@ -384,7 +443,12 @@ function beatArticulationChanged(base: Beat, head: Beat): boolean {
 }
 
 function beatDynamicsChanged(base: Beat, head: Beat): boolean {
-  return base.dynamics !== head.dynamics || base.crescendo !== head.crescendo;
+  // Rests carry an inherited dynamic that is never heard, and the fingerprint
+  // that decided this bar changed already ignores it — so must this, or a bar
+  // gets a dynamics chip that nothing in it explains.
+  const dynamics =
+    base.isRest && head.isRest ? false : base.dynamics !== head.dynamics;
+  return dynamics || base.crescendo !== head.crescendo;
 }
 
 function samePoints(

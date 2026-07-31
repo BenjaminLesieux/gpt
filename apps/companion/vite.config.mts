@@ -1,5 +1,5 @@
 /// <reference types='vitest' />
-import { defineConfig } from 'vite';
+import { defaultClientConditions, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { alphaTab } from '@coderline/alphatab-vite';
@@ -17,9 +17,14 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@gpt/gpt-core': resolve(__dirname, '../../packages/gpt-core/src/index.ts'),
-      '@gpt/alphatab-react': resolve(__dirname, '../../packages/alphatab-react/src/index.ts'),
     },
+    // Workspace packages publish their TypeScript sources under the `@gpt/source`
+    // export condition, the same one tsconfig.base.json resolves types through.
+    // Honouring it here is what keeps dev on source: the fallback is each
+    // package's `dist`, which nothing in `tauri dev` rebuilds, so edits to the
+    // diff engine would show up in typecheck and tests but silently not in the
+    // running app.
+    conditions: ['@gpt/source', ...defaultClientConditions],
   },
   server: {
     // Fixed port: tauri.conf.json's devUrl points at it.
