@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import type { ScoreDiff } from "@gpt/gpt-core";
+import { barsForTrack, type BarDiff, type ScoreDiff } from "@gpt/gpt-core";
 import { Root } from "./Root";
 import { Viewport } from "./Viewport";
 import { useAlphaTabContext } from "../context/AlphaTabContext";
@@ -347,7 +347,11 @@ export function TabDiff({
   className,
   style,
 }: TabDiffProps) {
-  const trackDiff = diff.tracks[trackIndex];
+  // The alignment is score-level; a track's bars are derived from it on demand.
+  const bars = useMemo<BarDiff[]>(
+    () => barsForTrack(diff, trackIndex),
+    [diff, trackIndex],
+  );
 
   const resolvedFill: Record<BarChangeType, string> = {
     added:   colors?.added   ?? FILL.added,
@@ -365,19 +369,21 @@ export function TabDiff({
   // They diverge as soon as a measure is inserted or deleted: bar 12 of base can
   // be bar 13 of head. Using one index for both panes misaligns every highlight
   // after the first structural edit.
-  const baseSpecs = useMemo<OverlaySpec[]>(() => {
-    if (!trackDiff) return [];
-    return trackDiff.bars
-      .filter((b) => b.type === "removed" || b.type === "changed")
-      .map((b) => ({ masterBarIndex: b.baseIndex!, type: b.type as BarChangeType }));
-  }, [trackDiff]);
+  const baseSpecs = useMemo<OverlaySpec[]>(
+    () =>
+      bars
+        .filter((b) => b.type === "removed" || b.type === "changed")
+        .map((b) => ({ masterBarIndex: b.baseIndex!, type: b.type as BarChangeType })),
+    [bars],
+  );
 
-  const headSpecs = useMemo<OverlaySpec[]>(() => {
-    if (!trackDiff) return [];
-    return trackDiff.bars
-      .filter((b) => b.type === "added" || b.type === "changed")
-      .map((b) => ({ masterBarIndex: b.headIndex!, type: b.type as BarChangeType }));
-  }, [trackDiff]);
+  const headSpecs = useMemo<OverlaySpec[]>(
+    () =>
+      bars
+        .filter((b) => b.type === "added" || b.type === "changed")
+        .map((b) => ({ masterBarIndex: b.headIndex!, type: b.type as BarChangeType })),
+    [bars],
+  );
 
   const paneSettings = useMemo<AlphaTabSettings>(
     () => ({
@@ -390,16 +396,16 @@ export function TabDiff({
   );
 
   const baseCounts = useMemo(() => ({
-    changed: trackDiff?.bars.filter((b) => b.type === "changed").length ?? 0,
-    removed: trackDiff?.bars.filter((b) => b.type === "removed").length ?? 0,
+    changed: bars.filter((b) => b.type === "changed").length,
+    removed: bars.filter((b) => b.type === "removed").length,
     added: 0,
-  }), [trackDiff]);
+  }), [bars]);
 
   const headCounts = useMemo(() => ({
-    changed: trackDiff?.bars.filter((b) => b.type === "changed").length ?? 0,
-    added:   trackDiff?.bars.filter((b) => b.type === "added").length   ?? 0,
+    changed: bars.filter((b) => b.type === "changed").length,
+    added:   bars.filter((b) => b.type === "added").length,
     removed: 0,
-  }), [trackDiff]);
+  }), [bars]);
 
   // ── Synchronized scroll ───────────────────────────────────────────────────
   const baseScrollRef = useRef<HTMLDivElement>(null);

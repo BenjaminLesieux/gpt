@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TabDiff, darkTheme } from '@gpt/alphatab-react';
+import { barsForTrack } from '@gpt/gpt-core';
 import type { Version } from '@/lib/ipc';
 import { StageMessage, StageSpinner } from './ScoreStage';
 import { TrackSelector } from './TrackSelector';
@@ -30,7 +31,7 @@ export function DiffStage({ fileId, base, head }: DiffStageProps) {
   // gpt-core's own summary is a fixed English sentence across all tracks; the
   // toolbar counts only what the selected track shows.
   const counts = useMemo(() => {
-    const bars = diff?.tracks[track]?.bars ?? [];
+    const bars = diff ? barsForTrack(diff, track) : [];
     return {
       changed: bars.filter((bar) => bar.type === 'changed').length,
       added: bars.filter((bar) => bar.type === 'added').length,
