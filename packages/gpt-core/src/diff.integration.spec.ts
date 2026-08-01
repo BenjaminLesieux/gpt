@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importer, model } from '@coderline/alphatab';
-import { diffScores } from './diff';
+import { barsForTrack, diffScores } from './diff';
 import type { BarDiff, ScoreDiff } from './types/diff';
 import type { Score } from './types/score';
 
@@ -24,7 +24,9 @@ function loadFixture(): Score {
 }
 
 function tally(diff: ScoreDiff) {
-  const all: BarDiff[] = diff.tracks.flatMap((track) => track.bars);
+  const all: BarDiff[] = diff.tracks.flatMap((track) =>
+    barsForTrack(diff, track.trackIndex),
+  );
   return {
     equal: all.filter((bar) => bar.type === 'equal').length,
     changed: all.filter((bar) => bar.type === 'changed').length,
@@ -72,7 +74,7 @@ describe('diffScores against a real Guitar Pro file', () => {
 
     // Then one bar of one track is flagged, and it is the bar that was edited
     expect(tally(diff)).toMatchObject({ changed: 1, added: 0, removed: 0 });
-    const changed = diff.tracks[1]!.bars.filter(
+    const changed = barsForTrack(diff, 1).filter(
       (bar) => bar.type === 'changed',
     );
     expect(changed).toHaveLength(1);
@@ -101,13 +103,17 @@ describe('diffScores against a real Guitar Pro file', () => {
   });
 
   it('should keep base and head pane indexes aligned to their own score after an insertion', () => {
-    // Given one measure inserted at bar 5 of the first track only
+    // Given one measure inserted at bar 5 — of every track, which is the only
+    // way a measure exists: its count is a property of the score (ADR 0002)
     const head = loadFixture();
-    head.tracks[0]!.staves[0]!.bars.splice(4, 0, emptyBar());
+    head.addMasterBar(new model.MasterBar());
+    for (const track of head.tracks) {
+      track.staves[0]!.bars.splice(4, 0, emptyBar());
+    }
 
     // When diffed
     const diff = diffScores(loadFixture(), head);
-    const bars = diff.tracks[0]!.bars;
+    const bars = barsForTrack(diff, 0);
 
     // Then a bar after the insertion points at a different index in each score,
     // which is what a side-by-side view needs to highlight the right measures
@@ -151,7 +157,7 @@ describe('diffScores against a real Guitar Pro file', () => {
 
     // Then the edit surfaces, attributed to the notes
     expect(tally(diff)).toMatchObject({ changed: 1, added: 0, removed: 0 });
-    const changed = diff.tracks[3]!.bars.find((bar) => bar.type === 'changed')!;
+    const changed = barsForTrack(diff, 3).find((bar) => bar.type === 'changed')!;
     expect(changed.type).toBe('changed');
     if (changed.type === 'changed') {
       expect(changed.changedFields).toContain('notes');
