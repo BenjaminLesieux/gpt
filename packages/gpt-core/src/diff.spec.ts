@@ -1,107 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { diffScores } from './diff';
-import type {
-  Score,
-  Bar,
-  Beat,
-  Note,
-  Voice,
-  Track,
-  Staff,
-  MasterBar,
-} from './types/score';
-
-// ─── Test factory helpers ─────────────────────────────────────────────────────
-// Build minimal AlphaTab-shaped mock objects. The diff algorithm only reads
-// properties — it never calls AlphaTab methods — so plain objects cast to the
-// right types are sufficient.
-
-function makeNote(
-  string: number,
-  fret: number,
-  overrides: Partial<Note> = {},
-): Note {
-  return {
-    string,
-    fret,
-    isDead: false,
-    isHammerPullOrigin: false,
-    bendType: 0,
-    slideInType: 0,
-    slideOutType: 0,
-    vibrato: 0,
-    isLetRing: false,
-    isPalmMute: false,
-    harmonicType: 0,
-    trillValue: 0,
-    accentuated: 0,
-    ...overrides,
-  } as unknown as Note;
-}
-
-function makeBeat(notes: Note[], overrides: Partial<Beat> = {}): Beat {
-  return {
-    duration: 4,
-    dots: 0,
-    isRest: notes.length === 0,
-    tupletNumerator: 1,
-    tupletDenominator: 1,
-    notes,
-    ...overrides,
-  } as unknown as Beat;
-}
-
-function makeVoice(beats: Beat[]): Voice {
-  return { index: 0, beats } as unknown as Voice;
-}
-
-function makeBar(voices: Voice[]): Bar {
-  return { voices } as unknown as Bar;
-}
-
-function makeMasterBar(index: number): MasterBar {
-  return {
-    index,
-    timeSignatureNumerator: 4,
-    timeSignatureDenominator: 4,
-  } as unknown as MasterBar;
-}
-
-function makeStaff(bars: Bar[]): Staff {
-  return { bars } as unknown as Staff;
-}
-
-function makeTrack(
-  name: string,
-  bars: Bar[],
-  overrides: Partial<Track> = {},
-): Track {
-  return {
-    index: 0,
-    name,
-    staves: [makeStaff(bars)],
-    playbackInfo: { primaryChannel: 0, program: 24 },
-    ...overrides,
-  } as unknown as Track;
-}
-
-function makeScore(
-  tracks: Track[],
-  masterBarCount: number,
-  overrides: Partial<Score> = {},
-): Score {
-  const masterBars = Array.from({ length: masterBarCount }, (_, i) =>
-    makeMasterBar(i),
-  );
-  return {
-    title: 'Test Song',
-    artist: 'Artist',
-    tempo: 120,
-    tracks,
-    masterBars,
-    ...overrides,
-  } as unknown as Score;
-}
+import type { Bar, Beat, Note } from './types/score';
+import {
+  makeBar,
+  makeBeat,
+  makeBendPoints,
+  makeNote,
+  makeScore,
+  makeTrack,
+  makeVoice,
+} from './__fixtures__/buildScore';
 
 // Minimal bar with a single beat containing one note at the given fret
 function simpleBar(fret: number): Bar {
@@ -127,8 +35,9 @@ describe('diffScores', () => {
     });
 
     it('should return an empty meta diff when metadata is unchanged', () => {
-      // Given two identical scores
-      const score = makeScore([], 0, {
+      // Given two identical scores — tempo lives on the first master bar in the
+      // real model, so the score needs at least one measure to carry it
+      const score = makeScore([], 1, {
         title: 'Same',
         artist: 'Same',
         tempo: 120,
@@ -323,17 +232,17 @@ describe('diffScores', () => {
       // Given the same bend type but a different curve
       const base = barWithNote({
         bendType: 1,
-        bendPoints: [
-          { offset: 0, value: 0 },
-          { offset: 60, value: 4 },
-        ] as Note['bendPoints'],
+        bendPoints: makeBendPoints([
+          [0, 0],
+          [60, 4],
+        ]),
       });
       const head = barWithNote({
         bendType: 1,
-        bendPoints: [
-          { offset: 0, value: 0 },
-          { offset: 60, value: 8 },
-        ] as Note['bendPoints'],
+        bendPoints: makeBendPoints([
+          [0, 0],
+          [60, 8],
+        ]),
       });
 
       // When diffed / Then the bar is changed
@@ -341,11 +250,29 @@ describe('diffScores', () => {
     });
 
     it('should detect a change when a note becomes tied to the previous one', () => {
-      // Given a note that gains a tie
-      expectChanged(
-        barWithNote({ isTieDestination: false }),
-        barWithNote({ isTieDestination: true }),
-      ).toBe('changed');
+      // Given two notes at the same pitch, the second gaining a tie. The tie
+      // must have a real origin: Score.finish() drops an isTieDestination
+      // whose origin note cannot be found, so a lone tied note is a fixture
+      // that cannot exist in a parsed file.
+      const twoNotes = (tied: boolean) =>
+        makeBar([
+          makeVoice([
+            makeBeat([makeNote(1, 5)]),
+            makeBeat([makeNote(1, 5, { isTieDestination: tied })]),
+          ]),
+        ]);
+
+      const result = diffScores(
+        makeScore([makeTrack('Guitar', [twoNotes(false)])], 1),
+        makeScore([makeTrack('Guitar', [twoNotes(true)])], 1),
+      );
+      const bar = result.tracks[0]!.bars[0]!;
+
+      // Then the diff both flags the bar and explains it
+      expect(bar.type).toBe('changed');
+      if (bar.type === 'changed') {
+        expect(bar.changedFields.length).toBeGreaterThan(0);
+      }
     });
 
     it("should detect a change when a beat's dynamics are edited", () => {
@@ -369,13 +296,11 @@ describe('diffScores', () => {
       expectChanged(
         barWithBeat({
           whammyBarType: 2 as Beat['whammyBarType'],
-          whammyBarPoints: [{ offset: 0, value: 0 }] as Beat['whammyBarPoints'],
+          whammyBarPoints: makeBendPoints([[0, 0]]),
         }),
         barWithBeat({
           whammyBarType: 2 as Beat['whammyBarType'],
-          whammyBarPoints: [
-            { offset: 0, value: -4 },
-          ] as Beat['whammyBarPoints'],
+          whammyBarPoints: makeBendPoints([[0, -4]]),
         }),
       ).toBe('changed');
     });
@@ -383,10 +308,9 @@ describe('diffScores', () => {
     it.each([
       [
         'a bend curve',
-        { bendType: 1, bendPoints: [{ offset: 0, value: 4 }] },
-        { bendType: 1, bendPoints: [{ offset: 0, value: 8 }] },
+        { bendType: 1, bendPoints: makeBendPoints([[0, 4]]) },
+        { bendType: 1, bendPoints: makeBendPoints([[0, 8]]) },
       ],
-      ['a tie', { isTieDestination: false }, { isTieDestination: true }],
       ['a fingering', { leftHandFinger: 1 }, { leftHandFinger: 3 }],
     ])(
       'should always name at least one changed field when %s changes',
@@ -479,11 +403,15 @@ describe('diffScores', () => {
       return makeNote(-1, 0, { percussionArticulation: articulation });
     }
 
+    function drumTrack(bars: Bar[]) {
+      return makeTrack('Drums', bars, { percussion: true });
+    }
+
     it('should mark the bar as changed when a drum note swaps to a different instrument', () => {
       // Given one drum hit that becomes a different articulation (kick → snare)
       const base = makeScore(
         [
-          makeTrack('Drums', [
+          drumTrack([
             makeBar([makeVoice([makeBeat([drumNote(35)])])]),
           ]),
         ],
@@ -491,7 +419,7 @@ describe('diffScores', () => {
       );
       const head = makeScore(
         [
-          makeTrack('Drums', [
+          drumTrack([
             makeBar([makeVoice([makeBeat([drumNote(38)])])]),
           ]),
         ],
@@ -510,11 +438,11 @@ describe('diffScores', () => {
       const baseBeat = makeBeat([drumNote(35), drumNote(42), drumNote(38)]);
       const headBeat = makeBeat([drumNote(35), drumNote(46), drumNote(38)]);
       const base = makeScore(
-        [makeTrack('Drums', [makeBar([makeVoice([baseBeat])])])],
+        [drumTrack([makeBar([makeVoice([baseBeat])])])],
         1,
       );
       const head = makeScore(
-        [makeTrack('Drums', [makeBar([makeVoice([headBeat])])])],
+        [drumTrack([makeBar([makeVoice([headBeat])])])],
         1,
       );
 
@@ -534,7 +462,7 @@ describe('diffScores', () => {
       // Given the same chord of drum hits, written in a different order
       const base = makeScore(
         [
-          makeTrack('Drums', [
+          drumTrack([
             makeBar([makeVoice([makeBeat([drumNote(35), drumNote(42)])])]),
           ]),
         ],
@@ -542,7 +470,7 @@ describe('diffScores', () => {
       );
       const head = makeScore(
         [
-          makeTrack('Drums', [
+          drumTrack([
             makeBar([makeVoice([makeBeat([drumNote(42), drumNote(35)])])]),
           ]),
         ],
@@ -827,17 +755,11 @@ describe('diffScores', () => {
       // Given the same two tracks, listed in the opposite order in head
       const guitar = () =>
         makeTrack('Guitar', [simpleBar(5)], {
-          playbackInfo: {
-            primaryChannel: 0,
-            program: 24,
-          } as Track['playbackInfo'],
+          playbackInfo: { primaryChannel: 0, program: 24 },
         });
       const bass = () =>
         makeTrack('Bass', [simpleBar(3)], {
-          playbackInfo: {
-            primaryChannel: 1,
-            program: 33,
-          } as Track['playbackInfo'],
+          playbackInfo: { primaryChannel: 1, program: 33 },
         });
       const base = makeScore([guitar(), bass()], 1);
       const head = makeScore([bass(), guitar()], 1);
@@ -867,8 +789,8 @@ describe('diffScores', () => {
 
     it('should detect a tempo change when tempos differ', () => {
       // Given base tempo 120 and head tempo 140
-      const base = makeScore([], 0, { tempo: 120 });
-      const head = makeScore([], 0, { tempo: 140 });
+      const base = makeScore([], 1, { tempo: 120 });
+      const head = makeScore([], 1, { tempo: 140 });
 
       // When diffed
       const result = diffScores(base, head);
@@ -879,8 +801,8 @@ describe('diffScores', () => {
 
     it('should omit unchanged meta fields from the diff', () => {
       // Given scores that differ only in tempo
-      const base = makeScore([], 0, { title: 'Same', tempo: 100 });
-      const head = makeScore([], 0, { title: 'Same', tempo: 110 });
+      const base = makeScore([], 1, { title: 'Same', tempo: 100 });
+      const head = makeScore([], 1, { title: 'Same', tempo: 110 });
 
       // When diffed
       const result = diffScores(base, head);
