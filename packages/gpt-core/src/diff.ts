@@ -2,9 +2,11 @@ import type { Bar, Beat, BendPoint, Note, Score, Track } from './types/score';
 import type {
   BarChangedField,
   BarDiff,
+  MeasureDiff,
   MetaDiff,
   ScoreDiff,
-  TrackDiff,
+  TrackBarChange,
+  TrackPairing,
 } from './types/diff';
 import {
   barFingerprint,
@@ -13,32 +15,29 @@ import {
 } from './fingerprint';
 
 export function diffScores(base: Score, head: Score): ScoreDiff {
-  const meta = diffMeta(base, head);
-  const tracks = diffTracks(base, head);
-  const summary = buildSummary(tracks);
-  return { base, head, meta, tracks, summary };
+  const tracks = pairTracks(base.tracks, head.tracks);
+  const measures = alignMeasures(base, head, tracks);
+  const meta = diffMeta(base, head, measures);
+  const diff: ScoreDiff = { base, head, meta, tracks, measures, summary: '' };
+  diff.summary = buildSummary(diff);
+  return diff;
 }
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
-function diffMeta(base: Score, head: Score): MetaDiff {
+function diffMeta(base: Score, head: Score, measures: MeasureDiff[]): MetaDiff {
   const meta: MetaDiff = {};
   if (base.title !== head.title) meta.title = [base.title, head.title];
   if (base.artist !== head.artist) meta.artist = [base.artist, head.artist];
   if (base.album !== head.album) meta.album = [base.album, head.album];
   if (base.tempo !== head.tempo) meta.tempo = [base.tempo, head.tempo];
 
+  // Master bars are compared through the alignment: an inserted measure is an
+  // added bar in every track, not a change to every master bar after it.
   const masterBarChanges: number[] = [];
-  const count = Math.max(base.masterBars.length, head.masterBars.length);
-  for (let i = 0; i < count; i++) {
-    const bMb = base.masterBars[i];
-    const hMb = head.masterBars[i];
-    if (
-      !bMb ||
-      !hMb ||
-      masterBarFingerprint(bMb) !== masterBarFingerprint(hMb)
-    ) {
-      masterBarChanges.push(i);
+  for (const measure of measures) {
+    if (measure.type === 'changed' && measure.masterBarChanged) {
+      masterBarChanges.push(measure.headIndex);
     }
   }
   if (masterBarChanges.length > 0) meta.masterBarChanges = masterBarChanges;
@@ -53,8 +52,6 @@ function diffMeta(base: Score, head: Score): MetaDiff {
 // stable key first (name + instrument + tuning), then fall back to position for
 // whatever is left, so a renamed track still lines up with its old self.
 
-type TrackPair = [Track | null, Track | null];
-
 function trackIdentity(track: Track): string {
   return JSON.stringify([
     track.name,
@@ -64,7 +61,7 @@ function trackIdentity(track: Track): string {
   ]);
 }
 
-function pairTracks(baseTracks: Track[], headTracks: Track[]): TrackPair[] {
+function pairTracks(baseTracks: Track[], headTracks: Track[]): TrackPairing[] {
   const unmatchedHead = new Set(headTracks.keys());
 
   // Pass 1: exact identity match. Duplicate keys (two identically-configured
@@ -98,41 +95,133 @@ function pairTracks(baseTracks: Track[], headTracks: Track[]): TrackPair[] {
   }
 
   // Emit in base order, then any head tracks nothing claimed (added tracks).
-  const pairs: TrackPair[] = baseTracks.map((track, b) => {
+  const pairings: TrackPairing[] = [];
+  for (const [b, track] of baseTracks.entries()) {
     const h = matchOf.get(b);
-    return [track, h === undefined ? null : headTracks[h]!];
-  });
-  for (const h of [...unmatchedHead].sort((a, b) => a - b)) {
-    pairs.push([null, headTracks[h]!]);
+    pairings.push({
+      trackIndex: pairings.length,
+      trackName: h === undefined ? track.name : headTracks[h]!.name,
+      baseTrack: b,
+      headTrack: h ?? null,
+    });
   }
-  return pairs;
+  for (const h of [...unmatchedHead].sort((a, b) => a - b)) {
+    pairings.push({
+      trackIndex: pairings.length,
+      trackName: headTracks[h]!.name,
+      baseTrack: null,
+      headTrack: h,
+    });
+  }
+  return pairings;
 }
 
-// ─── Bar alignment ────────────────────────────────────────────────────────────
+// ─── Measure alignment ────────────────────────────────────────────────────────
 //
-// Pairing bars by position makes a single inserted measure report every later
-// measure as changed. Instead we align on content: identical bars anchor via an
-// LCS over their fingerprints, and the runs between anchors are paired off
-// positionally so an edited-in-place bar reads as "changed" rather than as a
-// removal plus an addition.
-//
-// A pair is [baseIndex, headIndex]; null on either side means the bar exists in
-// only one score. Pairs come back in reading order.
+// Aligning measures by position makes a single inserted measure report every
+// later measure as changed; aligning each track separately lets two tracks give
+// contradictory answers to "where was the measure inserted" (ADR 0002). So the
+// alignment runs once for the whole score, over a measure fingerprint — the
+// master bar plus every paired track's bar at that slot: identical measures
+// anchor via an LCS, and the runs between anchors are paired off positionally
+// so a measure edited in place reads as "changed" rather than as a removal
+// plus an addition.
 
-type BarPair = [number | null, number | null];
+interface MeasureFingerprints {
+  /** Combined per-measure fingerprint the alignment runs on. */
+  measures: string[];
+  masterBars: string[];
+  /** One row per paired track, one entry per measure. */
+  trackBars: string[][];
+}
+
+function fingerprintMeasures(
+  score: Score,
+  trackIndexes: number[],
+): MeasureFingerprints {
+  const masterBars = score.masterBars.map(masterBarFingerprint);
+  const trackBars = trackIndexes.map((t) =>
+    (score.tracks[t]!.staves[0]?.bars ?? []).map(barFingerprint),
+  );
+  const measures = masterBars.map((mb, i) =>
+    JSON.stringify([mb, trackBars.map((fps) => fps[i] ?? '')]),
+  );
+  return { measures, masterBars, trackBars };
+}
+
+function alignMeasures(
+  base: Score,
+  head: Score,
+  tracks: TrackPairing[],
+): MeasureDiff[] {
+  // Only tracks present on both sides can vote on the alignment; an added or
+  // removed track has nothing to align against.
+  const paired = tracks.filter(
+    (t) => t.baseTrack !== null && t.headTrack !== null,
+  );
+  const baseFp = fingerprintMeasures(
+    base,
+    paired.map((t) => t.baseTrack!),
+  );
+  const headFp = fingerprintMeasures(
+    head,
+    paired.map((t) => t.headTrack!),
+  );
+
+  const measures: MeasureDiff[] = [];
+  for (const [b, h] of alignIndexes(baseFp.measures, headFp.measures)) {
+    if (b === null) {
+      measures.push({ type: 'added', baseIndex: null, headIndex: h! });
+      continue;
+    }
+    if (h === null) {
+      measures.push({ type: 'removed', baseIndex: b, headIndex: null });
+      continue;
+    }
+    if (baseFp.measures[b] === headFp.measures[h]) {
+      measures.push({ type: 'equal', baseIndex: b, headIndex: h });
+      continue;
+    }
+
+    // The measure changed; attribution is per track.
+    const changedTracks: TrackBarChange[] = [];
+    for (const [k, pairing] of paired.entries()) {
+      if (baseFp.trackBars[k]![b] === headFp.trackBars[k]![h]) continue;
+      const baseBar = base.tracks[pairing.baseTrack!]!.staves[0]!.bars[b]!;
+      const headBar = head.tracks[pairing.headTrack!]!.staves[0]!.bars[h]!;
+      changedTracks.push({
+        trackIndex: pairing.trackIndex,
+        changedFields: categorizeBarChanges(baseBar, headBar),
+      });
+    }
+    measures.push({
+      type: 'changed',
+      baseIndex: b,
+      headIndex: h,
+      masterBarChanged: baseFp.masterBars[b] !== headFp.masterBars[h],
+      changedTracks,
+    });
+  }
+  return measures;
+}
+
+// A pair is [baseIndex, headIndex]; null on either side means the measure
+// exists in only one score. Pairs come back in reading order.
+
+type IndexPair = [number | null, number | null];
 
 /** A pair the LCS matched outright — both sides always present. */
 type Anchor = [number, number];
 
 // Guard on the LCS tables (two of them, four bytes a cell) so a pathologically
-// long score can't blow up memory. Beyond this the middle section falls back to
-// positional pairing — degraded, never wrong.
+// long score can't blow up memory. Sized when the LCS ran once per track; the
+// single score-level run makes this the whole budget rather than one of N, and
+// at the cap the two tables cost 32 MB, transiently. After trimming that is a
+// 2000×2000-measure edit window — far beyond any real score. Beyond it the
+// middle section falls back to positional pairing — degraded, never wrong.
 const MAX_LCS_CELLS = 4_000_000;
 
-function alignBars(baseBars: Bar[], headBars: Bar[]): BarPair[] {
-  const base = baseBars.map(barFingerprint);
-  const head = headBars.map(barFingerprint);
-
+function alignIndexes(base: string[], head: string[]): IndexPair[] {
   // Real edits touch a handful of measures, so trimming the untouched head and
   // tail usually shrinks the LCS to a tiny window — and makes the common
   // "nothing changed" case linear.
@@ -148,7 +237,7 @@ function alignBars(baseBars: Bar[], headBars: Bar[]): BarPair[] {
     tail++;
   }
 
-  const pairs: BarPair[] = [];
+  const pairs: IndexPair[] = [];
   for (let i = 0; i < lo; i++) pairs.push([i, i]);
   pairs.push(
     ...alignMiddle(base, head, lo, base.length - tail, head.length - tail),
@@ -165,12 +254,12 @@ function alignMiddle(
   lo: number,
   baseEnd: number,
   headEnd: number,
-): BarPair[] {
+): IndexPair[] {
   const n = baseEnd - lo;
   const m = headEnd - lo;
   if (n <= 0 && m <= 0) return [];
 
-  const pairs: BarPair[] = [];
+  const pairs: IndexPair[] = [];
   if (n <= 0) {
     for (let h = lo; h < headEnd; h++) pairs.push([null, h]);
     return pairs;
@@ -204,15 +293,16 @@ function alignMiddle(
 }
 
 /**
- * Longest common subsequence of bar fingerprints, as [baseIndex, headIndex] pairs.
+ * Longest common subsequence of measure fingerprints, as
+ * [baseIndex, headIndex] pairs.
  *
- * Music repeats itself, so a track routinely offers dozens of ways to match the
- * same number of bars — a riff played in bar 12 is byte-identical to the one in
- * bar 92. Length alone does not choose between them, and the arbitrary winner is
- * often one that pairs a bar with a far-away twin, which then reads as a long
- * deletion plus a long insertion instead of an edit in place. So the table
- * carries a second number: among the alignments of maximal length, prefer the
- * one whose matches sit closest to the diagonal.
+ * Music repeats itself, so a score routinely offers dozens of ways to match the
+ * same number of measures — a riff played in measure 12 is byte-identical to the
+ * one in measure 92. Length alone does not choose between them, and the
+ * arbitrary winner is often one that pairs a measure with a far-away twin, which
+ * then reads as a long deletion plus a long insertion instead of an edit in
+ * place. So the table carries a second number: among the alignments of maximal
+ * length, prefer the one whose matches sit closest to the diagonal.
  */
 function lcsAnchors(
   base: string[],
@@ -304,64 +394,98 @@ function better(
   return len > bestLen || (len === bestLen && drift < bestDrift);
 }
 
-// ─── Tracks ───────────────────────────────────────────────────────────────────
+// ─── Per-track projection ─────────────────────────────────────────────────────
+//
+// The measure alignment is canonical; a track's BarDiff[] is derived from it on
+// demand. A paired track reads its verdict off each measure; a track that only
+// one score has is entirely added or removed, measure by measure.
 
-function diffTracks(base: Score, head: Score): TrackDiff[] {
-  const results: TrackDiff[] = [];
+export function barsForTrack(diff: ScoreDiff, trackIndex: number): BarDiff[] {
+  const pairing = diff.tracks[trackIndex];
+  if (!pairing) return [];
 
-  for (const [t, [baseTrack, headTrack]] of pairTracks(
-    base.tracks,
-    head.tracks,
-  ).entries()) {
-    const trackName = headTrack?.name ?? baseTrack?.name ?? `Track ${t + 1}`;
+  const baseBars =
+    pairing.baseTrack === null
+      ? null
+      : (diff.base.tracks[pairing.baseTrack]!.staves[0]?.bars ?? []);
+  const headBars =
+    pairing.headTrack === null
+      ? null
+      : (diff.head.tracks[pairing.headTrack]!.staves[0]?.bars ?? []);
 
-    const baseBars = baseTrack?.staves[0]?.bars ?? [];
-    const headBars = headTrack?.staves[0]?.bars ?? [];
-    const bars: BarDiff[] = [];
-
-    for (const [baseIndex, headIndex] of alignBars(baseBars, headBars)) {
-      const baseBar = baseIndex === null ? null : baseBars[baseIndex]!;
-      const headBar = headIndex === null ? null : headBars[headIndex]!;
-      const masterBarIndex = headIndex ?? baseIndex ?? 0;
-
-      if (!baseBar && headBar) {
-        bars.push({
-          type: 'added',
-          masterBarIndex,
-          baseIndex: null,
-          headIndex: headIndex!,
-          bar: headBar,
-        });
-      } else if (baseBar && !headBar) {
-        bars.push({
-          type: 'removed',
-          masterBarIndex,
-          baseIndex: baseIndex!,
-          headIndex: null,
-          bar: baseBar,
-        });
-      } else if (baseBar && headBar) {
-        const changed = barFingerprint(baseBar) !== barFingerprint(headBar);
-        if (changed) {
-          bars.push({
-            type: 'changed',
-            masterBarIndex,
-            baseIndex,
-            headIndex,
-            base: baseBar,
-            head: headBar,
-            changedFields: categorizeBarChanges(baseBar, headBar),
-          });
-        } else {
-          bars.push({ type: 'equal', masterBarIndex, baseIndex, headIndex });
-        }
+  const bars: BarDiff[] = [];
+  for (const measure of diff.measures) {
+    if (baseBars === null) {
+      if (measure.headIndex !== null) {
+        bars.push(addedBar(measure.headIndex, headBars![measure.headIndex]!));
       }
+      continue;
+    }
+    if (headBars === null) {
+      if (measure.baseIndex !== null) {
+        bars.push(removedBar(measure.baseIndex, baseBars[measure.baseIndex]!));
+      }
+      continue;
     }
 
-    results.push({ trackIndex: t, trackName, bars });
+    switch (measure.type) {
+      case 'added':
+        bars.push(addedBar(measure.headIndex, headBars[measure.headIndex]!));
+        break;
+      case 'removed':
+        bars.push(removedBar(measure.baseIndex, baseBars[measure.baseIndex]!));
+        break;
+      case 'equal':
+        bars.push(equalBar(measure.baseIndex, measure.headIndex));
+        break;
+      case 'changed': {
+        const change = measure.changedTracks.find(
+          (t) => t.trackIndex === trackIndex,
+        );
+        // Attribution is per track: a measure can change without this track's
+        // bar changing — another track did, or a master-bar field.
+        if (!change) {
+          bars.push(equalBar(measure.baseIndex, measure.headIndex));
+          break;
+        }
+        bars.push({
+          type: 'changed',
+          masterBarIndex: measure.headIndex,
+          baseIndex: measure.baseIndex,
+          headIndex: measure.headIndex,
+          base: baseBars[measure.baseIndex]!,
+          head: headBars[measure.headIndex]!,
+          changedFields: change.changedFields,
+        });
+        break;
+      }
+    }
   }
+  return bars;
+}
 
-  return results;
+function addedBar(headIndex: number, bar: Bar): BarDiff {
+  return {
+    type: 'added',
+    masterBarIndex: headIndex,
+    baseIndex: null,
+    headIndex,
+    bar,
+  };
+}
+
+function removedBar(baseIndex: number, bar: Bar): BarDiff {
+  return {
+    type: 'removed',
+    masterBarIndex: baseIndex,
+    baseIndex,
+    headIndex: null,
+    bar,
+  };
+}
+
+function equalBar(baseIndex: number, headIndex: number): BarDiff {
+  return { type: 'equal', masterBarIndex: headIndex, baseIndex, headIndex };
 }
 
 // ─── Changed-field categorization ─────────────────────────────────────────────
@@ -550,13 +674,14 @@ function dynamicsChanged(base: Note, head: Note): boolean {
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
-function buildSummary(tracks: TrackDiff[]): string {
+function buildSummary(diff: ScoreDiff): string {
   const parts: string[] = [];
 
-  for (const track of tracks) {
-    const added = track.bars.filter((b) => b.type === 'added').length;
-    const removed = track.bars.filter((b) => b.type === 'removed').length;
-    const changed = track.bars.filter((b) => b.type === 'changed').length;
+  for (const track of diff.tracks) {
+    const bars = barsForTrack(diff, track.trackIndex);
+    const added = bars.filter((b) => b.type === 'added').length;
+    const removed = bars.filter((b) => b.type === 'removed').length;
+    const changed = bars.filter((b) => b.type === 'changed').length;
 
     if (added || removed || changed) {
       const details = [

@@ -1,13 +1,59 @@
 import type { Score, Bar } from "./score";
 
-// ── Bar diff ──────────────────────────────────────────────────────────────────
+// ── Measure alignment ─────────────────────────────────────────────────────────
 //
-// Bars are aligned by content, not by position: inserting a measure shifts every
-// later measure in head, and pairing on position alone would report the whole
-// rest of the song as changed. So a bar carries its position in *each* score.
+// Alignment is score-level: "which base measure is which head measure" has one
+// true answer, computed once over a measure fingerprint — the master bar plus
+// every paired track's bar at that slot — and shared by every track (ADR 0002).
+// Attribution stays per track: within a changed measure, changedTracks lists
+// exactly the tracks whose bar changed. Editing the bass leaves the guitar
+// unchanged.
 //
-//   baseIndex — index into the base staff's bars, or null when type is "added"
-//   headIndex — index into the head staff's bars, or null when type is "removed"
+//   baseIndex — the measure's position in base, or null when type is "added"
+//   headIndex — the measure's position in head, or null when type is "removed"
+
+export interface TrackBarChange {
+  /** Index into ScoreDiff.tracks — the pairing order, not either score's track list. */
+  trackIndex: number;
+  /** At least one entry is always present. */
+  changedFields: BarChangedField[];
+}
+
+export type MeasureDiff =
+  | { type: "equal";   baseIndex: number; headIndex: number }
+  | { type: "added";   baseIndex: null;   headIndex: number }
+  | { type: "removed"; baseIndex: number; headIndex: null }
+  | {
+      type: "changed";
+      baseIndex: number;
+      headIndex: number;
+      /** Master-bar fields (time signature, repeats, feel…) changed. */
+      masterBarChanged: boolean;
+      /** Tracks whose bar changed here; a track absent from this list is unchanged. */
+      changedTracks: TrackBarChange[];
+    };
+
+// ── Track pairing ─────────────────────────────────────────────────────────────
+//
+// Guitar Pro lets you drag tracks around, so array position is not identity.
+// A pairing ties a base track to its head counterpart; either side is null for
+// a track that exists in only one score. barsForTrack takes trackIndex.
+
+export interface TrackPairing {
+  /** Position in ScoreDiff.tracks. */
+  trackIndex: number;
+  trackName: string;
+  /** Index into base.tracks, or null when the track only exists in head. */
+  baseTrack: number | null;
+  /** Index into head.tracks, or null when the track only exists in base. */
+  headTrack: number | null;
+}
+
+// ── Bar diff — the per-track projection ───────────────────────────────────────
+//
+// The view a track-thinking consumer (a side-by-side pane, the CLI) renders.
+// Never stored: barsForTrack derives it from the canonical measure alignment,
+// so the alignment exists in exactly one place.
 //
 // Consumers rendering side-by-side (e.g. <TabDiff>) must address the base pane
 // with baseIndex and the head pane with headIndex; the two diverge after any
@@ -40,14 +86,6 @@ export type BarDiff =
       changedFields: BarChangedField[];
     } & BarPosition);
 
-// ── Track diff ────────────────────────────────────────────────────────────────
-
-export interface TrackDiff {
-  trackIndex: number;
-  trackName: string;
-  bars: BarDiff[];
-}
-
 // ── Score meta diff ───────────────────────────────────────────────────────────
 
 export interface MetaDiff {
@@ -55,7 +93,7 @@ export interface MetaDiff {
   artist?: [string, string];
   album?:  [string, string];
   tempo?:  [number, number];
-  /** Indexes of master bars whose measure-level fields changed (time sig, repeats, feel…). */
+  /** Display measure numbers whose master-bar fields changed (time sig, repeats, feel…). */
   masterBarChanges?: number[];
 }
 
@@ -63,6 +101,9 @@ export interface ScoreDiff {
   base: Score;
   head: Score;
   meta: MetaDiff;
-  tracks: TrackDiff[];
+  /** Base ↔ head track pairing, in base order, then tracks only head has. */
+  tracks: TrackPairing[];
+  /** The canonical score-level alignment, in reading order. */
+  measures: MeasureDiff[];
   summary: string;
 }

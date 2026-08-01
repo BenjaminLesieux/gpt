@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { diffScores } from './diff';
+import { barsForTrack, diffScores } from './diff';
 import type { Bar, Beat, Note } from './types/score';
 import {
   makeBar,
@@ -30,7 +30,7 @@ describe('diffScores', () => {
       const result = diffScores(score, score);
 
       // Then the bar is equal and summary reports no changes
-      expect(result.tracks[0]!.bars[0]!.type).toBe('equal');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
       expect(result.summary).toBe('No changes');
     });
 
@@ -65,7 +65,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the second bar is added
-      const bars = result.tracks[0]!.bars;
+      const bars = barsForTrack(result, 0);
       expect(bars[0]!.type).toBe('equal');
       expect(bars[1]!.type).toBe('added');
     });
@@ -80,7 +80,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the added entry references the new bar object
-      const added = result.tracks[0]!.bars[1]!;
+      const added = barsForTrack(result, 0)[1]!;
       if (added.type === 'added') {
         expect(added.bar).toBe(newBar);
       } else {
@@ -103,7 +103,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the second bar is removed
-      const bars = result.tracks[0]!.bars;
+      const bars = barsForTrack(result, 0);
       expect(bars[0]!.type).toBe('equal');
       expect(bars[1]!.type).toBe('removed');
     });
@@ -121,7 +121,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the removed entry references the dropped bar
-      const removed = result.tracks[0]!.bars[1]!;
+      const removed = barsForTrack(result, 0)[1]!;
       if (removed.type === 'removed') {
         expect(removed.bar).toBe(droppedBar);
       } else {
@@ -140,7 +140,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the bar is changed
-      expect(result.tracks[0]!.bars[0]!.type).toBe('changed');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('changed');
     });
 
     it('should expose both base and head bar in a changed entry', () => {
@@ -152,7 +152,7 @@ describe('diffScores', () => {
 
       // When diffed
       const result = diffScores(base, head);
-      const diff = result.tracks[0]!.bars[0]!;
+      const diff = barsForTrack(result, 0)[0]!;
 
       // Then both bar references are accessible
       if (diff.type === 'changed') {
@@ -178,7 +178,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then bars are equal because fingerprint sorts notes by string
-      expect(result.tracks[0]!.bars[0]!.type).toBe('equal');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
     });
   });
 
@@ -192,7 +192,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then all bars of the new track are added
-      expect(result.tracks[0]!.bars[0]!.type).toBe('added');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('added');
     });
 
     it('should mark all bars as removed when a track exists only in base', () => {
@@ -204,7 +204,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then all bars of the dropped track are removed
-      expect(result.tracks[0]!.bars[0]!.type).toBe('removed');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('removed');
     });
   });
 
@@ -225,7 +225,7 @@ describe('diffScores', () => {
         makeScore([makeTrack('Guitar', [baseBar])], 1),
         makeScore([makeTrack('Guitar', [headBar])], 1),
       );
-      return expect(result.tracks[0]!.bars[0]!.type);
+      return expect(barsForTrack(result, 0)[0]!.type);
     }
 
     it("should detect a change when a bend's shape is edited", () => {
@@ -266,7 +266,7 @@ describe('diffScores', () => {
         makeScore([makeTrack('Guitar', [twoNotes(false)])], 1),
         makeScore([makeTrack('Guitar', [twoNotes(true)])], 1),
       );
-      const bar = result.tracks[0]!.bars[0]!;
+      const bar = barsForTrack(result, 0)[0]!;
 
       // Then the diff both flags the bar and explains it
       expect(bar.type).toBe('changed');
@@ -334,7 +334,7 @@ describe('diffScores', () => {
             1,
           ),
         );
-        const bar = result.tracks[0]!.bars[0]!;
+        const bar = barsForTrack(result, 0)[0]!;
 
         // Then the diff both flags the bar and explains it — an unexplained
         // "changed" bar renders as a highlight with no chip in the UI
@@ -376,7 +376,7 @@ describe('diffScores', () => {
             1,
           ),
         );
-        const bar = result.tracks[0]!.bars[0]!;
+        const bar = barsForTrack(result, 0)[0]!;
 
         // Then the bar is both flagged and explained
         expect(bar.type).toBe('changed');
@@ -430,7 +430,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the change is visible
-      expect(result.tracks[0]!.bars[0]!.type).toBe('changed');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('changed');
     });
 
     it('should detect a change to one of several drum notes sharing the same beat', () => {
@@ -448,7 +448,7 @@ describe('diffScores', () => {
 
       // When diffed
       const result = diffScores(base, head);
-      const bar = result.tracks[0]!.bars[0]!;
+      const bar = barsForTrack(result, 0)[0]!;
 
       // Then the bar is changed and attributed to notes — not silently collapsed
       // by keying every same-string note into one map entry
@@ -481,7 +481,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then ordering alone is not a change
-      expect(result.tracks[0]!.bars[0]!.type).toBe('equal');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
     });
   });
 
@@ -508,7 +508,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the shift does not cascade — the three original bars stay equal
-      expect(result.tracks[0]!.bars.map((b) => b.type)).toEqual([
+      expect(barsForTrack(result, 0).map((b) => b.type)).toEqual([
         'equal',
         'added',
         'equal',
@@ -529,7 +529,7 @@ describe('diffScores', () => {
 
       // When diffed
       const result = diffScores(base, head);
-      const bars = result.tracks[0]!.bars;
+      const bars = barsForTrack(result, 0);
 
       // Then the shifted bar reports where it lives in each score
       expect(bars.map((b) => [b.baseIndex, b.headIndex])).toEqual([
@@ -556,11 +556,95 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then only the dropped bar is removed
-      expect(result.tracks[0]!.bars.map((b) => b.type)).toEqual([
+      expect(barsForTrack(result, 0).map((b) => b.type)).toEqual([
         'equal',
         'removed',
         'equal',
       ]);
+    });
+  });
+
+  describe('measure alignment', () => {
+    // measures[] is the canonical alignment (ADR 0002): computed once for the
+    // whole score; every per-track view is a projection of it.
+
+    it('should expose one alignment that every track shares when a measure is inserted', () => {
+      // Given a measure inserted before position 1 in both tracks
+      const base = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(1), simpleBar(2)]),
+          makeTrack('Bass', [simpleBar(3), simpleBar(4)]),
+        ],
+        2,
+      );
+      const head = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(1), simpleBar(9), simpleBar(2)]),
+          makeTrack('Bass', [simpleBar(3), simpleBar(9), simpleBar(4)]),
+        ],
+        3,
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+
+      // Then there is a single answer to "where did the measure go in"
+      expect(
+        result.measures.map((m) => [m.type, m.baseIndex, m.headIndex]),
+      ).toEqual([
+        ['equal', 0, 0],
+        ['added', null, 1],
+        ['equal', 1, 2],
+      ]);
+    });
+
+    it('should attribute a changed measure to the track that edited it', () => {
+      // Given only the bass changing in a two-track measure
+      const base = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(1)]),
+          makeTrack('Bass', [simpleBar(3)]),
+        ],
+        1,
+      );
+      const head = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(1)]),
+          makeTrack('Bass', [simpleBar(4)]),
+        ],
+        1,
+      );
+
+      // When diffed
+      const result = diffScores(base, head);
+      const measure = result.measures[0]!;
+
+      // Then the measure changed, and the attribution names the bass alone
+      expect(measure.type).toBe('changed');
+      if (measure.type === 'changed') {
+        expect(measure.masterBarChanged).toBe(false);
+        expect(measure.changedTracks.map((t) => t.trackIndex)).toEqual([1]);
+      }
+    });
+
+    it('should flag only the master bar when no track content changed', () => {
+      // Given a time signature rewrite and untouched bars
+      const base = makeScore([makeTrack('Guitar', [simpleBar(1)])], 1);
+      const head = makeScore([makeTrack('Guitar', [simpleBar(1)])], 1);
+      head.masterBars[0]!.timeSignatureNumerator = 3;
+
+      // When diffed
+      const result = diffScores(base, head);
+      const measure = result.measures[0]!;
+
+      // Then the measure changed at the master-bar level with no track blamed
+      expect(measure.type).toBe('changed');
+      if (measure.type === 'changed') {
+        expect(measure.masterBarChanged).toBe(true);
+        expect(measure.changedTracks).toEqual([]);
+      }
+      // And the projection keeps the guitar's bar equal
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
     });
   });
 
@@ -602,7 +686,7 @@ describe('diffScores', () => {
       // matching bar 1 against bar 2 instead would report the same edit as a
       // deletion plus an insertion a bar away
       expect(
-        result.tracks[0]!.bars.map((b) => [b.type, b.baseIndex, b.headIndex]),
+        barsForTrack(result, 0).map((b) => [b.type, b.baseIndex, b.headIndex]),
       ).toEqual([
         ['changed', 0, 0],
         ['equal', 1, 1],
@@ -641,7 +725,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the insertion is reported as one, not smeared into four edits
-      expect(result.tracks[0]!.bars.map((b) => b.type)).toEqual([
+      expect(barsForTrack(result, 0).map((b) => b.type)).toEqual([
         'equal',
         'equal',
         'added',
@@ -675,7 +759,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then it is silence either way
-      expect(result.tracks[0]!.bars[0]!.type).toBe('equal');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
       expect(result.summary).toBe('No changes');
     });
 
@@ -688,7 +772,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then the edit is not swallowed by the silence rule
-      expect(result.tracks[0]!.bars[0]!.type).toBe('changed');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('changed');
     });
 
     it('should still report a rest that carries a written marking', () => {
@@ -707,7 +791,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then silence with something written on it is not plain silence
-      expect(result.tracks[0]!.bars[0]!.type).toBe('changed');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('changed');
     });
 
     it('should ignore the dynamic a rest inherits from the beat before it', () => {
@@ -726,7 +810,7 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then nothing is reported — a rest has no dynamic to hear
-      expect(result.tracks[0]!.bars[0]!.type).toBe('equal');
+      expect(barsForTrack(result, 0)[0]!.type).toBe('equal');
     });
 
     it('should still report a dynamic change on a sounding note', () => {
@@ -740,7 +824,7 @@ describe('diffScores', () => {
 
       // When diffed
       const result = diffScores(base, head);
-      const bar = result.tracks[0]!.bars[0]!;
+      const bar = barsForTrack(result, 0)[0]!;
 
       // Then it surfaces, attributed to the dynamics
       expect(bar.type).toBe('changed');
@@ -768,7 +852,9 @@ describe('diffScores', () => {
       const result = diffScores(base, head);
 
       // Then every bar of every track is equal — reordering is not a content change
-      const allBars = result.tracks.flatMap((t) => t.bars);
+      const allBars = result.tracks.flatMap((t) =>
+        barsForTrack(result, t.trackIndex),
+      );
       expect(allBars.every((b) => b.type === 'equal')).toBe(true);
       expect(result.summary).toBe('No changes');
     });

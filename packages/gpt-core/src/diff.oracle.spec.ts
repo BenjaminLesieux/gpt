@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { model } from '@coderline/alphatab';
-import { diffScores } from './diff';
+import { barsForTrack, diffScores } from './diff';
 import type { ScoreDiff } from './types/diff';
 import type { Bar, Score } from './types/score';
 import {
@@ -43,7 +43,7 @@ function report(diff: ScoreDiff): Fact[] {
     facts.push({ fact: 'meta', field });
   }
   for (const track of diff.tracks) {
-    for (const bar of track.bars) {
+    for (const bar of barsForTrack(diff, track.trackIndex)) {
       if (bar.type === 'equal') continue;
       facts.push({
         fact: 'bar',
@@ -123,15 +123,7 @@ describe('the diff reports exactly the applied edit', () => {
     ]);
   });
 
-  // ── Exactness the current alignment cannot deliver yet ─────────────────────
-  //
-  // The per-track bar alignment absorbs an insertion correctly, but diffMeta
-  // still compares master bars by position: inserting an identical 4/4 measure
-  // makes it flag a spurious masterBarChanges fact at the wrong index. That is
-  // the positional-comparison bug score-level alignment removes (ADR 0002).
-  // Same it.fails ratchet as below: these turn red when commit 3 lands.
-
-  it.fails('should report one added bar per track when a measure is inserted', () => {
+  it('should report one added bar per track when a measure is inserted', () => {
     // Given an empty measure inserted before measure 1, in every track —
     // which is the only way Guitar Pro inserts one
     const base = song(bassBars(), guitarBars());
@@ -148,7 +140,7 @@ describe('the diff reports exactly the applied edit', () => {
     ]);
   });
 
-  it.fails('should report one removed bar per track when a measure is deleted', () => {
+  it('should report one removed bar per track when a measure is deleted', () => {
     // Given measure 1 deleted from every track
     const base = song(bassBars(), guitarBars());
     const head = song([barOf(3), barOf(7)], [barOf(10, 12), barOf(15)]);
@@ -157,6 +149,25 @@ describe('the diff reports exactly the applied edit', () => {
     expect(report(diffScores(base, head))).toEqual([
       { fact: 'bar', track: 'Bass', type: 'removed', measure: 1 },
       { fact: 'bar', track: 'Guitar', type: 'removed', measure: 1 },
+    ]);
+  });
+
+  it('should locate the insertion identically in a track whose bars are all interchangeable', () => {
+    // Given a guitar that has not recorded yet — every measure silent, so its
+    // bars alone cannot say where the new measure went. A per-track alignment
+    // answered "at the end" for the guitar and "measure 1" for the bass;
+    // score-level alignment gives the one true answer for both (ADR 0002)
+    const silentGuitar = (count: number) =>
+      Array.from({ length: count }, () => emptyBar());
+    const base = song(bassBars(), silentGuitar(3));
+    const head = song(
+      [barOf(3), emptyBar(), barOf(5), barOf(7)],
+      silentGuitar(4),
+    );
+
+    expect(report(diffScores(base, head))).toEqual([
+      { fact: 'bar', track: 'Bass', type: 'added', measure: 1 },
+      { fact: 'bar', track: 'Guitar', type: 'added', measure: 1 },
     ]);
   });
 
