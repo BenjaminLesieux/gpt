@@ -10,7 +10,7 @@ import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
 import { FSLayer } from "../runtime/FSLayer";
 import { logData } from "./log";
 import { statusData } from "./status";
-import { diffData } from "./diff";
+import { diffData, tracksWithBars } from "./diff";
 import { showData, showFileBytesData } from "./show";
 import { initData } from "./init";
 import { validateRepoData } from "./repo";
@@ -64,7 +64,7 @@ export const serveCommand = ({ port = DEFAULT_PORT }: { port?: number } = {}) =>
       );
       const out = fileDiffs.map(({ file, diff }) => ({
         file,
-        diff: { meta: diff.meta, tracks: diff.tracks, summary: diff.summary },
+        diff: { meta: diff.meta, tracks: tracksWithBars(diff), summary: diff.summary },
       }));
       return c.json({ ok: true, data: out });
     });

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { join } from "node:path";
-import { diffScores } from "@gpt/gpt-core";
-import type { ScoreDiff, TrackDiff } from "@gpt/gpt-core";
+import { barsForTrack, diffScores } from "@gpt/gpt-core";
+import type { ScoreDiff, TrackPairing } from "@gpt/gpt-core";
 import { GitLayer } from "../runtime/GitLayer";
 import { AlphaTabLayer } from "../runtime/AlphaTabLayer";
 import { FSLayer } from "../runtime/FSLayer";
@@ -41,7 +41,7 @@ export const diffCommand = ({ hash1, hash2, json = false, dir = process.cwd() }:
     if (json) {
       const out = fileDiffs.map(({ file, diff }) => ({
         file,
-        diff: { meta: diff.meta, tracks: diff.tracks, summary: diff.summary },
+        diff: { meta: diff.meta, tracks: tracksWithBars(diff), summary: diff.summary },
       }));
       process.stdout.write(JSON.stringify({ ok: true, data: out }, null, 2) + "\n");
       return;
@@ -57,7 +57,7 @@ export const diffCommand = ({ hash1, hash2, json = false, dir = process.cwd() }:
       }
 
       for (const track of diff.tracks) {
-        const line = formatTrackDiff(track);
+        const line = formatTrackDiff(diff, track);
         if (line) process.stdout.write(`  ${line}\n`);
       }
     }
@@ -152,10 +152,22 @@ function diffTwoCommits(
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
-function formatTrackDiff(track: TrackDiff): string {
-  const added = track.bars.filter((b) => b.type === "added").length;
-  const removed = track.bars.filter((b) => b.type === "removed").length;
-  const changed = track.bars.filter((b) => b.type === "changed").length;
+/**
+ * The wire shape keeps bars nested under each track: the alignment is stored
+ * score-level, but JSON consumers read a diff track by track.
+ */
+export function tracksWithBars(diff: ScoreDiff) {
+  return diff.tracks.map((track) => ({
+    ...track,
+    bars: barsForTrack(diff, track.trackIndex),
+  }));
+}
+
+function formatTrackDiff(diff: ScoreDiff, track: TrackPairing): string {
+  const bars = barsForTrack(diff, track.trackIndex);
+  const added = bars.filter((b) => b.type === "added").length;
+  const removed = bars.filter((b) => b.type === "removed").length;
+  const changed = bars.filter((b) => b.type === "changed").length;
 
   if (!added && !removed && !changed) return "";
 
