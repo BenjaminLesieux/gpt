@@ -41,14 +41,22 @@ vi.mock("@coderline/alphatab", () => {
       return proxy;
     }
 
-    load(data: unknown) {
+    /** Every renderTracks call, in order — how a live track switch is judged. */
+    static rendered: unknown[][] = [];
+    /** The track indexes each load asked for — how the first render is judged. */
+    static loadedTracks: (number[] | undefined)[] = [];
+
+    load(data: unknown, trackIndexes?: number[]) {
+      FakeApi.loadedTracks.push(trackIndexes);
       FakeApi.onLoad?.(this, data);
       return true;
     }
     destroy() {}
     updateSettings() {}
     render() {}
-    renderTracks() {}
+    renderTracks(tracks: unknown[]) {
+      FakeApi.rendered.push(tracks);
+    }
   }
 
   return {
@@ -56,17 +64,26 @@ vi.mock("@coderline/alphatab", () => {
     Settings: class Settings {},
     LogLevel: { None: 0 },
     LayoutMode: { Page: 0, Horizontal: 1 },
+    SystemsLayoutMode: { Automatic: 0, UseModelLayout: 1 },
   };
 });
 
 const alphaTab = await import("@coderline/alphatab");
 const FakeApi = alphaTab.AlphaTabApi as unknown as {
-  instances: { error: { fire(arg: unknown): void } }[];
+  instances: {
+    error: { fire(arg: unknown): void };
+    scoreLoaded: { fire(arg: unknown): void };
+    settings: { display: { systemsLayoutMode?: number } };
+  }[];
   onLoad: ((api: unknown, data: unknown) => void) | null;
+  rendered: unknown[][];
+  loadedTracks: (number[] | undefined)[];
 };
 
 beforeEach(() => {
   FakeApi.instances.length = 0;
+  FakeApi.rendered.length = 0;
+  FakeApi.loadedTracks.length = 0;
   FakeApi.onLoad = null;
 });
 
@@ -102,5 +119,101 @@ describe("Root", () => {
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith(failure));
     expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  describe("track filtering", () => {
+    const score = { tracks: [{ name: "Guitar" }, { name: "Bass" }, { name: "Drums" }] };
+
+    async function loadScore(tracks?: number[]) {
+      const view = render(
+        <Root src={new Uint8Array([1, 2, 3])} tracks={tracks}>
+          <Viewport />
+        </Root>,
+      );
+      await waitFor(() => expect(FakeApi.instances.length).toBeGreaterThan(0));
+      act(() => FakeApi.instances[FakeApi.instances.length - 1].scoreLoaded.fire(score));
+      return view;
+    }
+
+    it("should render only the requested track", async () => {
+      await loadScore([1]);
+
+      // The filter goes in with the load: laying the score out a second time
+      // to drop a track leaves the first pass on screen underneath.
+      expect(FakeApi.loadedTracks).toEqual([[1]]);
+      expect(FakeApi.rendered).toEqual([]);
+    });
+
+    it("should render every track when none is requested", async () => {
+      await loadScore();
+
+      // alphaTab's sentinel for all of them; an omitted list means track 0.
+      expect(FakeApi.loadedTracks).toEqual([[-1]]);
+      expect(FakeApi.rendered).toEqual([]);
+    });
+
+    it("should switch tracks without reloading the score", async () => {
+      const { rerender } = await loadScore([1]);
+      const apiCount = FakeApi.instances.length;
+
+      rerender(
+        <Root src={new Uint8Array([1, 2, 3])} tracks={[2]}>
+          <Viewport />
+        </Root>,
+      );
+
+      await waitFor(() =>
+        expect(FakeApi.rendered[FakeApi.rendered.length - 1]).toEqual([score.tracks[2]]),
+      );
+      // A new api instance would mean the pane was torn down and re-parsed.
+      expect(FakeApi.instances.length).toBe(apiCount);
+    });
+  });
+
+  describe("row layout", () => {
+    const score = () => ({
+      tracks: [{ name: "Guitar", systemsLayout: [] as number[] }],
+      systemsLayout: [] as number[],
+    });
+
+    async function loadWith(systemsLayout?: number[]) {
+      const loaded = score();
+      render(
+        <Root src={new Uint8Array([1, 2, 3])} systemsLayout={systemsLayout}>
+          <Viewport />
+        </Root>,
+      );
+      await waitFor(() => expect(FakeApi.instances.length).toBeGreaterThan(0));
+      const api = FakeApi.instances[FakeApi.instances.length - 1];
+      // The layout has to be on the model by the end of this event — alphaTab
+      // renders the moment it returns.
+      act(() => api.scoreLoaded.fire(loaded));
+      return { api, loaded };
+    }
+
+    it("should hand the row breaks to the score and to every track", async () => {
+      // Given a caller that has decided where the rows break
+      const { loaded } = await loadWith([4, 5, 3]);
+
+      // Then both places alphaTab reads them from carry the plan — it consults
+      // the track when one track is shown and the score when several are.
+      expect(loaded.systemsLayout).toEqual([4, 5, 3]);
+      expect(loaded.tracks[0].systemsLayout).toEqual([4, 5, 3]);
+    });
+
+    it("should put alphaTab on the model layout so the breaks are read at all", async () => {
+      const { api } = await loadWith([4, 4]);
+
+      expect(api.settings.display.systemsLayoutMode).toBe(
+        alphaTab.SystemsLayoutMode.UseModelLayout,
+      );
+    });
+
+    it("should leave the score alone when no layout is given", async () => {
+      const { api, loaded } = await loadWith(undefined);
+
+      expect(loaded.systemsLayout).toEqual([]);
+      expect(api.settings.display.systemsLayoutMode).toBeUndefined();
+    });
   });
 });
