@@ -74,6 +74,15 @@ export interface RootProps extends RootEventProps {
   /** Indices of tracks to display. Omit to render all tracks. */
   tracks?: number[];
   /**
+   * How many bars to put in each row, one entry per row. Given, the pane stops
+   * choosing its own row breaks and takes these — which is what lets two panes
+   * showing different scores put the same measure on the same row. Rows past
+   * the end of the array fall back to alphaTab's own count.
+   *
+   * Omit to let alphaTab lay the score out as it sees fit.
+   */
+  systemsLayout?: number[];
+  /**
    * AlphaTab settings (JSON form or Settings instance).
    * Snapshotted at mount — core engine settings require remount to change.
    * Live updates to zoom use the dedicated `zoom` prop instead.
@@ -122,15 +131,22 @@ function scoreReducer(_: ScoreLoadState, action: ScoreLoadAction): ScoreLoadStat
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** alphaTab's "every track" sentinel for `load`; an omitted list means track 0 alone. */
+const ALL_TRACKS = [-1];
+
 function buildAtSettings(
   layout: "page" | "horizontal",
   zoom: number,
   userSettings?: AlphaTabSettings,
+  useModelLayout = false,
 ): AlphaTabSettings {
   if (userSettings instanceof alphaTab.Settings) {
     userSettings.display.scale = zoom;
     userSettings.display.layoutMode =
       layout === "horizontal" ? alphaTab.LayoutMode.Horizontal : alphaTab.LayoutMode.Page;
+    if (useModelLayout) {
+      userSettings.display.systemsLayoutMode = alphaTab.SystemsLayoutMode.UseModelLayout;
+    }
     return userSettings;
   }
 
@@ -149,9 +165,24 @@ function buildAtSettings(
       layoutMode:
         layout === "horizontal" ? alphaTab.LayoutMode.Horizontal : alphaTab.LayoutMode.Page,
       scale: zoom,
+      ...(useModelLayout
+        ? { systemsLayoutMode: alphaTab.SystemsLayoutMode.UseModelLayout }
+        : {}),
       ...json?.display,
     },
   } as AlphaTabSettings;
+}
+
+/**
+ * Row breaks are a property of the score, not of the settings — alphaTab reads
+ * them off the model, and only once `systemsLayoutMode` puts the model in
+ * charge, which the pane's own settings do.
+ */
+function applySystemsLayout(score: alphaTab.model.Score, systemsLayout: number[]) {
+  score.systemsLayout = [...systemsLayout];
+  // The score-level array is read only while several tracks are on screen; with
+  // a single track alphaTab asks that track instead, so both have to be set.
+  for (const track of score.tracks) track.systemsLayout = [...systemsLayout];
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -159,6 +190,7 @@ function buildAtSettings(
 export function Root({
   src,
   tracks,
+  systemsLayout,
   settings,
   layout = "page",
   zoom = 1.0,
@@ -198,8 +230,15 @@ export function Root({
   const [loadState, dispatch] = useReducer(scoreReducer, IDLE);
   const [isReadyForPlayback, setIsReadyForPlayback] = useState(false);
 
-  // Snapshot settings that cannot be changed after init.
-  const initSettingsRef = useRef({ layout, zoom, settings });
+  // Snapshot settings that cannot be changed after init. The layout mode goes in
+  // here rather than being switched on later: updating settings mid-load makes
+  // alphaTab lay the score out a second time, over the first.
+  const initSettingsRef = useRef({
+    layout,
+    zoom,
+    settings,
+    useModelLayout: systemsLayout !== undefined,
+  });
 
   // Keep latest callbacks in a ref — avoids re-subscribing on every render.
   const callbacksRef = useRef<RootEventProps>({});
@@ -235,6 +274,15 @@ export function Root({
   const onApiReadyRef = useRef(onApiReady);
   onApiReadyRef.current = onApiReady;
 
+  // Read from inside the load handler, which must not re-run when either changes.
+  const systemsLayoutRef = useRef(systemsLayout);
+  systemsLayoutRef.current = systemsLayout;
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+
+  /** What the api was last told to draw, so the same request is not made twice. */
+  const rendered = useRef<{ tracks?: number[]; systemsLayout?: number[] }>({});
+
   // Called by <Viewport> via ref-callback when its div mounts/unmounts.
   const registerViewport = useCallback((el: HTMLElement | null) => {
     if (apiRef.current) {
@@ -249,8 +297,8 @@ export function Root({
 
     if (!el) return;
 
-    const { layout: l, zoom: z, settings: s } = initSettingsRef.current;
-    const atApi = new alphaTab.AlphaTabApi(el, buildAtSettings(l, z, s));
+    const { layout: l, zoom: z, settings: s, useModelLayout } = initSettingsRef.current;
+    const atApi = new alphaTab.AlphaTabApi(el, buildAtSettings(l, z, s, useModelLayout));
     // Bound here rather than with the other callbacks below: a byte source is
     // parsed synchronously inside `api.load()`, so an unreadable file emits
     // `error` before any effect has had a chance to subscribe.
@@ -265,7 +313,20 @@ export function Root({
   useEffect(() => {
     if (!api || !src) return;
 
-    const onLoaded = (s: alphaTab.model.Score) => dispatch({ type: "loaded", score: s });
+    const onLoaded = (s: alphaTab.model.Score) => {
+      // alphaTab starts rendering the moment the score is parsed, and this
+      // event is the last thing it does before that. A layout applied any later
+      // means one render with alphaTab's own row breaks and a second with ours,
+      // both drawing into the same pane.
+      if (systemsLayoutRef.current) {
+        applySystemsLayout(s, systemsLayoutRef.current);
+      }
+      rendered.current = {
+        tracks: tracksRef.current,
+        systemsLayout: systemsLayoutRef.current,
+      };
+      dispatch({ type: "loaded", score: s });
+    };
     const onErr = (e: Error) => dispatch({ type: "error", error: e });
 
     dispatch({ type: "loading" });
@@ -273,7 +334,11 @@ export function Root({
     setIsReadyForPlayback(false);
     api.scoreLoaded.on(onLoaded);
     api.error.on(onErr);
-    api.load(typeof src === "string" ? src : src.buffer);
+    // Told which tracks to show, alphaTab lays the score out once. Left to
+    // guess it renders the first track, and the effect below immediately lays
+    // it out again for the rest — two passes drawing into the same pane, whose
+    // leftovers stay on screen.
+    api.load(typeof src === "string" ? src : src.buffer, tracksRef.current ?? ALL_TRACKS);
 
     return () => {
       api.scoreLoaded.off(onLoaded);
@@ -281,21 +346,49 @@ export function Root({
     };
   }, [api, src]);
 
-  // ── Track selection (live) ─────────────────────────────────────────────────
+  // ── Track selection and row layout (live) ─────────────────────────────────
+  // Both go in before the same render: the layout lives on the score, so it has
+  // to be in place by the time renderTracks ships the model off to the worker.
   useEffect(() => {
     if (!api || loadState.status !== "loaded") return;
+    // What the load already rendered. Laying it out again would be a second
+    // pass over the same answer, and the pane keeps whatever the slower one
+    // leaves behind.
+    const done = rendered.current;
+    if (done.tracks === tracks && done.systemsLayout === systemsLayout) return;
+
     const { score } = loadState;
+    if (systemsLayout) {
+      applySystemsLayout(score, systemsLayout);
+      // A pane that mounted without a layout is still on alphaTab's own row
+      // breaks; this is the one place the mode has to be switched at runtime.
+      if (
+        api.settings.display.systemsLayoutMode !==
+        alphaTab.SystemsLayoutMode.UseModelLayout
+      ) {
+        api.settings.display.systemsLayoutMode =
+          alphaTab.SystemsLayoutMode.UseModelLayout;
+        api.updateSettings();
+      }
+    }
     const toRender = tracks
       ? tracks.map((i) => score.tracks[i]).filter(Boolean)
       : [...score.tracks];
-    if (toRender.length > 0) api.renderTracks(toRender);
-  }, [api, loadState, tracks]);
+    if (toRender.length === 0) return;
+
+    rendered.current = { tracks, systemsLayout };
+    api.renderTracks(toRender);
+  }, [api, loadState, tracks, systemsLayout]);
 
   // ── Zoom (live) ────────────────────────────────────────────────────────────
   // Only apply after a score is loaded — calling render() on the uninitialized
   // player triggers a recursive `loadedMidiInfo` getter loop in alphaTab.
   useEffect(() => {
     if (!api || loadState.status !== "loaded") return;
+    // The api was built with the zoom it mounted at, so on load there is
+    // nothing to change — re-rendering here would only race the render the
+    // score load already started.
+    if (api.settings.display.scale === zoom) return;
     api.settings.display.scale = zoom;
     api.updateSettings();
     api.render();

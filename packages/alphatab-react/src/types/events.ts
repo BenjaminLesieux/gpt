@@ -10,6 +10,14 @@ export type Track = alphaTab.model.Track;
 export type RenderFinishedEventArgs = alphaTab.rendering.RenderFinishedEventArgs;
 export type ResizeEventArgs = alphaTab.ResizeEventArgs;
 
+// Where things landed on the page — the bridge from a model position to pixels
+export type BoundsLookup = alphaTab.rendering.BoundsLookup;
+export type Bounds = alphaTab.rendering.Bounds;
+export type MasterBarBounds = alphaTab.rendering.MasterBarBounds;
+
+// The imperative handle <Root> hands back through onApiReady
+export type AlphaTabApi = alphaTab.AlphaTabApi;
+
 // Playback event args
 export type PlayerStateChangedEventArgs = alphaTab.synth.PlayerStateChangedEventArgs;
 export type PositionChangedEventArgs = alphaTab.synth.PositionChangedEventArgs;
