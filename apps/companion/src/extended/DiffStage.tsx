@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TabDiff, darkTheme } from '@gpt/alphatab-react';
-import { barsForTrack } from '@gpt/gpt-core';
+import { changeCounts } from '@gpt/gpt-core';
 import type { Version } from '@/lib/ipc';
 import { StageMessage, StageSpinner } from './ScoreStage';
-import { TrackSelector } from './TrackSelector';
+import { DiffTrackTabs } from './DiffTrackTabs';
 import { useVersionDiff } from './useVersionBytes';
 
 const SETTINGS = {
@@ -25,19 +25,30 @@ interface DiffStageProps {
 export function DiffStage({ fileId, base, head }: DiffStageProps) {
   const { t } = useTranslation();
   const { diff, baseBytes, headBytes, loading, error } = useVersionDiff(fileId, base.id, head.id);
-  const [track, setTrack] = useState(0);
+  // null is "All tracks": the stage opens on the whole score and narrows to one
+  // instrument only when asked.
+  const [track, setTrack] = useState<number | null>(null);
 
-  const trackNames = useMemo(() => diff?.tracks.map((entry) => entry.trackName) ?? [], [diff]);
+  // Every track carries its own tally so the tabs can say where the edit landed
+  // before you switch to it.
+  const tracks = useMemo(
+    () =>
+      diff?.tracks.map((entry) => ({
+        name: entry.trackName,
+        changes: changeCounts(diff, entry.trackIndex).total,
+      })) ?? [],
+    [diff],
+  );
   // gpt-core's own summary is a fixed English sentence across all tracks; the
-  // toolbar counts only what the selected track shows.
-  const counts = useMemo(() => {
-    const bars = diff ? barsForTrack(diff, track) : [];
-    return {
-      changed: bars.filter((bar) => bar.type === 'changed').length,
-      added: bars.filter((bar) => bar.type === 'added').length,
-      removed: bars.filter((bar) => bar.type === 'removed').length,
-    };
-  }, [diff, track]);
+  // toolbar breaks down only what the selected tab shows.
+  const counts = useMemo(
+    () => (diff ? changeCounts(diff, track) : { changed: 0, added: 0, removed: 0, total: 0 }),
+    [diff, track],
+  );
+  const scoreCounts = useMemo(
+    () => (diff ? changeCounts(diff, null) : { changed: 0, added: 0, removed: 0, total: 0 }),
+    [diff],
+  );
 
   if (loading) return <StageSpinner label={t('extended.stage.computingDiff')} />;
   if (error) return <StageMessage message={error} />;
@@ -45,19 +56,20 @@ export function DiffStage({ fileId, base, head }: DiffStageProps) {
     return <StageMessage message={t('extended.stage.noDiff')} />;
   }
 
-  const isIdentical = counts.changed + counts.added + counts.removed === 0;
+  const isIdentical = counts.total === 0;
 
   return (
     <>
       <div className="flex h-9 shrink-0 items-center gap-3 border-b border-border px-2">
-        <TrackSelector
-          tracks={trackNames}
+        <DiffTrackTabs
+          tracks={tracks}
+          totalChanges={scoreCounts.total}
           value={track}
-          onChange={(value) => setTrack(value ?? 0)}
+          onChange={setTrack}
         />
         {isIdentical ? (
           <span className="font-mono text-[10px] text-muted-foreground">
-            {t('extended.stage.identical')}
+            {t(track === null ? 'extended.stage.identicalScore' : 'extended.stage.identical')}
           </span>
         ) : (
           <span className="flex items-center gap-2.5 font-mono text-[10px]">
