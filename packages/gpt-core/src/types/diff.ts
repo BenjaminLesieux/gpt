@@ -86,6 +86,67 @@ export type BarDiff =
       changedFields: BarChangedField[];
     } & BarPosition);
 
+// ── Change positions and tallies ──────────────────────────────────────────────
+//
+// What a side-by-side pane highlights and what a track picker chips: where the
+// changes are, without the bar payload. Both are read through one lens —
+// changedBars(diff, trackIndex) — where a null trackIndex means the whole score,
+// i.e. a measure counts as changed when any track's bar or the master bar did.
+
+export interface ChangedBar {
+  type: "added" | "removed" | "changed";
+  /** Display measure number — head's position where head has one, else base's. */
+  masterBarIndex: number;
+  baseIndex: number | null;
+  headIndex: number | null;
+}
+
+export interface ChangeCounts {
+  changed: number;
+  added: number;
+  removed: number;
+  /** changed + added + removed — zero for a track this edit left alone. */
+  total: number;
+}
+
+// ── Content marks — the inside of a changed measure ───────────────────────────
+//
+// A changed measure is almost never uniformly changed: one note moved and the
+// other fifteen stayed put. A content mark says which note head or which beat
+// actually carries the edit, so a renderer can colour that note instead of
+// washing the whole measure.
+//
+// There is no "changed" mark. A note whose fret went from 1 to 2 is a red mark
+// on the base pane's 1 and a green mark on the head pane's 2 — the same way a
+// text diff spells a changed line. So base marks are what the edit took away
+// and head marks are what it brought, and nothing else needs a colour.
+//
+// Every index is in the pane's own score: the panes disagree about track order
+// the moment a track is dragged, and about measure numbers after any insertion.
+
+export interface ContentMark {
+  masterBarIndex: number;
+  trackIndex: number;
+  staffIndex: number;
+  voiceIndex: number;
+  /** Beat position within the voice — Beat.index in the model. */
+  beatIndex: number;
+  /** Position within Beat.notes, or null when the mark covers the whole beat. */
+  noteIndex: number | null;
+}
+
+/** Where a mark sits inside one bar, before the bar itself is located. */
+export type BarContentMark = Omit<
+  ContentMark,
+  'masterBarIndex' | 'trackIndex' | 'staffIndex'
+>;
+
+/** base — what the edit removed; head — what it added. */
+export interface ContentMarks<T = ContentMark> {
+  base: T[];
+  head: T[];
+}
+
 // ── Score meta diff ───────────────────────────────────────────────────────────
 
 export interface MetaDiff {

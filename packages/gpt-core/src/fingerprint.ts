@@ -46,8 +46,13 @@ export function barFingerprint(bar: Bar): string {
 const SILENT = 'silent';
 
 function voiceSnapshot(voice: Voice): unknown {
-  if (voice.beats.every(isSilence)) return SILENT;
+  if (isSilentVoice(voice)) return SILENT;
   return { beats: voice.beats.map((beat) => beatSnapshot(beat)) };
+}
+
+/** True when the voice sounds nothing, however it happens to be spelled. */
+export function isSilentVoice(voice: Voice): boolean {
+  return voice.beats.every(isSilence);
 }
 
 // A rest is only silence if nothing is hanging off it. Text, lyrics and chord
@@ -63,6 +68,11 @@ function isSilence(beat: Beat): boolean {
 }
 
 // ── Beat ──────────────────────────────────────────────────────────────────────
+
+/** The single source of truth for "did this beat change". */
+export function beatFingerprint(beat: Beat): string {
+  return JSON.stringify(beatSnapshot(beat));
+}
 
 function beatSnapshot(beat: Beat) {
   return {

@@ -7,8 +7,13 @@ export type {
   MeasureDiff,
   TrackBarChange,
   TrackPairing,
+  ChangedBar,
+  ChangeCounts,
   BarDiff,
   BarChangedField,
+  ContentMark,
+  BarContentMark,
+  ContentMarks,
   MetaDiff,
 } from "./types/diff";
 export type { Commit, CommitAuthor, Branch, RepoStatus } from "./types/commit";
@@ -41,7 +46,10 @@ export { CONFLICT_SIDECAR, unresolvedCount, isFullyResolved } from "./types/conf
 
 // Core functions
 export { serialize, deserialize } from "./serializer";
-export { diffScores, barsForTrack } from "./diff";
+export { diffScores, barsForTrack, changedBars, changeCounts } from "./diff";
+export { changedContent, barContent } from "./barContent";
+export { alignedSystems, DEFAULT_BARS_PER_ROW } from "./systems";
+export type { AlignedSystems } from "./systems";
 export { mergeScores } from "./merge";
 export { applyMerge } from "./applyMerge";
 
