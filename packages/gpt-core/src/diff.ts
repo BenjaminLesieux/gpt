@@ -1,18 +1,27 @@
-import type { Bar, Beat, BendPoint, Note, Score, Track } from './types/score';
+import type { Bar, Beat, Score, Track } from './types/score';
 import type {
   BarChangedField,
   BarDiff,
+  ChangeCounts,
+  ChangedBar,
   MeasureDiff,
   MetaDiff,
   ScoreDiff,
   TrackBarChange,
   TrackPairing,
 } from './types/diff';
+import { barFingerprint, masterBarFingerprint } from './fingerprint';
+import { alignIndexes } from './align';
 import {
-  barFingerprint,
-  masterBarFingerprint,
-  noteFingerprint,
-} from './fingerprint';
+  beatArticulationChanged,
+  beatDynamicsChanged,
+  beatRhythmChanged,
+  noteArticulationChanged,
+  noteChanged,
+  noteDynamicsChanged,
+  noteKey,
+  pitchChanged,
+} from './compare';
 
 export function diffScores(base: Score, head: Score): ScoreDiff {
   const tracks = pairTracks(base.tracks, head.tracks);
@@ -205,195 +214,6 @@ function alignMeasures(
   return measures;
 }
 
-// A pair is [baseIndex, headIndex]; null on either side means the measure
-// exists in only one score. Pairs come back in reading order.
-
-type IndexPair = [number | null, number | null];
-
-/** A pair the LCS matched outright — both sides always present. */
-type Anchor = [number, number];
-
-// Guard on the LCS tables (two of them, four bytes a cell) so a pathologically
-// long score can't blow up memory. Sized when the LCS ran once per track; the
-// single score-level run makes this the whole budget rather than one of N, and
-// at the cap the two tables cost 32 MB, transiently. After trimming that is a
-// 2000×2000-measure edit window — far beyond any real score. Beyond it the
-// middle section falls back to positional pairing — degraded, never wrong.
-const MAX_LCS_CELLS = 4_000_000;
-
-function alignIndexes(base: string[], head: string[]): IndexPair[] {
-  // Real edits touch a handful of measures, so trimming the untouched head and
-  // tail usually shrinks the LCS to a tiny window — and makes the common
-  // "nothing changed" case linear.
-  let lo = 0;
-  while (lo < base.length && lo < head.length && base[lo] === head[lo]) lo++;
-
-  let tail = 0;
-  while (
-    tail < base.length - lo &&
-    tail < head.length - lo &&
-    base[base.length - 1 - tail] === head[head.length - 1 - tail]
-  ) {
-    tail++;
-  }
-
-  const pairs: IndexPair[] = [];
-  for (let i = 0; i < lo; i++) pairs.push([i, i]);
-  pairs.push(
-    ...alignMiddle(base, head, lo, base.length - tail, head.length - tail),
-  );
-  for (let k = tail - 1; k >= 0; k--) {
-    pairs.push([base.length - 1 - k, head.length - 1 - k]);
-  }
-  return pairs;
-}
-
-function alignMiddle(
-  base: string[],
-  head: string[],
-  lo: number,
-  baseEnd: number,
-  headEnd: number,
-): IndexPair[] {
-  const n = baseEnd - lo;
-  const m = headEnd - lo;
-  if (n <= 0 && m <= 0) return [];
-
-  const pairs: IndexPair[] = [];
-  if (n <= 0) {
-    for (let h = lo; h < headEnd; h++) pairs.push([null, h]);
-    return pairs;
-  }
-  if (m <= 0) {
-    for (let b = lo; b < baseEnd; b++) pairs.push([b, null]);
-    return pairs;
-  }
-
-  const anchors =
-    n * m <= MAX_LCS_CELLS ? lcsAnchors(base, head, lo, baseEnd, headEnd) : [];
-
-  // Walk the anchors, filling each gap between them positionally. The trailing
-  // sentinel closes the gap after the last anchor.
-  const sentinel: Anchor = [baseEnd, headEnd];
-  let b = lo;
-  let h = lo;
-  for (const [anchorB, anchorH] of [...anchors, sentinel]) {
-    const gapB = anchorB - b;
-    const gapH = anchorH - h;
-    const paired = Math.min(gapB, gapH);
-    for (let k = 0; k < paired; k++) pairs.push([b + k, h + k]);
-    for (let k = paired; k < gapB; k++) pairs.push([b + k, null]);
-    for (let k = paired; k < gapH; k++) pairs.push([null, h + k]);
-
-    if (anchorB < baseEnd) pairs.push([anchorB, anchorH]);
-    b = anchorB + 1;
-    h = anchorH + 1;
-  }
-  return pairs;
-}
-
-/**
- * Longest common subsequence of measure fingerprints, as
- * [baseIndex, headIndex] pairs.
- *
- * Music repeats itself, so a score routinely offers dozens of ways to match the
- * same number of measures — a riff played in measure 12 is byte-identical to the
- * one in measure 92. Length alone does not choose between them, and the
- * arbitrary winner is often one that pairs a measure with a far-away twin, which
- * then reads as a long deletion plus a long insertion instead of an edit in
- * place. So the table carries a second number: among the alignments of maximal
- * length, prefer the one whose matches sit closest to the diagonal.
- */
-function lcsAnchors(
-  base: string[],
-  head: string[],
-  lo: number,
-  baseEnd: number,
-  headEnd: number,
-): Anchor[] {
-  const n = baseEnd - lo;
-  const m = headEnd - lo;
-
-  // len[i][j] = LCS length of base[lo+i..] and head[lo+j..]
-  // drift[i][j] = smallest total |i-j| over the matches of any such alignment
-  const len: Uint32Array[] = Array.from(
-    { length: n + 1 },
-    () => new Uint32Array(m + 1),
-  );
-  const drift: Uint32Array[] = Array.from(
-    { length: n + 1 },
-    () => new Uint32Array(m + 1),
-  );
-
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      const matches = base[lo + i] === head[lo + j];
-      // Taking a match never shortens the LCS, but it can drag the alignment off
-      // the diagonal, so it competes with the two skips rather than short-
-      // circuiting them.
-      let bestLen = len[i + 1]![j]!;
-      let bestDrift = drift[i + 1]![j]!;
-
-      const skipHeadLen = len[i]![j + 1]!;
-      const skipHeadDrift = drift[i]![j + 1]!;
-      if (better(skipHeadLen, skipHeadDrift, bestLen, bestDrift)) {
-        bestLen = skipHeadLen;
-        bestDrift = skipHeadDrift;
-      }
-
-      if (matches) {
-        const matchLen = len[i + 1]![j + 1]! + 1;
-        const matchDrift = drift[i + 1]![j + 1]! + Math.abs(i - j);
-        if (better(matchLen, matchDrift, bestLen, bestDrift)) {
-          bestLen = matchLen;
-          bestDrift = matchDrift;
-        }
-      }
-
-      len[i]![j] = bestLen;
-      drift[i]![j] = bestDrift;
-    }
-  }
-
-  // Replay the same choice forwards, collecting the matches it takes.
-  const anchors: Anchor[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (
-      base[lo + i] === head[lo + j] &&
-      len[i]![j] === len[i + 1]![j + 1]! + 1 &&
-      drift[i]![j] === drift[i + 1]![j + 1]! + Math.abs(i - j)
-    ) {
-      anchors.push([lo + i, lo + j]);
-      i++;
-      j++;
-    } else if (
-      better(
-        len[i + 1]![j]!,
-        drift[i + 1]![j]!,
-        len[i]![j + 1]!,
-        drift[i]![j + 1]!,
-      )
-    ) {
-      i++;
-    } else {
-      j++;
-    }
-  }
-  return anchors;
-}
-
-/** Longer wins; equal length is settled by staying nearer the diagonal. */
-function better(
-  len: number,
-  drift: number,
-  bestLen: number,
-  bestDrift: number,
-): boolean {
-  return len > bestLen || (len === bestLen && drift < bestDrift);
-}
-
 // ─── Per-track projection ─────────────────────────────────────────────────────
 //
 // The measure alignment is canonical; a track's BarDiff[] is derived from it on
@@ -462,6 +282,45 @@ export function barsForTrack(diff: ScoreDiff, trackIndex: number): BarDiff[] {
     }
   }
   return bars;
+}
+
+/**
+ * Where the changes sit, for one track or — with a null trackIndex — for the
+ * whole score, where a measure counts as changed when any track's bar or the
+ * master bar did.
+ */
+export function changedBars(diff: ScoreDiff, trackIndex: number | null): ChangedBar[] {
+  if (trackIndex !== null) {
+    const changes: ChangedBar[] = [];
+    for (const bar of barsForTrack(diff, trackIndex)) {
+      if (bar.type === 'equal') continue;
+      const { type, masterBarIndex, baseIndex, headIndex } = bar;
+      changes.push({ type, masterBarIndex, baseIndex, headIndex });
+    }
+    return changes;
+  }
+
+  const changes: ChangedBar[] = [];
+  for (const measure of diff.measures) {
+    if (measure.type === 'equal') continue;
+    changes.push({
+      type: measure.type,
+      masterBarIndex: measure.headIndex ?? measure.baseIndex,
+      baseIndex: measure.baseIndex,
+      headIndex: measure.headIndex,
+    });
+  }
+  return changes;
+}
+
+/** How many bars were gained, lost, or rewritten — the tally a track picker chips. */
+export function changeCounts(diff: ScoreDiff, trackIndex: number | null): ChangeCounts {
+  const counts: ChangeCounts = { changed: 0, added: 0, removed: 0, total: 0 };
+  for (const change of changedBars(diff, trackIndex)) {
+    counts[change.type] += 1;
+    counts.total += 1;
+  }
+  return counts;
 }
 
 function addedBar(headIndex: number, bar: Bar): BarDiff {
@@ -536,58 +395,6 @@ function categorizeBarChanges(base: Bar, head: Bar): BarChangedField[] {
   return [...fields];
 }
 
-function beatRhythmChanged(base: Beat, head: Beat): boolean {
-  return (
-    base.duration !== head.duration ||
-    base.dots !== head.dots ||
-    base.tupletNumerator !== head.tupletNumerator ||
-    base.tupletDenominator !== head.tupletDenominator ||
-    base.isRest !== head.isRest
-  );
-}
-
-function beatArticulationChanged(base: Beat, head: Beat): boolean {
-  return (
-    base.graceType !== head.graceType ||
-    base.pickStroke !== head.pickStroke ||
-    base.vibrato !== head.vibrato ||
-    base.whammyBarType !== head.whammyBarType ||
-    !samePoints(base.whammyBarPoints, head.whammyBarPoints) ||
-    base.brushType !== head.brushType ||
-    base.brushDuration !== head.brushDuration ||
-    base.slap !== head.slap ||
-    base.pop !== head.pop ||
-    base.tap !== head.tap ||
-    base.fade !== head.fade ||
-    base.ottava !== head.ottava ||
-    base.isLetRing !== head.isLetRing ||
-    base.isPalmMute !== head.isPalmMute ||
-    base.isLegatoOrigin !== head.isLegatoOrigin
-  );
-}
-
-function beatDynamicsChanged(base: Beat, head: Beat): boolean {
-  // Rests carry an inherited dynamic that is never heard, and the fingerprint
-  // that decided this bar changed already ignores it — so must this, or a bar
-  // gets a dynamics chip that nothing in it explains.
-  const dynamics =
-    base.isRest && head.isRest ? false : base.dynamics !== head.dynamics;
-  return dynamics || base.crescendo !== head.crescendo;
-}
-
-function samePoints(
-  base: BendPoint[] | null,
-  head: BendPoint[] | null,
-): boolean {
-  if (!base || !head) return !base === !head;
-  return (
-    base.length === head.length &&
-    base.every(
-      (p, i) => p.offset === head[i]!.offset && p.value === head[i]!.value,
-    )
-  );
-}
-
 function categorizeNoteChanges(base: Beat, head: Beat): BarChangedField[] {
   const fields = new Set<BarChangedField>();
 
@@ -606,15 +413,12 @@ function categorizeNoteChanges(base: Beat, head: Beat): BarChangedField[] {
 
     const forThisNote = new Set<BarChangedField>();
     if (pitchChanged(bNote, hNote)) forThisNote.add('notes');
-    if (articulationChanged(bNote, hNote)) forThisNote.add('articulation');
-    if (dynamicsChanged(bNote, hNote)) forThisNote.add('dynamics');
+    if (noteArticulationChanged(bNote, hNote)) forThisNote.add('articulation');
+    if (noteDynamicsChanged(bNote, hNote)) forThisNote.add('dynamics');
 
     // Defer to the fingerprint for anything the explicit checks don't cover
     // (fingerings, tie/slur links, …) so a changed note is never unexplained.
-    if (
-      forThisNote.size === 0 &&
-      noteFingerprint(bNote) !== noteFingerprint(hNote)
-    ) {
+    if (forThisNote.size === 0 && noteChanged(bNote, hNote)) {
       forThisNote.add('notes');
     }
     for (const f of forThisNote) fields.add(f);
@@ -623,67 +427,15 @@ function categorizeNoteChanges(base: Beat, head: Beat): BarChangedField[] {
   return [...fields];
 }
 
-// Pitch lives in string/fret on a fretboard, in percussionArticulation on a kit,
-// and in octave/tone on everything else.
-function pitchChanged(base: Note, head: Note): boolean {
-  return (
-    base.fret !== head.fret ||
-    base.octave !== head.octave ||
-    base.tone !== head.tone ||
-    base.percussionArticulation !== head.percussionArticulation
-  );
-}
-
-// What makes two notes "the same note" across base and head. On a fretted
-// instrument that is the string it sits on. Percussion notes all report
-// string === -1, so keying on string alone collapses an entire drum chord into
-// a single map entry and hides every hit but the last; the articulation is what
-// identifies them.
-function noteKey(note: Note): string {
-  return `${note.string}:${note.percussionArticulation ?? -1}`;
-}
-
-function articulationChanged(base: Note, head: Note): boolean {
-  return (
-    base.isDead !== head.isDead ||
-    base.isGhost !== head.isGhost ||
-    base.isStaccato !== head.isStaccato ||
-    base.isHammerPullOrigin !== head.isHammerPullOrigin ||
-    base.isLeftHandTapped !== head.isLeftHandTapped ||
-    base.isContinuedBend !== head.isContinuedBend ||
-    base.bendType !== head.bendType ||
-    base.bendStyle !== head.bendStyle ||
-    base.harmonicType !== head.harmonicType ||
-    base.harmonicValue !== head.harmonicValue ||
-    base.slideInType !== head.slideInType ||
-    base.slideOutType !== head.slideOutType ||
-    base.vibrato !== head.vibrato ||
-    base.isLetRing !== head.isLetRing ||
-    base.isPalmMute !== head.isPalmMute ||
-    base.trillValue !== head.trillValue ||
-    base.trillSpeed !== head.trillSpeed ||
-    !samePoints(base.bendPoints, head.bendPoints)
-  );
-}
-
-function dynamicsChanged(base: Note, head: Note): boolean {
-  return (
-    base.accentuated !== head.accentuated || base.dynamics !== head.dynamics
-  );
-}
-
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
 function buildSummary(diff: ScoreDiff): string {
   const parts: string[] = [];
 
   for (const track of diff.tracks) {
-    const bars = barsForTrack(diff, track.trackIndex);
-    const added = bars.filter((b) => b.type === 'added').length;
-    const removed = bars.filter((b) => b.type === 'removed').length;
-    const changed = bars.filter((b) => b.type === 'changed').length;
+    const { changed, added, removed, total } = changeCounts(diff, track.trackIndex);
 
-    if (added || removed || changed) {
+    if (total) {
       const details = [
         changed ? `${changed} changed` : '',
         added ? `${added} added` : '',

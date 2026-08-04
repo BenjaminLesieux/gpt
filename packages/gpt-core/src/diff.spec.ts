@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { barsForTrack, diffScores } from './diff';
+import { barsForTrack, changeCounts, changedBars, diffScores } from './diff';
 import type { Bar, Beat, Note } from './types/score';
 import {
   makeBar,
@@ -896,6 +896,90 @@ describe('diffScores', () => {
       // Then title is absent from meta diff
       expect(result.meta.title).toBeUndefined();
       expect(result.meta.tempo).toBeDefined();
+    });
+  });
+
+  describe('changedBars and changeCounts', () => {
+    it('should count changed, added and removed bars for the track', () => {
+      // Given a track where one bar changed and one was added
+      const base = makeScore([makeTrack('Guitar', [simpleBar(5)])], 1);
+      const head = makeScore(
+        [makeTrack('Guitar', [simpleBar(7), simpleBar(9)])],
+        2,
+      );
+
+      // When counted
+      const counts = changeCounts(diffScores(base, head), 0);
+
+      // Then the tally matches the bars, and total is their sum
+      expect(counts).toEqual({ changed: 1, added: 1, removed: 0, total: 2 });
+    });
+
+    it('should report zero for a track the edit left alone', () => {
+      // Given two tracks where only the bass changes
+      const base = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(5)]),
+          makeTrack('Bass', [simpleBar(3)]),
+        ],
+        1,
+      );
+      const head = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(5)]),
+          makeTrack('Bass', [simpleBar(4)]),
+        ],
+        1,
+      );
+
+      // When both tracks are counted
+      const result = diffScores(base, head);
+
+      // Then the guitar is untouched even though the measure changed
+      expect(changeCounts(result, 0).total).toBe(0);
+      expect(changeCounts(result, 1).total).toBe(1);
+    });
+
+    it('should count a measure once for the whole score, whichever track changed', () => {
+      // Given a measure changed in the bass and another in the guitar
+      const base = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(5), simpleBar(6)]),
+          makeTrack('Bass', [simpleBar(3), simpleBar(3)]),
+        ],
+        2,
+      );
+      const head = makeScore(
+        [
+          makeTrack('Guitar', [simpleBar(5), simpleBar(9)]),
+          makeTrack('Bass', [simpleBar(4), simpleBar(3)]),
+        ],
+        2,
+      );
+
+      // When counted score-wide
+      const result = diffScores(base, head);
+
+      // Then both measures count once each, not once per track
+      expect(changeCounts(result, null).total).toBe(2);
+      expect(changedBars(result, null).map((b) => b.masterBarIndex)).toEqual([0, 1]);
+    });
+
+    it('should address each pane with its own index after an insertion', () => {
+      // Given a bar inserted at the top, shifting every later bar in head
+      const base = makeScore([makeTrack('Guitar', [simpleBar(5), simpleBar(6)])], 2);
+      const head = makeScore(
+        [makeTrack('Guitar', [simpleBar(9), simpleBar(5), simpleBar(6)])],
+        3,
+      );
+
+      // When the changes are read score-wide
+      const changes = changedBars(diffScores(base, head), null);
+
+      // Then the added bar exists only in head
+      expect(changes).toEqual([
+        { type: 'added', masterBarIndex: 0, baseIndex: null, headIndex: 0 },
+      ]);
     });
   });
 
