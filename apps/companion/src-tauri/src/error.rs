@@ -36,6 +36,9 @@ pub enum Error {
     Watch(#[from] notify::Error),
 
     #[error(transparent)]
+    Keychain(#[from] keyring::Error),
+
+    #[error(transparent)]
     Tauri(#[from] tauri::Error),
 }
 
