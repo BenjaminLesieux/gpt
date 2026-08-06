@@ -36,6 +36,9 @@ notify = "8"
 # what Guitar Pro writes; we write everything back stored.
 zip = { version = "5", default-features = false, features = ["deflate"] }
 thiserror = "2"
+# Remote tokens (see secrets.rs). `config.json` is plain text, so nothing
+# secret may land in it. v3 rather than v4 — v4 wants rustc 1.88.
+keyring = { version = "3", default-features = false, features = ["apple-native"] }
 
 # Reading the score Guitar Pro has in front (see guitar_pro.rs). The
 # accessibility calls themselves are declared by hand — five stable C symbols

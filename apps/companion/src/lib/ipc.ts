@@ -156,11 +156,22 @@ export function restoreVersion(id: string, rev: string): Promise<Version | null>
   return invoke('restore_version', { id, rev });
 }
 
-// ── Remote (M5 does the pushing) ─────────────────────────────────────────
+// ── Remote ───────────────────────────────────────────────────────────────
 
-/** `null` clears the remote. Secrets go to the keychain, never to `url`. */
-export function setRemote(id: string, url: string | null, auth?: RemoteAuth): Promise<void> {
-  return invoke('set_remote', { id, url, auth });
+/**
+ * `url: null` clears the remote and its token together.
+ *
+ * The token goes straight to the keychain — never into `url`, and never into
+ * `config.json`. Omitting it while setting a URL keeps whatever is already
+ * stored, so the URL can be corrected without retyping the secret.
+ */
+export function setRemote(
+  id: string,
+  url: string | null,
+  auth?: RemoteAuth,
+  token?: string,
+): Promise<void> {
+  return invoke('set_remote', { id, url, auth, token });
 }
 
 export function pushStatus(id: string): Promise<PushStatus> {

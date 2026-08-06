@@ -11,6 +11,7 @@ use crate::error::{Error, Result};
 use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
 use crate::normalize::normalize_gp;
+use crate::secrets;
 use crate::state::{AppState, Binding};
 
 #[derive(Serialize)]
@@ -226,18 +227,42 @@ pub fn restore_version(
     Ok(safety)
 }
 
+/// `url: None` clears the remote, token included. A `None` token with a URL
+/// leaves whatever is already in the keychain alone, so the URL can be
+/// corrected without retyping the secret.
 #[tauri::command]
 pub fn set_remote(
     state: State<'_, AppState>,
     id: String,
     url: Option<String>,
     auth: Option<RemoteAuth>,
+    token: Option<String>,
 ) -> Result<()> {
+    // Nothing exists yet to hold a token for.
+    state.tracked(&id)?;
+
+    let Some(url) = url else {
+        state.update(|config| {
+            let file = config
+                .find_mut(&id)
+                .ok_or_else(|| Error::UnknownFile(id.clone()))?;
+            file.remote = None;
+            Ok(())
+        })?;
+        return secrets::clear(&id);
+    };
+
+    // Secret first: a descriptor persisted against a token that failed to
+    // store would describe an authentication that cannot happen.
+    if let Some(token) = token {
+        secrets::store(&id, &token)?;
+    }
+
     state.update(|config| {
         let file = config
             .find_mut(&id)
             .ok_or_else(|| Error::UnknownFile(id.clone()))?;
-        file.remote = url.map(|url| Remote {
+        file.remote = Some(Remote {
             url,
             auth: auth.unwrap_or_default(),
         });
