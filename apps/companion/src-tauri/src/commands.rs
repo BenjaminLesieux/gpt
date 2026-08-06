@@ -216,6 +216,7 @@ pub fn restore_version(
 /// corrected without retyping the secret.
 #[tauri::command]
 pub fn set_remote(
+    app: AppHandle,
     state: State<'_, AppState>,
     id: String,
     url: Option<String>,
@@ -235,7 +236,9 @@ pub fn set_remote(
         })?;
         // Anything queued was queued for a remote that no longer exists.
         state.pushes.forget(&id);
-        return secrets::clear(&id);
+        secrets::clear(&id)?;
+        events::tracked_files_changed(&app, state.config().tracked_files.clone());
+        return Ok(());
     };
 
     // Secret first: a descriptor persisted against a token that failed to
@@ -258,6 +261,7 @@ pub fn set_remote(
     // A score pointed at a remote for the first time already has a history;
     // waiting for the next commit to send it would be an odd first impression.
     state.pushes.enqueue(&id);
+    events::tracked_files_changed(&app, state.config().tracked_files.clone());
     Ok(())
 }
 
