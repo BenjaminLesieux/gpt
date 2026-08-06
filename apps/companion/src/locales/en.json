@@ -90,6 +90,24 @@
       "confirm": "Restore",
       "done": "Version restored.",
       "doneWithSafety": "Version restored — the previous contents were snapshotted."
+    },
+    "remote": {
+      "setUp": "Set up sync",
+      "configured": "Sync",
+      "title": "Where does this score sync?",
+      "description": "Named versions of {{file}} are pushed here in the background. Automatic snapshots stay on this machine.",
+      "url": "Repository URL",
+      "username": "Username",
+      "usernamePlaceholder": "Usually ignored with a token",
+      "token": "Access token",
+      "tokenPlaceholder": "Paste a personal access token",
+      "tokenStored": "Stored — leave empty to keep it",
+      "tokenHint": "Kept in your macOS keychain, never in Gitarpro's settings file.",
+      "insecure": "This URL is not https, so the token would travel unencrypted.",
+      "remove": "Remove remote",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saved": "Remote saved."
     }
   }
 }

@@ -12,6 +12,7 @@ vi.mock('@/lib/ipc', () => ({
   listVersions: vi.fn(),
   listSnapshots: vi.fn(),
   restoreVersion: vi.fn(),
+  setRemote: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
@@ -65,6 +66,7 @@ beforeEach(() => {
   ipc.listVersions.mockResolvedValue([bridge, intro]);
   ipc.listSnapshots.mockResolvedValue([snapshot]);
   ipc.restoreVersion.mockResolvedValue(null);
+  ipc.setRemote.mockResolvedValue(undefined);
 });
 
 describe('ExtendedApp', () => {
@@ -160,6 +162,87 @@ describe('ExtendedApp', () => {
     await user.click(within(strip).getByRole('button', { name: 'Dismiss' }));
 
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('points a score at a remote, sending the token separately from the url', async () => {
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: /Set up sync/ }));
+    await user.type(
+      await screen.findByLabelText('Repository URL'),
+      'https://git.example.com/ben/blackbird.git',
+    );
+    await user.type(screen.getByLabelText('Username'), 'ben');
+    await user.type(screen.getByLabelText('Access token'), 'gp_tok_123');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(ipc.setRemote).toHaveBeenCalledWith(
+      'a1',
+      'https://git.example.com/ben/blackbird.git',
+      { kind: 'token', username: 'ben' },
+      'gp_tok_123',
+    );
+  });
+
+  it('warns when a token would travel over plain http', async () => {
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: /Set up sync/ }));
+    await user.type(await screen.findByLabelText('Repository URL'), 'http://git.example.com/x.git');
+
+    expect(screen.queryByText(/not https/i)).toBeNull();
+
+    await user.type(screen.getByLabelText('Access token'), 'gp_tok_123');
+
+    expect(await screen.findByText(/not https/i)).toBeTruthy();
+  });
+
+  it('sends no auth for a remote that asks for none', async () => {
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: /Set up sync/ }));
+    await user.type(await screen.findByLabelText('Repository URL'), '/Volumes/backup/blackbird');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(ipc.setRemote).toHaveBeenCalledWith(
+      'a1',
+      '/Volumes/backup/blackbird',
+      { kind: 'none' },
+      undefined,
+    );
+  });
+
+  it('offers to keep a stored token rather than showing it back', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([
+      {
+        ...blackbird,
+        remote: { url: 'https://git.example.com/ben/blackbird.git', auth: { kind: 'token', username: 'ben' } },
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: /Sync/ }));
+
+    const tokenField = (await screen.findByLabelText('Access token')) as HTMLInputElement;
+    expect(tokenField.value).toBe('');
+    expect(tokenField.placeholder).toMatch(/leave empty to keep/i);
+
+    // Saving without retyping must not clear the stored secret.
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(ipc.setRemote).toHaveBeenCalledWith(
+      'a1',
+      'https://git.example.com/ben/blackbird.git',
+      { kind: 'token', username: 'ben' },
+      undefined,
+    );
   });
 
   it('sends the user to the file picker when nothing is tracked', async () => {

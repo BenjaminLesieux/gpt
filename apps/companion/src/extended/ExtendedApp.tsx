@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, ChevronDown, FilePlus2, RotateCcw, X } from 'lucide-react';
+import { ArrowLeftRight, ChevronDown, Cloud, FilePlus2, RotateCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import type { TrackedFile, Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { DiffStage } from './DiffStage';
+import { RemoteDialog } from './RemoteDialog';
 import { RestoreDialog } from './RestoreDialog';
 import { ScoreStage, StageMessage, StageSpinner } from './ScoreStage';
 import { Timeline } from './Timeline';
@@ -36,6 +37,7 @@ export function ExtendedApp() {
   const [headId, setHeadId] = useState<string | null>(null);
   const [baseId, setBaseId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<Version | null>(null);
+  const [remoteOpen, setRemoteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -96,12 +98,25 @@ export function ExtendedApp() {
     <Shell
       header={
         library.selected && (
-          <FileSelector
-            files={library.files}
-            selected={library.selected}
-            onSelect={library.select}
-            onAddFile={() => void library.addFile()}
-          />
+          <>
+            <FileSelector
+              files={library.files}
+              selected={library.selected}
+              onSelect={library.select}
+              onAddFile={() => void library.addFile()}
+            />
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setRemoteOpen(true)}
+              className="ml-auto"
+            >
+              <Cloud data-icon="inline-start" className="opacity-60" />
+              {library.selected.remote
+                ? t('extended.remote.configured')
+                : t('extended.remote.setUp')}
+            </Button>
+          </>
         )
       }
     >
@@ -153,6 +168,16 @@ export function ExtendedApp() {
           )}
         </main>
       </div>
+
+      {library.selected && (
+        <RemoteDialog
+          file={library.selected}
+          open={remoteOpen}
+          onClose={() => setRemoteOpen(false)}
+          onSaved={() => setNotice(t('extended.remote.saved'))}
+          onError={setFailure}
+        />
+      )}
 
       {library.selected && (
         <RestoreDialog

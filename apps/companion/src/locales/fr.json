@@ -90,6 +90,24 @@
       "confirm": "Restaurer",
       "done": "Version restaurée.",
       "doneWithSafety": "Version restaurée — le contenu précédent a été mis en instantané."
+    },
+    "remote": {
+      "setUp": "Configurer la synchro",
+      "configured": "Synchro",
+      "title": "Où cette partition est-elle synchronisée ?",
+      "description": "Les versions nommées de {{file}} sont envoyées ici en arrière-plan. Les instantanés automatiques restent sur cette machine.",
+      "url": "URL du dépôt",
+      "username": "Nom d'utilisateur",
+      "usernamePlaceholder": "Souvent ignoré avec un jeton",
+      "token": "Jeton d'accès",
+      "tokenPlaceholder": "Colle un jeton d'accès personnel",
+      "tokenStored": "Enregistré — laisse vide pour le garder",
+      "tokenHint": "Conservé dans ton trousseau macOS, jamais dans le fichier de réglages de Gitarpro.",
+      "insecure": "Cette URL n'est pas en https : le jeton circulerait en clair.",
+      "remove": "Supprimer le dépôt distant",
+      "cancel": "Annuler",
+      "save": "Enregistrer",
+      "saved": "Dépôt distant enregistré."
     }
   }
 }
