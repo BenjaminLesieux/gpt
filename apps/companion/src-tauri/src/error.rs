@@ -29,6 +29,16 @@ pub enum Error {
     #[error("background task failed: {0}")]
     BackgroundTask(String),
 
+    #[error("no remote is set for {0}")]
+    NoRemote(String),
+
+    /// v1 has no merge, so this is where the app stops and a person takes over.
+    #[error("{0} changed here and on the remote ({1} version(s) here, {2} there)")]
+    Diverged(String, usize, usize),
+
+    #[error("that would discard versions this score already has")]
+    NotFastForward,
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

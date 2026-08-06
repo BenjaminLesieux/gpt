@@ -12,6 +12,7 @@ mod git;
 mod guitar_pro;
 mod normalize;
 mod panel;
+mod pull;
 mod push;
 mod remote;
 mod secrets;
@@ -59,6 +60,7 @@ pub fn run() {
             commands::push_status,
             commands::sync_state,
             commands::fetch_remote,
+            commands::pull_remote,
         ])
         .setup(|app| {
             // Menu-bar resident: no dock icon, no app menu bar of its own.
