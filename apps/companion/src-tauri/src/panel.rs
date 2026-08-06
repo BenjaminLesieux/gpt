@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, PhysicalPosition, WebviewWindow};
 
+use crate::state::AppState;
+
 /// Gap kept between the panel and the edges of the screen, in logical pixels.
 /// Roughly clears the macOS menu bar so the panel reads as hanging from it.
 const SCREEN_MARGIN: f64 = 32.0;
@@ -53,6 +55,11 @@ pub fn toggle(app: &AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
+        // Before the webview is told to reload: showing the panel is the
+        // moment Guitar Pro still has the score the user was just editing in
+        // front, and by the time the panel has focus it no longer does.
+        app.state::<AppState>().adopt_open_document();
+
         position_near_cursor(app, &window);
         let _ = window.show();
         let _ = window.set_focus();
