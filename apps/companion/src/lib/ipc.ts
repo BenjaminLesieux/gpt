@@ -43,6 +43,19 @@ export interface PushStatus {
   error: string | null;
 }
 
+/**
+ * What the active file is anchored to.
+ *
+ * Guitar Pro leaves `AXDocument` empty, so the host only ever learns the score's
+ * *name* from its window — `unmatched` covers both "we don't track it" and
+ * "two tracked files answer to that name".
+ */
+export type Binding =
+  | { kind: 'guitarPro' }
+  | { kind: 'unmatched'; name: string }
+  | { kind: 'blind' }
+  | { kind: 'idle' };
+
 export interface FileSavedEvent {
   id: string;
   path: string;
@@ -91,7 +104,8 @@ export function untrackFile(id: string): Promise<void> {
   return invoke('untrack_file', { id });
 }
 
-/** The most recently saved tracked file — what the panel commits by default. */
+/** The file the panel commits: the score Guitar Pro has open where the host can
+ * see it, the most recently saved tracked file otherwise. */
 export function getActiveFile(): Promise<TrackedFile | null> {
   return invoke('get_active_file');
 }
@@ -101,10 +115,27 @@ export function setActiveFile(id: string): Promise<TrackedFile> {
   return invoke('set_active_file', { id });
 }
 
+/** Resolved by the host as the panel is shown, so this is a cheap read. */
+export function guitarProBinding(): Promise<Binding> {
+  return invoke('guitar_pro_binding');
+}
+
+/** Puts up the macOS accessibility prompt and opens the pane that grants it. */
+export function requestAccessibility(): Promise<void> {
+  return invoke('request_accessibility');
+}
+
 // ── Versions ─────────────────────────────────────────────────────────────
 
+/** Rejects when the file on disk is already its newest named version — a name
+ * has to be given to a save that actually happened. */
 export function commitNamed(id: string, message: string): Promise<Version> {
   return invoke('commit_named', { id, message });
+}
+
+/** What {@link commitNamed} would decide, without committing anything. */
+export function hasPendingChange(id: string): Promise<boolean> {
+  return invoke('has_pending_change', { id });
 }
 
 export function listVersions(id: string, limit?: number): Promise<Version[]> {

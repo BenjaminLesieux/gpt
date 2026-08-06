@@ -15,10 +15,13 @@ vi.mock('@/lib/ipc', () => ({
   listTrackedFiles: vi.fn(),
   getActiveFile: vi.fn(),
   setActiveFile: vi.fn(),
+  guitarProBinding: vi.fn(),
+  requestAccessibility: vi.fn().mockResolvedValue(undefined),
   pickAndTrackFile: vi.fn(),
   listVersions: vi.fn(),
   listSnapshots: vi.fn(),
   commitNamed: vi.fn(),
+  hasPendingChange: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
@@ -60,6 +63,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   ipc.listTrackedFiles.mockResolvedValue([blackbird, riff]);
   ipc.getActiveFile.mockResolvedValue(blackbird);
+  ipc.guitarProBinding.mockResolvedValue({ kind: 'guitarPro' });
+  ipc.hasPendingChange.mockResolvedValue(true);
   ipc.listVersions.mockResolvedValue([intro]);
   ipc.listSnapshots.mockResolvedValue([
     { id: 's1', message: '', timestamp: NOW - 60, kind: 'snapshot' },
@@ -164,6 +169,49 @@ describe('PanelApp', () => {
 
     expect(ipc.setActiveFile).toHaveBeenCalledWith('b2');
     expect(await screen.findByText('Riff')).toBeTruthy();
+  });
+
+  it('refuses to name a file that holds nothing the newest version does not', async () => {
+    ipc.hasPendingChange.mockResolvedValue(false);
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    expect(await screen.findByText(/nothing new to name/)).toBeTruthy();
+
+    const message = await screen.findByLabelText('Version name');
+    await user.type(message, 'Bridge take 3{Enter}');
+
+    expect(ipc.commitNamed).not.toHaveBeenCalled();
+    expect(ipc.hidePanel).not.toHaveBeenCalled();
+  });
+
+  it('says so when Guitar Pro has a score open that is not tracked', async () => {
+    ipc.guitarProBinding.mockResolvedValue({ kind: 'unmatched', name: 'Lasagna' });
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    expect(await screen.findByText(/“Lasagna” open/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Track/ }));
+    expect(ipc.pickAndTrackFile).toHaveBeenCalled();
+  });
+
+  it('offers to grant accessibility access when it cannot see Guitar Pro', async () => {
+    ipc.guitarProBinding.mockResolvedValue({ kind: 'blind' });
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    await user.click(await screen.findByRole('button', { name: /Allow/ }));
+
+    expect(ipc.requestAccessibility).toHaveBeenCalled();
+  });
+
+  it('stays quiet about the binding once it is pointed at the open score', async () => {
+    render(<PanelApp />);
+    await screen.findByText('Blackbird');
+
+    expect(screen.queryByRole('button', { name: /Allow/ })).toBeNull();
+    expect(screen.queryByText(/not tracked/)).toBeNull();
   });
 
   it('offers to track a first file when nothing is tracked yet', async () => {

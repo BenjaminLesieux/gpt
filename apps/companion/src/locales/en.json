@@ -17,6 +17,13 @@
     "noChangeYet": "no change recorded yet",
     "unnamedSaves_one": "{{count}} unnamed save",
     "unnamedSaves_other": "{{count}} unnamed saves",
+    "nothingToName": "nothing new to name",
+    "binding": {
+      "unmatched": "Guitar Pro has “{{name}}” open — not tracked",
+      "track": "Track…",
+      "blind": "Gitarpro can't see what Guitar Pro has open",
+      "allow": "Allow…"
+    },
     "recentVersions": "Recent versions",
     "noVersionsYet": "No named version yet — type a message and press Enter.",
     "hint": {

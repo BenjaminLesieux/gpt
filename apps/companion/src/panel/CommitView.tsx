@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronsUpDown, CornerDownLeft } from 'lucide-react';
+import { Check, ChevronsUpDown, CornerDownLeft, EyeOff, FileQuestion } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Kbd } from '@/components/ui/kbd';
 import { Spinner } from '@/components/ui/spinner';
-import { hidePanel, type TrackedFile, type Version } from '@/lib/ipc';
+import {
+  hidePanel,
+  requestAccessibility,
+  type Binding,
+  type TrackedFile,
+  type Version,
+} from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { PanelBody } from './PanelShell';
@@ -57,7 +64,11 @@ export function CommitView({
 
   useEffect(() => () => window.clearTimeout(dismissal.current), []);
 
-  const ready = message.trim().length > 0 && phase === 'idle';
+  // The host refuses this commit, and would be right to: naming a file that
+  // already *is* its newest version is how a change made to one score ends up
+  // filed under another.
+  const nothingToName = session.pendingChange === false;
+  const ready = message.trim().length > 0 && phase === 'idle' && !nothingToName;
 
   async function commit() {
     if (!ready) {
@@ -115,7 +126,15 @@ export function CommitView({
               </span>
             </>
           )}
+          {nothingToName && (
+            <>
+              {' · '}
+              <span className="text-warning">{t('panel.nothingToName')}</span>
+            </>
+          )}
         </p>
+
+        <BindingNotice binding={session.binding} onAddFile={() => void session.addFile()} />
 
         <div className="mt-2.5">
           {phase === 'saved' && committed ? (
@@ -173,6 +192,66 @@ export function CommitView({
 
       <VersionLedger versions={session.versions} />
     </PanelBody>
+  );
+}
+
+/**
+ * Why the panel might be pointed at the wrong score.
+ *
+ * Silent on the happy path — the file name above already says what Guitar Pro
+ * has open. It speaks up only when the host couldn't make that guarantee.
+ */
+function BindingNotice({ binding, onAddFile }: { binding: Binding; onAddFile(): void }) {
+  const { t } = useTranslation();
+
+  switch (binding.kind) {
+    case 'unmatched':
+      return (
+        <Notice
+          icon={<FileQuestion />}
+          label={t('panel.binding.unmatched', { name: binding.name })}
+          action={t('panel.binding.track')}
+          onAction={onAddFile}
+        />
+      );
+    case 'blind':
+      return (
+        <Notice
+          icon={<EyeOff />}
+          label={t('panel.binding.blind')}
+          action={t('panel.binding.allow')}
+          onAction={() => void requestAccessibility()}
+        />
+      );
+    // Bound to the open score, or Guitar Pro isn't running — nothing to add.
+    default:
+      return null;
+  }
+}
+
+function Notice({
+  icon,
+  label,
+  action,
+  onAction,
+}: {
+  icon: ReactNode;
+  label: string;
+  action: string;
+  onAction(): void;
+}) {
+  return (
+    <div className="mt-2 flex items-center gap-2 border-l-2 border-warning/60 bg-warning/10 py-1 pr-1 pl-2">
+      <span aria-hidden className="shrink-0 text-warning [&_svg]:size-3">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground" title={label}>
+        {label}
+      </span>
+      <Button variant="ghost" size="xs" onClick={onAction} className="shrink-0">
+        {action}
+      </Button>
+    </div>
   );
 }
 
