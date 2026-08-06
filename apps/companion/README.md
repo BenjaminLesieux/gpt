@@ -48,6 +48,10 @@ src-tauri/
   src/config.rs    # config.json — tracked files, snapshot policy
   src/state.rs     # shared state: config, active file, watcher
   src/git.rs       # bare repo per tracked file (git2)
+  src/remote.rs    # push, fetch, and where a score stands against its remote
+  src/push.rs      # the background push queue
+  src/pull.rs      # taking a remote version into the score on disk
+  src/secrets.rs   # remote tokens, in the system keychain
   src/normalize.rs # deterministic .gp rebuild (port of gpt-core's normalizeGp)
   src/watcher.rs   # save detection → auto-snapshot
   src/events.rs    # events pushed to the webview
@@ -81,14 +85,51 @@ understands a *score* stays in `gpt-core`.
 
 Untracking keeps the repo, so re-tracking the same path finds its history.
 
+Remote tokens are **not** in `config.json` — that file is plain text and holds a
+descriptor only (URL, auth kind, username). The token lives in the login
+keychain under service `com.gitarpro.companion`, keyed by the tracked file's id.
+Two scores on the same server therefore hold two copies of one token: the price
+of a secret whose lifetime is exactly one config entry, so clearing a remote can
+delete its token without wondering who else was using it.
+
+## Sync
+
+A third ref, `refs/remotes/origin/main`, mirrors what the remote last said. It
+is never checked out and only ever written by a fetch, which is what lets
+`syncState` answer *up to date / ahead / behind / diverged* without a network.
+
+- **Push** is automatic and never blocks. `commitNamed` enqueues; the queue
+  thread in `push.rs` does the rest. Only `refs/heads/main` travels —
+  `refs/snapshots` is local scratch that gets pruned and rewritten, so a remote
+  could make no use of it. The refspec has no leading `+`: a remote that moved
+  on is refused, never forced.
+- **Failures split in two.** A refused push or a rejected token will answer the
+  same however long we wait, so the queue stops and raises a badge. Anything
+  else (no network, server down) backs off — doubling from 5s to a 5-minute
+  ceiling — and never gives up. A fresh commit resets the backoff.
+- **Pull is fast-forward only.** Locked decision 8 keeps merge out of v1, so a
+  score changed in both places is reported and left alone. What is on disk is
+  snapshotted before it is replaced, exactly as a restore does, and disk is
+  written before the ref moves — that ordering fails towards "still behind,
+  pull again" rather than "up to date, holding the old music".
+
+Only HTTPS is built. `git2`'s `ssh` feature would pull libssh2 into the bundle
+and nothing has asked for it; `RemoteAuth::Ssh` exists in the descriptor and is
+refused by the credential callback.
+
 ## IPC
 
 Every command is wrapped and typed in [`src/lib/ipc.ts`](src/lib/ipc.ts):
 `listTrackedFiles`, `trackFile`, `pickAndTrackFile`, `untrackFile`,
 `getActiveFile`, `setActiveFile`, `commitNamed`, `listVersions`,
 `listSnapshots`, `getVersionBlob`, `restoreVersion`, `setRemote`, `pushStatus`,
-plus the window controls. Two events go the other way: `file-saved` (after each
-debounced save of a tracked file) and `tracked-files-changed`.
+`syncState`, `fetchRemote`, `pullRemote`, plus the window controls. Three events
+go the other way: `file-saved` (after each debounced save of a tracked file),
+`tracked-files-changed`, and `push-status-changed`.
+
+`fetchRemote` and `pullRemote` are `async` commands wrapped in
+`spawn_blocking`: a plain Tauri command runs on the main thread, and these wait
+on a server.
 
 `pickAndTrackFile` opens the picker from the *Rust* side, so the webview needs
 no dialog capability. It holds the panel open for the duration — the dialog
@@ -147,7 +188,7 @@ Two styling notes worth knowing before touching `styles/app.css`:
   adapts to light/dark menu bars is a M6 task.
 - `Space Mono` (design-system mono face) is not vendored yet; the fallback
   stack (`Fira Code`, `Courier New`) carries it. The Bauhaus faces are local.
-- `git2` is built without `ssh`/`https` — nothing is pushed until M5, and the
-  network features drag in openssl/libssh2. M5 re-enables them.
-- `setRemote` stores a URL and an auth *descriptor* only. Tokens belong in the
-  keychain (M5); `config.json` is plain text.
+- Verifying sync against a real server is a manual step — see
+  [`docs/forgejo-check.md`](../../docs/forgejo-check.md). The automated tests
+  push and fetch against a bare repo in a tempdir, which exercises the
+  refspecs and the fast-forward rule but not TLS or token auth.
