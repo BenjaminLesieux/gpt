@@ -5,10 +5,8 @@
 //! pruning rewrites ids, so it is not something a remote could usefully hold.
 //!
 //! Nothing here is allowed to be slow on the caller's behalf: this module
-//! blocks on the network by definition, so the only correct place to call it
-//! from is a background thread — which is the next commit's job, and why
-//! nothing outside the tests calls in yet.
-#![allow(dead_code)]
+//! blocks on the network by definition, so its only caller is the background
+//! queue in [`crate::push`].
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -35,10 +35,17 @@ export interface TrackedFile {
   remote?: Remote;
 }
 
+/**
+ * `pending` covers both "queued" and "being retried" — from the outside they
+ * are the same thing, a push still on its way. `failed` means the host has
+ * stopped trying and a person has to intervene; a plain network failure never
+ * reaches it, because retrying that eventually works.
+ */
 export type PushState = 'unconfigured' | 'idle' | 'pending' | 'failed';
 
 export interface PushStatus {
   state: PushState;
+  /** Unix seconds. */
   lastPushedAt: number | null;
   error: string | null;
 }
@@ -61,6 +68,11 @@ export interface FileSavedEvent {
   path: string;
   /** `null` when the save changed nothing musically. */
   version: Version | null;
+}
+
+export interface PushStatusChangedEvent {
+  id: string;
+  status: PushStatus;
 }
 
 // ── Windows ──────────────────────────────────────────────────────────────
@@ -189,4 +201,15 @@ export function onTrackedFilesChanged(
   handler: (files: TrackedFile[]) => void,
 ): Promise<UnlistenFn> {
   return listen<TrackedFile[]>('tracked-files-changed', ({ payload }) => handler(payload));
+}
+
+/**
+ * Fires after every push attempt. Pushes happen on a background thread and
+ * nobody is waiting on them, so polling `pushStatus` would mean either a timer
+ * or a stale badge.
+ */
+export function onPushStatusChanged(
+  handler: (event: PushStatusChangedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<PushStatusChangedEvent>('push-status-changed', ({ payload }) => handler(payload));
 }

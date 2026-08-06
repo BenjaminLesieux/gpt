@@ -23,8 +23,6 @@ pub fn store(file_id: &str, token: &str) -> Result<()> {
 
 /// `None` when no token was ever stored for this file — the ordinary state of
 /// a score with no remote, not a failure.
-// Read by the push path, which lands next; the adapter is only coherent whole.
-#[allow(dead_code)]
 pub fn read(file_id: &str) -> Result<Option<String>> {
     match entry(file_id)?.get_password() {
         Ok(token) => Ok(Some(token)),
