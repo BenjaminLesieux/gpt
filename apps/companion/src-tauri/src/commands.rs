@@ -11,7 +11,7 @@ use crate::error::{Error, Result};
 use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
 use crate::normalize::normalize_gp;
-use crate::state::AppState;
+use crate::state::{AppState, Binding};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,8 +132,9 @@ pub fn get_active_file(state: State<'_, AppState>) -> Option<TrackedFile> {
     state.active().and_then(|id| state.tracked(&id).ok())
 }
 
-/// The panel's file switcher. Saves and commits move the active file on their
-/// own; this is the manual override.
+/// The panel's file switcher. Opening the panel adopts whatever Guitar Pro has
+/// in front, and saves move the active file too; this is the manual override
+/// for when neither found the right score.
 #[tauri::command]
 pub fn set_active_file(state: State<'_, AppState>, id: String) -> Result<TrackedFile> {
     let file = state.tracked(&id)?;
@@ -240,6 +241,19 @@ pub fn push_status(state: State<'_, AppState>, id: String) -> Result<PushStatus>
         last_pushed_at: None,
         error: None,
     })
+}
+
+/// What the active file is anchored to. Read from the host's cache — the
+/// accessibility lookup itself runs on the way to showing the panel, so this
+/// stays a plain memory read.
+#[tauri::command]
+pub fn guitar_pro_binding(state: State<'_, AppState>) -> Binding {
+    state.binding()
+}
+
+#[tauri::command]
+pub fn request_accessibility() {
+    crate::guitar_pro::request_access();
 }
 
 #[tauri::command]

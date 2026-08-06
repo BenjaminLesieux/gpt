@@ -9,6 +9,7 @@ mod config;
 mod error;
 mod events;
 mod git;
+mod guitar_pro;
 mod normalize;
 mod panel;
 mod shortcut;
@@ -43,6 +44,8 @@ pub fn run() {
             commands::untrack_file,
             commands::get_active_file,
             commands::set_active_file,
+            commands::guitar_pro_binding,
+            commands::request_accessibility,
             commands::commit_named,
             commands::list_versions,
             commands::list_snapshots,

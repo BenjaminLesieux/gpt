@@ -35,6 +35,24 @@ notify = "8"
 zip = { version = "5", default-features = false, features = ["deflate"] }
 thiserror = "2"
 
+# Reading the score Guitar Pro has in front (see guitar_pro.rs). The
+# accessibility calls themselves are declared by hand — five stable C symbols
+# out of ApplicationServices, not worth a crate.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "libc",
+  "NSRunningApplication",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSArray",
+  "NSString",
+] }
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3"
 
