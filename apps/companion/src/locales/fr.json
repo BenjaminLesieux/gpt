@@ -17,6 +17,13 @@
     "noChangeYet": "aucune modification enregistrée",
     "unnamedSaves_one": "{{count}} sauvegarde anonyme",
     "unnamedSaves_other": "{{count}} sauvegardes anonymes",
+    "nothingToName": "rien de nouveau à nommer",
+    "binding": {
+      "unmatched": "Guitar Pro a « {{name}} » ouvert — non suivi",
+      "track": "Suivre…",
+      "blind": "Gitarpro ne voit pas ce qui est ouvert dans Guitar Pro",
+      "allow": "Autoriser…"
+    },
     "recentVersions": "Versions récentes",
     "noVersionsYet": "Aucune version nommée — écris un message et appuie sur Entrée.",
     "hint": {

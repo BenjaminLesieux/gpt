@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   commitNamed,
   getActiveFile,
+  guitarProBinding,
+  hasPendingChange,
   listSnapshots,
   listTrackedFiles,
   listVersions,
@@ -9,6 +11,7 @@ import {
   onTrackedFilesChanged,
   pickAndTrackFile,
   setActiveFile,
+  type Binding,
   type TrackedFile,
   type Version,
 } from '@/lib/ipc';
@@ -19,20 +22,30 @@ const RECENT_VERSIONS = 5;
 interface Roster {
   files: TrackedFile[];
   active: TrackedFile | null;
+  binding: Binding;
 }
 
 interface Ledger {
   versions: Version[];
   snapshots: Version[];
+  pendingChange: boolean | null;
 }
 
 export interface PanelSession {
   files: TrackedFile[];
   active: TrackedFile | null;
+  /** What the active file is anchored to — see {@link Binding}. */
+  binding: Binding;
   /** Newest first, capped at what the panel can show. */
   versions: Version[];
   /** Auto-snapshots taken since the newest named version. */
   unnamedSaves: number;
+  /**
+   * Whether the active file holds a save its newest named version doesn't.
+   * `false` means a commit would be refused; `null` means the host couldn't
+   * say, and the refusal (if any) will come from the commit itself.
+   */
+  pendingChange: boolean | null;
   /** Newest recorded change of the active file, unix seconds. */
   lastChangeAt: number | null;
   error: string | null;
@@ -43,14 +56,15 @@ export interface PanelSession {
   commit(id: string, message: string): Promise<Version>;
 }
 
-const EMPTY_ROSTER: Roster = { files: [], active: null };
-const EMPTY_LEDGER: Ledger = { versions: [], snapshots: [] };
+const EMPTY_ROSTER: Roster = { files: [], active: null, binding: { kind: 'idle' } };
+const EMPTY_LEDGER: Ledger = { versions: [], snapshots: [], pendingChange: null };
 
 /**
  * Everything the panel knows, and the only place that talks to the host.
  *
  * `shownAt` re-reads state each time the panel comes to the front: it can be
- * hidden for hours while Guitar Pro saves keep landing.
+ * hidden for hours while Guitar Pro saves keep landing, and the host resolves
+ * which score is open on the way to showing the panel.
  */
 export function usePanelSession(shownAt: number): PanelSession {
   const [roster, setRoster] = useState<Roster>(EMPTY_ROSTER);
@@ -63,9 +77,9 @@ export function usePanelSession(shownAt: number): PanelSession {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([listTrackedFiles(), getActiveFile()])
-      .then(([files, active]) => {
-        if (!cancelled) setRoster({ files, active: active ?? files[0] ?? null });
+    void Promise.all([listTrackedFiles(), getActiveFile(), guitarProBinding()])
+      .then(([files, active, binding]) => {
+        if (!cancelled) setRoster({ files, active: active ?? files[0] ?? null, binding });
       })
       .catch((cause) => !cancelled && setError(String(cause)));
     return () => {
@@ -79,9 +93,15 @@ export function usePanelSession(shownAt: number): PanelSession {
       return;
     }
     let cancelled = false;
-    void Promise.all([listVersions(activeId, RECENT_VERSIONS), listSnapshots(activeId)])
-      .then(([versions, snapshots]) => {
-        if (!cancelled) setLedger({ versions, snapshots });
+    void Promise.all([
+      listVersions(activeId, RECENT_VERSIONS),
+      listSnapshots(activeId),
+      // Reading the score off disk can fail on its own; that must not cost the
+      // panel its history. The commit is guarded host-side either way.
+      hasPendingChange(activeId).catch(() => null),
+    ])
+      .then(([versions, snapshots, pendingChange]) => {
+        if (!cancelled) setLedger({ versions, snapshots, pendingChange });
       })
       .catch((cause) => !cancelled && setError(String(cause)));
     return () => {
@@ -107,6 +127,7 @@ export function usePanelSession(shownAt: number): PanelSession {
   useEffect(() => {
     const subscription = onTrackedFilesChanged((files) => {
       setRoster((current) => ({
+        ...current,
         files,
         active: files.find((file) => file.id === current.active?.id) ?? files[0] ?? null,
       }));
@@ -156,8 +177,10 @@ export function usePanelSession(shownAt: number): PanelSession {
   return {
     files: roster.files,
     active: roster.active,
+    binding: roster.binding,
     versions: ledger.versions,
     unnamedSaves,
+    pendingChange: ledger.pendingChange,
     lastChangeAt,
     error,
     reportError: setError,
