@@ -13,8 +13,12 @@ vi.mock('@/lib/ipc', () => ({
   listSnapshots: vi.fn(),
   restoreVersion: vi.fn(),
   setRemote: vi.fn(),
+  syncState: vi.fn(),
+  fetchRemote: vi.fn(),
+  pullRemote: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
+  onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -67,7 +71,17 @@ beforeEach(() => {
   ipc.listSnapshots.mockResolvedValue([snapshot]);
   ipc.restoreVersion.mockResolvedValue(null);
   ipc.setRemote.mockResolvedValue(undefined);
+  ipc.syncState.mockResolvedValue({ kind: 'unconfigured' });
 });
+
+/** The same file, but pointed at a server. */
+const synced: TrackedFile = {
+  ...blackbird,
+  remote: {
+    url: 'https://git.example.com/ben/blackbird.git',
+    auth: { kind: 'token', username: 'ben' },
+  },
+};
 
 describe('ExtendedApp', () => {
   it('opens on the newest named version of the active file', async () => {
@@ -219,12 +233,7 @@ describe('ExtendedApp', () => {
   });
 
   it('offers to keep a stored token rather than showing it back', async () => {
-    ipc.listTrackedFiles.mockResolvedValue([
-      {
-        ...blackbird,
-        remote: { url: 'https://git.example.com/ben/blackbird.git', auth: { kind: 'token', username: 'ben' } },
-      },
-    ]);
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
     const user = userEvent.setup();
     render(<ExtendedApp />);
     await screen.findByText('score:v2');
@@ -243,6 +252,80 @@ describe('ExtendedApp', () => {
       { kind: 'token', username: 'ben' },
       undefined,
     );
+  });
+
+  it('brings in versions published elsewhere, and says what was kept', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
+    ipc.syncState.mockResolvedValue({ kind: 'behind', versions: 2 });
+    ipc.pullRemote.mockResolvedValue({
+      state: { kind: 'upToDate' },
+      version: { id: 'v3', message: 'Outro', timestamp: NOW, kind: 'named' },
+      safety: { id: 's9', message: '', timestamp: NOW, kind: 'snapshot' },
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    expect(await screen.findByText(/2 versions waiting/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Bring them in/ }));
+
+    expect(ipc.pullRemote).toHaveBeenCalledWith('a1');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/Outro/));
+    expect(screen.getByRole('status').textContent).toMatch(/snapshot/i);
+  });
+
+  it('offers nothing to click when the score is only ahead', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
+    ipc.syncState.mockResolvedValue({ kind: 'ahead', versions: 1 });
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    // Sending happens on its own; a button would imply otherwise.
+    expect(await screen.findByText(/1 version to send/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Bring them in/ })).toBeNull();
+  });
+
+  it('says a score changed in two places instead of offering to combine them', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
+    ipc.syncState.mockResolvedValue({ kind: 'diverged', ahead: 1, behind: 2 });
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    expect(await screen.findByText(/changed in two places/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Bring them in/ })).toBeNull();
+  });
+
+  it('surfaces a refused pull without touching the timeline', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
+    ipc.syncState.mockResolvedValue({ kind: 'behind', versions: 1 });
+    ipc.pullRemote.mockRejectedValue(
+      new Error('Blackbird changed here and on the remote (1 version(s) here, 2 there)'),
+    );
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(await screen.findByRole('button', { name: /Bring them in/ }));
+
+    const strip = await screen.findByRole('alert');
+    expect(strip.textContent).toMatch(/changed here and on the remote/);
+  });
+
+  it('asks the remote only when told to', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([synced]);
+    ipc.syncState.mockResolvedValue({ kind: 'upToDate' });
+    ipc.fetchRemote.mockResolvedValue({ kind: 'behind', versions: 1 });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    expect(ipc.fetchRemote).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /Check the remote/ }));
+
+    expect(ipc.fetchRemote).toHaveBeenCalledWith('a1');
+    expect(await screen.findByRole('button', { name: /Bring them in/ })).toBeTruthy();
   });
 
   it('sends the user to the file picker when nothing is tracked', async () => {

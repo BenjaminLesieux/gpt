@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, ChevronDown, Cloud, FilePlus2, RotateCcw, X } from 'lucide-react';
+import { ArrowLeftRight, ChevronDown, FilePlus2, RotateCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -18,9 +18,11 @@ import { DiffStage } from './DiffStage';
 import { RemoteDialog } from './RemoteDialog';
 import { RestoreDialog } from './RestoreDialog';
 import { ScoreStage, StageMessage, StageSpinner } from './ScoreStage';
+import { SyncBar } from './SyncBar';
 import { Timeline } from './Timeline';
 import { useHistory } from './useHistory';
 import { useLibrary } from './useLibrary';
+import { useSync } from './useSync';
 
 /**
  * Extended window — timeline, visual diff, restore, playback.
@@ -33,6 +35,7 @@ export function ExtendedApp() {
   const { t } = useTranslation();
   const library = useLibrary();
   const history = useHistory(library.selected?.id ?? null);
+  const sync = useSync(library.selected?.id ?? null);
 
   const [headId, setHeadId] = useState<string | null>(null);
   const [baseId, setBaseId] = useState<string | null>(null);
@@ -65,6 +68,23 @@ export function ExtendedApp() {
     const tier = head.kind === 'named' ? history.versions : history.snapshots;
     return tier[tier.findIndex((entry) => entry.id === head.id) + 1] ?? null;
   }, [head, history.versions, history.snapshots]);
+
+  /**
+   * A pull rewrites the score on disk, so the history the timeline is showing
+   * is stale the moment it lands — and the safety snapshot it mentions is part
+   * of that history.
+   */
+  async function bringIn() {
+    const pulled = await sync.pull();
+    if (!pulled?.version) return;
+
+    history.reload();
+    setNotice(
+      pulled.safety
+        ? t('extended.sync.broughtInWithSafety', { version: pulled.version.message })
+        : t('extended.sync.broughtIn', { version: pulled.version.message }),
+    );
+  }
 
   function select(version: Version) {
     // The pinned base can only be diffed against itself, so reading a click on
@@ -105,29 +125,25 @@ export function ExtendedApp() {
               onSelect={library.select}
               onAddFile={() => void library.addFile()}
             />
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setRemoteOpen(true)}
-              className="ml-auto"
-            >
-              <Cloud data-icon="inline-start" className="opacity-60" />
-              {library.selected.remote
-                ? t('extended.remote.configured')
-                : t('extended.remote.setUp')}
-            </Button>
+            <SyncBar
+              file={library.selected}
+              sync={sync}
+              onOpenSettings={() => setRemoteOpen(true)}
+              onPull={() => void bringIn()}
+            />
           </>
         )
       }
     >
-      {(failure ?? library.error ?? history.error) && (
+      {(failure ?? library.error ?? history.error ?? sync.error) && (
         <Strip
           tone="error"
-          message={(failure ?? library.error ?? history.error) as string}
+          message={(failure ?? library.error ?? history.error ?? sync.error) as string}
           onDismiss={() => {
             setFailure(null);
             library.clearError();
             history.clearError();
+            sync.clearError();
           }}
         />
       )}
@@ -174,7 +190,10 @@ export function ExtendedApp() {
           file={library.selected}
           open={remoteOpen}
           onClose={() => setRemoteOpen(false)}
-          onSaved={() => setNotice(t('extended.remote.saved'))}
+          onSaved={() => {
+            setNotice(t('extended.remote.saved'));
+            sync.reload();
+          }}
           onError={setFailure}
         />
       )}

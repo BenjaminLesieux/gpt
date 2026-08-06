@@ -108,6 +108,19 @@
       "cancel": "Annuler",
       "save": "Enregistrer",
       "saved": "Dépôt distant enregistré."
+    },
+    "sync": {
+      "upToDate": "synchronisé",
+      "ahead_one": "{{count}} version à envoyer",
+      "ahead_other": "{{count}} versions à envoyer",
+      "behind_one": "{{count}} version en attente",
+      "behind_other": "{{count}} versions en attente",
+      "diverged": "modifiée des deux côtés",
+      "divergedHelp": "Cette partition a gagné {{ahead}} version(s) ici et {{behind}} sur le dépôt distant. Gitarpro ne peut pas les combiner — restaure celle que tu veux garder, enregistre-la dans Guitar Pro, puis nomme-la.",
+      "check": "Interroger le dépôt distant",
+      "bringIn": "Les récupérer",
+      "broughtIn": "« {{version}} » est maintenant la partition sur le disque.",
+      "broughtInWithSafety": "« {{version}} » est maintenant la partition sur le disque — le contenu précédent a été mis en instantané."
     }
   }
 }
