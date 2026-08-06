@@ -51,6 +51,20 @@ export interface PushStatus {
 }
 
 /**
+ * How a score stands against its remote, counted in named versions.
+ *
+ * `diverged` is a destination, not a waypoint: v1 has no merge, so a score
+ * edited in two places is something the user has to resolve, and the UI must
+ * say so rather than offering a button that cannot work.
+ */
+export type SyncState =
+  | { kind: 'unconfigured' }
+  | { kind: 'upToDate' }
+  | { kind: 'behind'; versions: number }
+  | { kind: 'ahead'; versions: number }
+  | { kind: 'diverged'; ahead: number; behind: number };
+
+/**
  * What the active file is anchored to.
  *
  * Guitar Pro leaves `AXDocument` empty, so the host only ever learns the score's
@@ -188,6 +202,19 @@ export function setRemote(
 
 export function pushStatus(id: string): Promise<PushStatus> {
   return invoke('push_status', { id });
+}
+
+/** Local, as of the last fetch — cheap enough to call on every repaint. */
+export function syncState(id: string): Promise<SyncState> {
+  return invoke('sync_state', { id });
+}
+
+/**
+ * Asks the remote what it holds and answers with the fresh verdict. Waits on
+ * the network, so it belongs behind a spinner. Writes nothing to the score.
+ */
+export function fetchRemote(id: string): Promise<SyncState> {
+  return invoke('fetch_remote', { id });
 }
 
 // ── Events ───────────────────────────────────────────────────────────────

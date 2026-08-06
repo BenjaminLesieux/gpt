@@ -11,6 +11,7 @@ use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
 use crate::normalize::normalize_gp;
 use crate::push::PushStatus;
+use crate::remote::{self, SyncState};
 use crate::secrets;
 use crate::state::{AppState, Binding};
 
@@ -268,6 +269,39 @@ pub fn push_status(state: State<'_, AppState>, id: String) -> Result<PushStatus>
         return Ok(PushStatus::unconfigured());
     }
     Ok(state.pushes.status(&id).unwrap_or_else(PushStatus::idle))
+}
+
+/// Where this score stands against its remote, as of the last fetch. No
+/// network, so the UI can ask whenever it repaints.
+#[tauri::command]
+pub fn sync_state(state: State<'_, AppState>, id: String) -> Result<SyncState> {
+    let file = state.tracked(&id)?;
+    let repo = state.open_repo(&file.id)?;
+    remote::compare(&repo, file.remote.as_ref())
+}
+
+/// Asks the remote what it has, then answers the same question as
+/// [`sync_state`] with the fresh knowledge.
+///
+/// `async` plus `spawn_blocking` on purpose: a plain command runs on the main
+/// thread, and this one waits on a server. Nothing it touches is written to
+/// the score — a fetch only moves our mirror of the remote's history.
+#[tauri::command]
+pub async fn fetch_remote(app: AppHandle, id: String) -> Result<SyncState> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let file = state.tracked(&id)?;
+        let Some(descriptor) = file.remote.as_ref() else {
+            return Ok(SyncState::Unconfigured);
+        };
+
+        let token = secrets::for_remote(&id, descriptor)?;
+        let repo = state.open_repo(&file.id)?;
+        remote::fetch(&repo, descriptor, token.as_deref())?;
+        remote::compare(&repo, Some(descriptor))
+    })
+    .await
+    .map_err(|err| Error::BackgroundTask(err.to_string()))?
 }
 
 /// What the active file is anchored to. Read from the host's cache — the

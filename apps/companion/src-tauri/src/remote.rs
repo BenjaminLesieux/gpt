@@ -4,23 +4,53 @@
 //! Guitar Pro save lands there, it is pruned behind the user's back, and
 //! pruning rewrites ids, so it is not something a remote could usefully hold.
 //!
-//! Nothing here is allowed to be slow on the caller's behalf: this module
-//! blocks on the network by definition, so its only caller is the background
-//! queue in [`crate::push`].
+//! Everything here blocks on the network, so nothing here may be called from
+//! somewhere the user is waiting: pushes go through the queue in
+//! [`crate::push`], and fetches run off the main thread.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use git2::{Cred, CredentialType, PushOptions, RemoteCallbacks, Repository};
+use git2::{Cred, CredentialType, FetchOptions, PushOptions, RemoteCallbacks, Repository};
+use serde::Serialize;
 
 use crate::config::{Remote, RemoteAuth};
 use crate::error::{Error, Result};
 use crate::git::NAMED_REF;
 
+/// Where the remote's named history is mirrored. Never checked out and never
+/// written to by anything but a fetch — it is our record of what the remote
+/// last said, which is what makes [`compare`] answerable without the network.
+pub const REMOTE_REF: &str = "refs/remotes/origin/main";
+
 /// Sent when a token carries no username of its own. Forgejo, Gitea and
 /// GitHub all ignore the username on a personal access token, but libgit2
 /// still has to put something in the header.
 const DEFAULT_USERNAME: &str = "git";
+
+/// How this score stands against its remote, counted in named versions.
+///
+/// v1 has no merge (locked decision 8), so [`SyncState::Diverged`] is a real
+/// destination and not a step on the way to one: the two sides both moved and
+/// nothing in this app can reconcile them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum SyncState {
+    /// Nowhere to sync with.
+    Unconfigured,
+    /// Both sides hold the same versions.
+    UpToDate,
+    /// The remote has versions this score does not. A pull fast-forwards.
+    Behind { versions: usize },
+    /// This score has versions the remote does not. A push fast-forwards.
+    Ahead { versions: usize },
+    /// Both sides gained versions the other has not seen.
+    Diverged { ahead: usize, behind: usize },
+}
 
 /// Fast-forwards the remote's `main` to ours.
 ///
@@ -65,6 +95,80 @@ pub fn push(repo: &Repository, remote: &Remote, token: Option<&str>) -> Result<(
         }),
         Err(err) => Err(err.into()),
     }
+}
+
+/// Updates our mirror of the remote's named history. Touches nothing else —
+/// not `main`, not the `.gp` on disk.
+///
+/// A remote with no `main` yet is not a failure: it is a brand new repo, and
+/// the honest answer is that it holds nothing.
+pub fn fetch(repo: &Repository, remote: &Remote, token: Option<&str>) -> Result<()> {
+    let mut git_remote = repo.remote_anonymous(&remote.url)?;
+
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(credentials(&remote.auth, token));
+
+    let mut options = FetchOptions::new();
+    options.remote_callbacks(callbacks);
+
+    // Forced, unlike the push: this ref is our copy of their history, so
+    // whatever they say it is now, it is.
+    let refspec = format!("+{NAMED_REF}:{REMOTE_REF}");
+    match git_remote.fetch(&[refspec], Some(&mut options), None) {
+        Ok(()) => Ok(()),
+        Err(err) if is_missing_ref(&err) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+/// libgit2 says "not found" both for a remote that has nothing on `main` and
+/// for one that cannot be reached at all — the class separates them.
+fn is_missing_ref(err: &git2::Error) -> bool {
+    err.code() == git2::ErrorCode::NotFound && err.class() == git2::ErrorClass::Reference
+}
+
+/// Where this score stands relative to the last fetch. No network: it reads
+/// the two refs we already hold, so the UI can ask as often as it likes.
+pub fn compare(repo: &Repository, remote: Option<&Remote>) -> Result<SyncState> {
+    if remote.is_none() {
+        return Ok(SyncState::Unconfigured);
+    }
+
+    let ours = tip_of(repo, NAMED_REF)?;
+    let theirs = tip_of(repo, REMOTE_REF)?;
+
+    Ok(match (ours, theirs) {
+        (None, None) => SyncState::UpToDate,
+        // Nothing fetched, or a remote that is still empty. Either way what we
+        // hold is what exists.
+        (Some(_), None) => SyncState::Ahead {
+            versions: count_from(repo, NAMED_REF)?,
+        },
+        (None, Some(_)) => SyncState::Behind {
+            versions: count_from(repo, REMOTE_REF)?,
+        },
+        (Some(ours), Some(theirs)) => {
+            let (ahead, behind) = repo.graph_ahead_behind(ours, theirs)?;
+            match (ahead, behind) {
+                (0, 0) => SyncState::UpToDate,
+                (0, behind) => SyncState::Behind { versions: behind },
+                (ahead, 0) => SyncState::Ahead { versions: ahead },
+                (ahead, behind) => SyncState::Diverged { ahead, behind },
+            }
+        }
+    })
+}
+
+fn tip_of(repo: &Repository, refname: &str) -> Result<Option<git2::Oid>> {
+    match repo.find_reference(refname) {
+        Ok(reference) => Ok(Some(reference.peel_to_commit()?.id())),
+        Err(err) if err.code() == git2::ErrorCode::NotFound => Ok(None),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn count_from(repo: &Repository, refname: &str) -> Result<usize> {
+    Ok(crate::git::list(repo, refname, None)?.len())
 }
 
 /// libgit2 asks for credentials per attempt, and asks repeatedly if we keep
@@ -195,6 +299,139 @@ mod tests {
         assert!(matches!(refused, Error::PushRejected { .. }), "{refused}");
         // The version already there survived the refusal.
         assert_eq!(git::read_score(&remote, NAMED_REF).unwrap(), b"riff");
+    }
+
+    #[test]
+    fn a_score_with_no_remote_has_nothing_to_be_out_of_step_with() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = open(&dir.path().join("local"));
+
+        git::commit_named(&local, b"riff", "Intro").unwrap();
+
+        assert_eq!(compare(&local, None).unwrap(), SyncState::Unconfigured);
+    }
+
+    #[test]
+    fn versions_never_sent_read_as_ahead() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = open(&dir.path().join("local"));
+        let remote_path = dir.path().join("remote");
+        open(&remote_path);
+        let descriptor = local_remote(&remote_path);
+
+        git::commit_named(&local, b"riff", "Intro").unwrap();
+        git::commit_named(&local, b"riff II", "Second guitar").unwrap();
+
+        // An empty remote answers "I have no main", which is an answer.
+        fetch(&local, &descriptor, None).unwrap();
+
+        assert_eq!(
+            compare(&local, Some(&descriptor)).unwrap(),
+            SyncState::Ahead { versions: 2 }
+        );
+    }
+
+    #[test]
+    fn a_pushed_score_agrees_with_its_remote() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = open(&dir.path().join("local"));
+        let remote_path = dir.path().join("remote");
+        open(&remote_path);
+        let descriptor = local_remote(&remote_path);
+
+        git::commit_named(&local, b"riff", "Intro").unwrap();
+        push(&local, &descriptor, None).unwrap();
+        fetch(&local, &descriptor, None).unwrap();
+
+        assert_eq!(
+            compare(&local, Some(&descriptor)).unwrap(),
+            SyncState::UpToDate
+        );
+    }
+
+    #[test]
+    fn versions_added_elsewhere_read_as_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote_path = dir.path().join("remote");
+        open(&remote_path);
+        let descriptor = local_remote(&remote_path);
+
+        // The other machine commits twice and pushes.
+        let elsewhere = open(&dir.path().join("elsewhere"));
+        git::commit_named(&elsewhere, b"riff", "Intro").unwrap();
+        git::commit_named(&elsewhere, b"riff II", "Second guitar").unwrap();
+        push(&elsewhere, &descriptor, None).unwrap();
+
+        // This one has never seen any of it.
+        let here = open(&dir.path().join("here"));
+        fetch(&here, &descriptor, None).unwrap();
+
+        assert_eq!(
+            compare(&here, Some(&descriptor)).unwrap(),
+            SyncState::Behind { versions: 2 }
+        );
+    }
+
+    #[test]
+    fn a_score_edited_in_both_places_reads_as_diverged() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote_path = dir.path().join("remote");
+        open(&remote_path);
+        let descriptor = local_remote(&remote_path);
+
+        // A shared starting point, so this is divergence and not two
+        // unrelated histories.
+        let here = open(&dir.path().join("here"));
+        git::commit_named(&here, b"riff", "Intro").unwrap();
+        push(&here, &descriptor, None).unwrap();
+
+        let elsewhere = open(&dir.path().join("elsewhere"));
+        fetch(&elsewhere, &descriptor, None).unwrap();
+        elsewhere
+            .reference(
+                NAMED_REF,
+                elsewhere.refname_to_id(REMOTE_REF).unwrap(),
+                true,
+                "adopt",
+            )
+            .unwrap();
+
+        // Both sides now write a bridge over the same version.
+        git::commit_named(&here, b"riff, bridge A", "Bridge").unwrap();
+        git::commit_named(&elsewhere, b"riff, bridge B", "A different bridge").unwrap();
+        push(&elsewhere, &descriptor, None).unwrap();
+        fetch(&here, &descriptor, None).unwrap();
+
+        assert_eq!(
+            compare(&here, Some(&descriptor)).unwrap(),
+            SyncState::Diverged {
+                ahead: 1,
+                behind: 1
+            }
+        );
+        // And the push that would resolve it by force is still refused.
+        assert!(matches!(
+            push(&here, &descriptor, None),
+            Err(Error::PushRejected { .. })
+        ));
+    }
+
+    #[test]
+    fn fetching_leaves_our_own_versions_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote_path = dir.path().join("remote");
+        open(&remote_path);
+        let descriptor = local_remote(&remote_path);
+
+        let elsewhere = open(&dir.path().join("elsewhere"));
+        git::commit_named(&elsewhere, b"theirs", "Theirs").unwrap();
+        push(&elsewhere, &descriptor, None).unwrap();
+
+        let here = open(&dir.path().join("here"));
+        git::commit_named(&here, b"ours", "Ours").unwrap();
+        fetch(&here, &descriptor, None).unwrap();
+
+        assert_eq!(git::read_score(&here, NAMED_REF).unwrap(), b"ours");
     }
 
     #[test]

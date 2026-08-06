@@ -26,6 +26,9 @@ pub enum Error {
     #[error("the remote refused {refname}: {reason}")]
     PushRejected { refname: String, reason: String },
 
+    #[error("background task failed: {0}")]
+    BackgroundTask(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
