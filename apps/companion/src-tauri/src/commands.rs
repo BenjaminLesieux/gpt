@@ -2,7 +2,6 @@
 
 use std::path::PathBuf;
 
-use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -11,29 +10,9 @@ use crate::error::{Error, Result};
 use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
 use crate::normalize::normalize_gp;
+use crate::push::PushStatus;
 use crate::secrets;
 use crate::state::{AppState, Binding};
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum PushState {
-    Unconfigured,
-    Idle,
-    // Constructed by the M5 push queue; part of the contract already so the
-    // panel's status badge doesn't change shape then.
-    #[allow(dead_code)]
-    Pending,
-    #[allow(dead_code)]
-    Failed,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PushStatus {
-    pub state: PushState,
-    pub last_pushed_at: Option<i64>,
-    pub error: Option<String>,
-}
 
 #[tauri::command]
 pub fn list_tracked_files(state: State<'_, AppState>) -> Vec<TrackedFile> {
@@ -158,6 +137,9 @@ pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> 
 
     let version = git::commit_named(&repo, &bytes, &message)?;
     state.set_active(&file.id);
+    // Queued, not sent. The version is already safe on disk, and nothing about
+    // the network is allowed to reach back and spoil that.
+    state.pushes.enqueue(&file.id);
     Ok(version)
 }
 
@@ -249,6 +231,8 @@ pub fn set_remote(
             file.remote = None;
             Ok(())
         })?;
+        // Anything queued was queued for a remote that no longer exists.
+        state.pushes.forget(&id);
         return secrets::clear(&id);
     };
 
@@ -267,21 +251,23 @@ pub fn set_remote(
             auth: auth.unwrap_or_default(),
         });
         Ok(())
-    })
+    })?;
+
+    // A score pointed at a remote for the first time already has a history;
+    // waiting for the next commit to send it would be an odd first impression.
+    state.pushes.enqueue(&id);
+    Ok(())
 }
 
-/// Stub until M5 owns the background push queue.
+/// A file with no remote reads as unconfigured whatever the queue remembers —
+/// clearing a remote should not leave its last failure on display.
 #[tauri::command]
 pub fn push_status(state: State<'_, AppState>, id: String) -> Result<PushStatus> {
     let file = state.tracked(&id)?;
-    Ok(PushStatus {
-        state: match file.remote {
-            Some(_) => PushState::Idle,
-            None => PushState::Unconfigured,
-        },
-        last_pushed_at: None,
-        error: None,
-    })
+    if file.remote.is_none() {
+        return Ok(PushStatus::unconfigured());
+    }
+    Ok(state.pushes.status(&id).unwrap_or_else(PushStatus::idle))
 }
 
 /// What the active file is anchored to. Read from the host's cache — the

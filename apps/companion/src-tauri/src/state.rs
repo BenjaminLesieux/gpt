@@ -10,6 +10,7 @@ use crate::config::{Config, SnapshotPolicy, TrackedFile, CONFIG_FILE, REPOS_DIR}
 use crate::error::{Error, Result};
 use crate::git;
 use crate::guitar_pro::{self, Access};
+use crate::push::Queue;
 use crate::watcher::Watcher;
 
 /// What the active file is anchored to. Only [`Binding::GuitarPro`] means the
@@ -40,6 +41,7 @@ pub struct AppState {
     active: Mutex<Option<String>>,
     binding: Mutex<Binding>,
     pub watcher: Watcher,
+    pub pushes: Queue,
 }
 
 impl AppState {
@@ -53,6 +55,7 @@ impl AppState {
             active: Mutex::new(active),
             binding: Mutex::new(Binding::Idle),
             watcher: Watcher::new(),
+            pushes: Queue::new(),
         })
     }
 

@@ -12,6 +12,7 @@ mod git;
 mod guitar_pro;
 mod normalize;
 mod panel;
+mod push;
 mod remote;
 mod secrets;
 mod shortcut;
@@ -69,6 +70,7 @@ pub fn run() {
             state.watcher.resync(&state.tracked_paths())?;
             app.manage(state);
             watcher::start(app.handle().clone());
+            push::start(app.handle().clone());
 
             tray::init(app.handle())?;
             shortcut::init(app.handle())?;
