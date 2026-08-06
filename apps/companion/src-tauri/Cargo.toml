@@ -24,9 +24,11 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# Storage: one bare repo per tracked file. No network features until M5 wires
-# pushing — they drag in openssl/libssh2 and we have nothing to push yet.
-git2 = { version = "0.21", default-features = false }
+# Storage: one bare repo per tracked file, and the transport that syncs it.
+# `https` only — on macOS libgit2 speaks it through SecureTransport, so this
+# costs no openssl. `ssh` would drag in libssh2 and stays unbuilt until
+# something asks for it.
+git2 = { version = "0.21", default-features = false, features = ["https"] }
 # Save detection. Watching is per parent directory (Guitar Pro saves
 # atomically, so the inode of the file itself is replaced).
 notify = "8"

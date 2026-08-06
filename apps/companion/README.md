@@ -15,6 +15,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 `cargo`, `rustfmt` and `clippy` must be on `PATH` (`rustup component add rustfmt clippy`).
 
+OpenSSL headers must also be findable at build time (`brew install openssl@3`).
+Nothing links against them — on Apple targets libgit2 speaks HTTPS through
+SecureTransport — but `libgit2-sys` declares `openssl-sys` for the whole of
+unix, so enabling `https` builds it regardless.
+
 ## Targets
 
 | Command                             | What it does                                             |
