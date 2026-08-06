@@ -108,6 +108,19 @@
       "cancel": "Cancel",
       "save": "Save",
       "saved": "Remote saved."
+    },
+    "sync": {
+      "upToDate": "in sync",
+      "ahead_one": "{{count}} version to send",
+      "ahead_other": "{{count}} versions to send",
+      "behind_one": "{{count}} version waiting",
+      "behind_other": "{{count}} versions waiting",
+      "diverged": "changed in two places",
+      "divergedHelp": "This score gained {{ahead}} version(s) here and {{behind}} on the remote. Gitarpro can't combine them — restore the one you want to keep, save it in Guitar Pro, and name it.",
+      "check": "Check the remote",
+      "bringIn": "Bring them in",
+      "broughtIn": "“{{version}}” is now the score on disk.",
+      "broughtInWithSafety": "“{{version}}” is now the score on disk — what was there was snapshotted."
     }
   }
 }
