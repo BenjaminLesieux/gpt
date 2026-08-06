@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::config::{now_seconds, RemoteAuth};
+use crate::config::now_seconds;
 use crate::error::{Error, Result};
 use crate::events;
 use crate::remote;
@@ -257,11 +257,7 @@ pub fn deliver(state: &AppState, id: &str) -> Result<()> {
         return Ok(());
     };
 
-    let token = match remote_descriptor.auth {
-        RemoteAuth::Token { .. } => secrets::read(id)?,
-        _ => None,
-    };
-
+    let token = secrets::for_remote(id, &remote_descriptor)?;
     let repo = state.open_repo(id)?;
     remote::push(&repo, &remote_descriptor, token.as_deref())
 }
@@ -275,7 +271,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Remote, TrackedFile};
+    use crate::config::{Remote, RemoteAuth, TrackedFile};
     use crate::git;
     use std::path::{Path, PathBuf};
 

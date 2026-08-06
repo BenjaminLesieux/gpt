@@ -10,6 +10,7 @@
 //! exactly one config entry — clearing a remote can delete its token without
 //! wondering who else was using it.
 
+use crate::config::{Remote, RemoteAuth};
 use crate::error::Result;
 
 /// Matches the bundle identifier, so the entries are attributable in
@@ -36,6 +37,16 @@ pub fn clear(file_id: &str) -> Result<()> {
     match entry(file_id)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(err) => Err(err.into()),
+    }
+}
+
+/// The secret a given remote needs, if it needs one. An unauthenticated
+/// remote is not asked about, so a stale keychain entry can't leak into a
+/// connection that never wanted it.
+pub fn for_remote(file_id: &str, remote: &Remote) -> Result<Option<String>> {
+    match remote.auth {
+        RemoteAuth::Token { .. } => read(file_id),
+        RemoteAuth::None | RemoteAuth::Ssh { .. } => Ok(None),
     }
 }
 

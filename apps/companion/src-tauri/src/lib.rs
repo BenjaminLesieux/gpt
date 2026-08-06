@@ -57,6 +57,8 @@ pub fn run() {
             commands::restore_version,
             commands::set_remote,
             commands::push_status,
+            commands::sync_state,
+            commands::fetch_remote,
         ])
         .setup(|app| {
             // Menu-bar resident: no dock icon, no app menu bar of its own.
