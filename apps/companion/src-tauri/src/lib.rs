@@ -12,6 +12,7 @@ mod git;
 mod guitar_pro;
 mod normalize;
 mod panel;
+mod remote;
 mod secrets;
 mod shortcut;
 mod state;
