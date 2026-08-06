@@ -37,6 +37,10 @@
       "title": "Suis un fichier Guitar Pro",
       "description": "Chaque sauvegarde devient un instantané silencieux. Les versions que tu nommes sont celles qui comptent.",
       "action": "Choisir un fichier…"
+    },
+    "push": {
+      "sending": "envoi…",
+      "failed": "Impossible d'envoyer cette partition vers son dépôt distant"
     }
   },
   "extended": {
