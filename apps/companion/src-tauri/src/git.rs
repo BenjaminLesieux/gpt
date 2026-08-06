@@ -79,8 +79,17 @@ fn commit_snapshot_at(repo: &Repository, bytes: &[u8], when: i64) -> Result<Opti
     Ok(Some(Version::from_commit(&commit, VersionKind::Snapshot)))
 }
 
-/// Always commits, even with no change: the user asked for a marker, and the
-/// message is the point.
+/// Whether these bytes are already the newest named version. Storage has no
+/// opinion about that; the caller does (see `commands::commit_named`).
+pub fn is_named_tip(repo: &Repository, bytes: &[u8]) -> Result<bool> {
+    // Hashed, not written: a refused commit must not leave a loose object
+    // behind, and scores run to hundreds of KB.
+    let oid = Oid::hash_object(git2::ObjectType::Blob, bytes)?;
+    Ok(score_of(repo, NAMED_REF)? == Some(oid))
+}
+
+/// Commits whatever it is handed, changed or not — the guard against naming a
+/// version with nothing in it lives at the IPC surface.
 fn commit_named_at(repo: &Repository, bytes: &[u8], message: &str, when: i64) -> Result<Version> {
     let blob = repo.blob(bytes)?;
     let commit = write(repo, NAMED_REF, blob, message, when)?;
@@ -278,6 +287,31 @@ mod tests {
         commit_named(&repo, b"riff", "Same bytes, still a milestone").unwrap();
 
         assert_eq!(list(&repo, NAMED_REF, None).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn only_the_newest_named_version_reads_as_the_named_tip() {
+        let (_dir, repo) = repo();
+
+        assert!(!is_named_tip(&repo, b"riff").unwrap());
+
+        commit_named(&repo, b"riff", "First").unwrap();
+        assert!(is_named_tip(&repo, b"riff").unwrap());
+        assert!(!is_named_tip(&repo, b"riff II").unwrap());
+
+        // A snapshot on top leaves the named tip where it was.
+        commit_snapshot(&repo, b"riff II").unwrap();
+        assert!(is_named_tip(&repo, b"riff").unwrap());
+    }
+
+    #[test]
+    fn hashing_a_score_that_is_never_committed_writes_nothing() {
+        let (_dir, repo) = repo();
+
+        is_named_tip(&repo, b"never committed").unwrap();
+
+        let oid = Oid::hash_object(git2::ObjectType::Blob, b"never committed").unwrap();
+        assert!(repo.find_blob(oid).is_err());
     }
 
     #[test]

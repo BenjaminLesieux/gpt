@@ -142,15 +142,31 @@ pub fn set_active_file(state: State<'_, AppState>, id: String) -> Result<Tracked
     Ok(file)
 }
 
+/// A named version can only record a save that actually happened: naming a
+/// file whose bytes are already its newest version is how a change made to one
+/// score ends up filed under another.
 #[tauri::command]
 pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> Result<Version> {
     let file = state.tracked(&id)?;
-    let bytes = std::fs::read(&file.path)?;
+    let bytes = normalize_gp(&std::fs::read(&file.path)?);
     let repo = state.open_repo(&file.id)?;
 
-    let version = git::commit_named(&repo, &normalize_gp(&bytes), &message)?;
+    if git::is_named_tip(&repo, &bytes)? {
+        return Err(Error::NothingToName(file.name));
+    }
+
+    let version = git::commit_named(&repo, &bytes, &message)?;
     state.set_active(&file.id);
     Ok(version)
+}
+
+/// What `commit_named` would decide, so the panel can say so before the user
+/// has typed anything.
+#[tauri::command]
+pub fn has_pending_change(state: State<'_, AppState>, id: String) -> Result<bool> {
+    let file = state.tracked(&id)?;
+    let bytes = normalize_gp(&std::fs::read(&file.path)?);
+    Ok(!git::is_named_tip(&state.open_repo(&file.id)?, &bytes)?)
 }
 
 #[tauri::command]

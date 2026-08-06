@@ -20,6 +20,9 @@ pub enum Error {
     #[error("no version matching {0}")]
     UnknownVersion(String),
 
+    #[error("nothing to name in {0}: it is already the newest version")]
+    NothingToName(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
