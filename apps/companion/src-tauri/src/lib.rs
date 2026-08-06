@@ -47,6 +47,7 @@ pub fn run() {
             commands::guitar_pro_binding,
             commands::request_accessibility,
             commands::commit_named,
+            commands::has_pending_change,
             commands::list_versions,
             commands::list_snapshots,
             commands::get_version_blob,
