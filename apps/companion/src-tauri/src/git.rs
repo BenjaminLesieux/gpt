@@ -96,6 +96,24 @@ fn commit_named_at(repo: &Repository, bytes: &[u8], message: &str, when: i64) ->
     Ok(Version::from_commit(&commit, VersionKind::Named))
 }
 
+/// Advances `main` onto a commit that already has it as an ancestor.
+///
+/// The descendant check is storage declining to lose versions. A caller whose
+/// arithmetic said "fast-forward" when it wasn't gets an error rather than a
+/// silent rewrite of history someone may not have pushed anywhere yet.
+pub fn fast_forward_named(repo: &Repository, onto: Oid) -> Result<Version> {
+    if let Some(current) = tip(repo, NAMED_REF)? {
+        if current.id() != onto && !repo.graph_descendant_of(onto, current.id())? {
+            return Err(Error::NotFastForward);
+        }
+    }
+    repo.reference(NAMED_REF, onto, true, "fast-forward to the remote")?;
+    Ok(Version::from_commit(
+        &repo.find_commit(onto)?,
+        VersionKind::Named,
+    ))
+}
+
 pub fn list(repo: &Repository, refname: &str, limit: Option<usize>) -> Result<Vec<Version>> {
     let kind = if refname == NAMED_REF {
         VersionKind::Named
@@ -430,6 +448,35 @@ mod tests {
 
         assert_eq!(prune_snapshots(&repo, policy).unwrap(), 0);
         assert_eq!(list(&repo, SNAPSHOT_REF, None).unwrap()[0].id, before[0].id);
+    }
+
+    #[test]
+    fn a_fast_forward_moves_main_onto_a_later_version() {
+        let (_dir, repo) = repo();
+
+        commit_named(&repo, b"one", "One").unwrap();
+        let second = commit_named(&repo, b"two", "Two").unwrap();
+        let onto = Oid::from_str(&second.id).unwrap();
+
+        // Already there: moving onto the current tip is a no-op, not a refusal.
+        assert_eq!(fast_forward_named(&repo, onto).unwrap().message, "Two");
+        assert_eq!(read_score(&repo, NAMED_REF).unwrap(), b"two");
+    }
+
+    #[test]
+    fn moving_main_somewhere_that_drops_versions_is_refused() {
+        let (_dir, repo) = repo();
+
+        let first = commit_named(&repo, b"one", "One").unwrap();
+        commit_named(&repo, b"two", "Two").unwrap();
+
+        // Backwards: "Two" is not an ancestor of "One", so this would lose it.
+        let onto = Oid::from_str(&first.id).unwrap();
+        assert!(matches!(
+            fast_forward_named(&repo, onto),
+            Err(Error::NotFastForward)
+        ));
+        assert_eq!(read_score(&repo, NAMED_REF).unwrap(), b"two");
     }
 
     #[test]

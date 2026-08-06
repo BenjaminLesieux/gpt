@@ -64,6 +64,15 @@ export type SyncState =
   | { kind: 'ahead'; versions: number }
   | { kind: 'diverged'; ahead: number; behind: number };
 
+export interface Pulled {
+  /** Where the score stands now that the pull is done. */
+  state: SyncState;
+  /** The version now in the file; `null` when there was nothing to take. */
+  version: Version | null;
+  /** What was on disk beforehand, when it was worth keeping. */
+  safety: Version | null;
+}
+
 /**
  * What the active file is anchored to.
  *
@@ -215,6 +224,18 @@ export function syncState(id: string): Promise<SyncState> {
  */
 export function fetchRemote(id: string): Promise<SyncState> {
   return invoke('fetch_remote', { id });
+}
+
+/**
+ * Fetches, then takes the newest remote version into the score on disk when
+ * it builds on what we already have.
+ *
+ * Rejects when the score changed in both places: v1 has no merge, so that is
+ * for a person to sort out. Whatever was on disk is snapshotted first, and
+ * comes back as `safety` if it was worth keeping.
+ */
+export function pullRemote(id: string): Promise<Pulled> {
+  return invoke('pull_remote', { id });
 }
 
 // ── Events ───────────────────────────────────────────────────────────────

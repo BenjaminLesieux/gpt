@@ -10,6 +10,7 @@ use crate::error::{Error, Result};
 use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
 use crate::normalize::normalize_gp;
+use crate::pull::{self, Pulled};
 use crate::push::PushStatus;
 use crate::remote::{self, SyncState};
 use crate::secrets;
@@ -302,6 +303,18 @@ pub async fn fetch_remote(app: AppHandle, id: String) -> Result<SyncState> {
     })
     .await
     .map_err(|err| Error::BackgroundTask(err.to_string()))?
+}
+
+/// Fetches, and takes the result into the score if it builds on what we have.
+///
+/// The one command that rewrites the user's `.gp` from something a remote
+/// said, so it snapshots what was there first and refuses outright when both
+/// sides have moved.
+#[tauri::command]
+pub async fn pull_remote(app: AppHandle, id: String) -> Result<Pulled> {
+    tauri::async_runtime::spawn_blocking(move || pull::pull(&app.state::<AppState>(), &id))
+        .await
+        .map_err(|err| Error::BackgroundTask(err.to_string()))?
 }
 
 /// What the active file is anchored to. Read from the host's cache — the
