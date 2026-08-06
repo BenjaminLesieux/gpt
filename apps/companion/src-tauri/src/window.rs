@@ -2,7 +2,12 @@
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
+/// The panel goes away on the way out: the two surfaces are alternatives, and
+/// leaving a hotkey overlay floating over the window it just handed off to
+/// reads as a stuck window.
 pub fn open_extended(app: &AppHandle) -> tauri::Result<()> {
+    crate::panel::hide(app);
+
     if let Some(window) = app.get_webview_window(crate::EXTENDED_LABEL) {
         window.show()?;
         window.unminimize()?;
