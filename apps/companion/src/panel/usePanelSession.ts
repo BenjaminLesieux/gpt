@@ -8,10 +8,13 @@ import {
   listTrackedFiles,
   listVersions,
   onFileSaved,
+  onPushStatusChanged,
   onTrackedFilesChanged,
   pickAndTrackFile,
+  pushStatus,
   setActiveFile,
   type Binding,
+  type PushStatus,
   type TrackedFile,
   type Version,
 } from '@/lib/ipc';
@@ -48,6 +51,8 @@ export interface PanelSession {
   pendingChange: boolean | null;
   /** Newest recorded change of the active file, unix seconds. */
   lastChangeAt: number | null;
+  /** How the active file's versions are getting to its remote, if it has one. */
+  push: PushStatus;
   error: string | null;
   reportError(message: string): void;
   clearError(): void;
@@ -58,6 +63,7 @@ export interface PanelSession {
 
 const EMPTY_ROSTER: Roster = { files: [], active: null, binding: { kind: 'idle' } };
 const EMPTY_LEDGER: Ledger = { versions: [], snapshots: [], pendingChange: null };
+const NO_PUSH: PushStatus = { state: 'unconfigured', lastPushedAt: null, error: null };
 
 /**
  * Everything the panel knows, and the only place that talks to the host.
@@ -69,6 +75,7 @@ const EMPTY_LEDGER: Ledger = { versions: [], snapshots: [], pendingChange: null 
 export function usePanelSession(shownAt: number): PanelSession {
   const [roster, setRoster] = useState<Roster>(EMPTY_ROSTER);
   const [ledger, setLedger] = useState<Ledger>(EMPTY_LEDGER);
+  const [push, setPush] = useState<PushStatus>(NO_PUSH);
   const [error, setError] = useState<string | null>(null);
   // Bumped when the active file's history moves under us.
   const [ledgerNonce, setLedgerNonce] = useState(0);
@@ -108,6 +115,32 @@ export function usePanelSession(shownAt: number): PanelSession {
       cancelled = true;
     };
   }, [activeId, shownAt, ledgerNonce]);
+
+  // The panel is usually shut while a push runs, so what it shows on opening
+  // has to be asked for; the subscription below only covers staying open.
+  useEffect(() => {
+    if (!activeId) {
+      setPush(NO_PUSH);
+      return;
+    }
+    let cancelled = false;
+    void pushStatus(activeId)
+      .then((status) => !cancelled && setPush(status))
+      // A push the panel can't describe must not cost it the commit gesture.
+      .catch(() => !cancelled && setPush(NO_PUSH));
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, shownAt, ledgerNonce]);
+
+  useEffect(() => {
+    const subscription = onPushStatusChanged(({ id, status }) => {
+      if (id === activeId) setPush(status);
+    });
+    return () => {
+      void subscription.then((unlisten) => unlisten());
+    };
+  }, [activeId]);
 
   // The watcher fires whether or not the panel is open — a save while it is
   // visible has to move the active file and the history with it.
@@ -182,6 +215,7 @@ export function usePanelSession(shownAt: number): PanelSession {
     unnamedSaves,
     pendingChange: ledger.pendingChange,
     lastChangeAt,
+    push,
     error,
     reportError: setError,
     clearError,

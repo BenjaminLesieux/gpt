@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronsUpDown, CornerDownLeft, EyeOff, FileQuestion } from 'lucide-react';
+import { Check, ChevronsUpDown, CloudOff, CornerDownLeft, EyeOff, FileQuestion } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Kbd } from '@/components/ui/kbd';
@@ -9,6 +9,7 @@ import {
   hidePanel,
   requestAccessibility,
   type Binding,
+  type PushStatus,
   type TrackedFile,
   type Version,
 } from '@/lib/ipc';
@@ -132,9 +133,16 @@ export function CommitView({
               <span className="text-warning">{t('panel.nothingToName')}</span>
             </>
           )}
+          {session.push.state === 'pending' && (
+            <>
+              {' · '}
+              <span className="text-muted-foreground">{t('panel.push.sending')}</span>
+            </>
+          )}
         </p>
 
         <BindingNotice binding={session.binding} onAddFile={() => void session.addFile()} />
+        <PushNotice status={session.push} />
 
         <div className="mt-2.5">
           {phase === 'saved' && committed ? (
@@ -229,28 +237,54 @@ function BindingNotice({ binding, onAddFile }: { binding: Binding; onAddFile(): 
   }
 }
 
+/**
+ * A push that stopped trying.
+ *
+ * Silent for everything else, including retries: the queue backs off and gets
+ * there on its own, and a badge that blinked on every dropped connection would
+ * be noise in a window meant to be gone in two seconds. This appears only when
+ * the host has given up and needs a person — a refused push, or a bad token.
+ */
+function PushNotice({ status }: { status: PushStatus }) {
+  const { t } = useTranslation();
+
+  if (status.state !== 'failed') return null;
+
+  return (
+    <Notice icon={<CloudOff />} label={t('panel.push.failed')} detail={status.error ?? undefined} />
+  );
+}
+
 function Notice({
   icon,
   label,
+  detail,
   action,
   onAction,
 }: {
   icon: ReactNode;
   label: string;
-  action: string;
-  onAction(): void;
+  /** The host's own words, for a hover — the label is the user-facing copy. */
+  detail?: string;
+  action?: string;
+  onAction?(): void;
 }) {
   return (
     <div className="mt-2 flex items-center gap-2 border-l-2 border-warning/60 bg-warning/10 py-1 pr-1 pl-2">
       <span aria-hidden className="shrink-0 text-warning [&_svg]:size-3">
         {icon}
       </span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground" title={label}>
+      <span
+        className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground"
+        title={detail ?? label}
+      >
         {label}
       </span>
-      <Button variant="ghost" size="xs" onClick={onAction} className="shrink-0">
-        {action}
-      </Button>
+      {action && onAction && (
+        <Button variant="ghost" size="xs" onClick={onAction} className="shrink-0">
+          {action}
+        </Button>
+      )}
     </div>
   );
 }

@@ -37,6 +37,10 @@
       "title": "Track a Guitar Pro file",
       "description": "Every save becomes a silent snapshot. The versions you name are the ones that count.",
       "action": "Choose a file…"
+    },
+    "push": {
+      "sending": "sending…",
+      "failed": "Couldn't send this score to its remote"
     }
   },
   "extended": {

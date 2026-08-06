@@ -22,8 +22,10 @@ vi.mock('@/lib/ipc', () => ({
   listSnapshots: vi.fn(),
   commitNamed: vi.fn(),
   hasPendingChange: vi.fn(),
+  pushStatus: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
+  onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 const ipc = vi.mocked(await import('@/lib/ipc'));
@@ -76,6 +78,7 @@ beforeEach(() => {
     timestamp: NOW,
     kind: 'named',
   });
+  ipc.pushStatus.mockResolvedValue({ state: 'unconfigured', lastPushedAt: null, error: null });
 });
 
 describe('PanelApp', () => {
@@ -212,6 +215,34 @@ describe('PanelApp', () => {
 
     expect(screen.queryByRole('button', { name: /Allow/ })).toBeNull();
     expect(screen.queryByText(/not tracked/)).toBeNull();
+  });
+
+  it('says nothing about pushing while it is working or has nowhere to push', async () => {
+    render(<PanelApp />);
+    await screen.findByText('Blackbird');
+
+    expect(screen.queryByText(/Couldn't send/)).toBeNull();
+    expect(screen.queryByText(/sending/)).toBeNull();
+
+    // A push in flight is worth a word, but not an alarm.
+    ipc.pushStatus.mockResolvedValue({ state: 'pending', lastPushedAt: null, error: null });
+    render(<PanelApp />);
+
+    expect(await screen.findByText(/sending/)).toBeTruthy();
+    expect(screen.queryByText(/Couldn't send/)).toBeNull();
+  });
+
+  it('speaks up only once the host has stopped retrying', async () => {
+    ipc.pushStatus.mockResolvedValue({
+      state: 'failed',
+      lastPushedAt: NOW - 800,
+      error: 'the remote refused refs/heads/main: the remote holds versions this score does not',
+    });
+    render(<PanelApp />);
+    await screen.findByText('Blackbird');
+
+    const notice = await screen.findByText(/Couldn't send/);
+    expect(notice.title).toMatch(/refused/);
   });
 
   it('offers to track a first file when nothing is tracked yet', async () => {
