@@ -53,7 +53,19 @@ M3 added two commands the contract in M2 did not anticipate, both because the pa
 
 M4 needed no new Rust: M2's `listVersions` / `listSnapshots` / `getVersionBlob` / `restoreVersion` covered it. Two things did change outside the UI. The webview CSP had to allow `blob:` scripts and workers — alphaTab renders through a worker and plays through an audio worklet. And bringing alphaTab into a Vite 8 (rolldown) app extended the existing `@coderline/alphatab-vite` patch: the bridge that re-wraps Vite plugins per environment also re-wraps rolldown's *builtin* plugins, whose bindings reject a `transform` whose options carry no `moduleType`.
 
-**M5 — Remote.** Remote URL + auth settings; background push queue after named commits (git2 push, token/SSH); status badge; retry logic. Validate against a bare git server or Forgejo in Docker.
+**M5 — Remote.** ✅ Remote URL + auth settings; background push queue after named commits; status badge; retry logic.
+
+M5 grew a half the plan did not scope: **pull**. Push alone is a backup, not version control — a version you can never get back is only insurance — so the milestone landed the round trip. Four things that follow are worth writing down.
+
+*Pull fast-forwards or stops.* Decision 8 puts merge out of v1, so a score changed in both places is reported and left alone: no button, and a tooltip saying how to resolve it by hand. `gpt-core`'s merge stays where it is. Storage enforces this a second time — `git::fast_forward_named` refuses to move `main` somewhere that drops versions, whatever the caller believed.
+
+*Failures are two kinds, not one.* A refused push or a rejected token answers identically however long you wait, so the queue stops and raises the badge. Everything else backs off to a five-minute ceiling and never gives up. Treating them alike gets one of them wrong: retrying a refusal is pointless, and giving up on a closed laptop is worse.
+
+*HTTPS only.* The plan said "token/SSH"; `ssh` would build libssh2 into the bundle for a case nobody has asked for. `RemoteAuth::Ssh` still exists in the descriptor and is refused by the credential callback, so adding it later is a build flag and a branch. Enabling `https` does drag in `openssl-sys` even on macOS, where libgit2 uses SecureTransport and never calls it — `libgit2-sys` declares the dependency for the whole of unix. It is a build-machine requirement for a crate that goes unused.
+
+*Tested against a bare repo in a tempdir.* libgit2 treats one as a real remote: same negotiation, same refspecs, same fast-forward rule, no network to make the suite flaky. What that leaves uncovered — TLS and token auth — is a manual walkthrough in [`forgejo-check.md`](forgejo-check.md).
+
+Not done, and deliberately: **clone-to-track**, i.e. adding a score from a remote URL on a second machine. v1 assumes the `.gp` already exists locally and gets pointed at a remote. That is its own story.
 
 **M6 — Cleanup & ship.** Delete `apps/desktop`, `apps/desktop-e2e`, `apps/cli`; macOS bundle/signing via Tauri bundler; smoke-test the full loop (track → save → snapshot → hotkey commit → diff → restore → push).
 
