@@ -27,11 +27,12 @@
 This project's UI is built on **shadcn/ui** + **BaseUI**. Before writing any markup, search the existing shadcn components and pick the one that fits.
 
 - **Always use the shadcn MCP** (`mcp__shadcn__*`) to discover, view, and install components. Do not hand-roll a Button, Card, Tabs, ScrollArea, Tooltip, Empty state, Alert, Skeleton, Separator, Badge, ToggleGroup, Sonner, Spinner, or any other primitive that shadcn ships.
-- **Components live at `apps/desktop/src/components/ui/`** with imports via `@/...` (configured in `apps/desktop/tsconfig.app.json` + vite alias). The shadcn config is `apps/desktop/components.json`.
-- **Adding new components**: from `apps/desktop/`, run `pnpm dlx shadcn@latest add @shadcn/<name>` (or use `mcp__shadcn__get_add_command_for_items`). After install, the components are themed automatically via `apps/desktop/src/styles/app.css` (Tailwind v4 `@theme inline`) which maps Gitarpro tokens onto shadcn's `--primary`, `--muted`, `--card`, `--accent`, `--destructive`, etc.
+- **Components live at `apps/companion/src/components/ui/`** with imports via `@/...` (configured in `apps/companion/tsconfig.app.json` + the vite alias). The shadcn config is `apps/companion/components.json`.
+- **Adding new components**: from `apps/companion/`, run `pnpm dlx shadcn@latest add @shadcn/<name>` (or use `mcp__shadcn__get_add_command_for_items`). After install, the components are themed automatically via `apps/companion/src/styles/app.css` (Tailwind v4 `@theme inline`) which maps Gitarpro tokens onto shadcn's `--primary`, `--muted`, `--card`, `--accent`, `--destructive`, etc.
 - **Custom styling**: stay in shadcn-provided color slots — `bg-background`, `text-foreground`, `text-muted-foreground`, `bg-card`, `bg-accent`, `border-border`, `text-destructive`. Don't reach for legacy tokens like `text-fg-meta`, `border-border-subtle`, `text-fg-muted`. The Bauhaus look is the theme, not the markup.
+- **`var(--color-accent)` means two different things.** In raw CSS it is the brand red from `tokens.css`; only the `@theme inline` utilities carry shadcn's hover-surface meaning. Name the token you actually want.
 - **Variant naming follows shadcn**: `variant="default" | "destructive" | "outline" | "secondary" | "ghost" | "link"`. Do not invent `primary`/`subtle`/`danger` variants on top of shadcn components.
-- **Wrappers**: `App.tsx` already provides `TooltipProvider` and `Toaster`. Use them; don't nest extra providers.
-- **Custom title bar**: macOS uses `titleBarStyle: "hiddenInset"`. The `<TitleBar>` component in `apps/desktop/src/components/chrome/TitleBar.tsx` reserves the drag region — every top-level view must render below it (the layout in `App.tsx` handles this; do not bypass it with `h-screen` inside views).
+- **Wrappers**: `ExtendedApp.tsx` already provides `TooltipProvider`. Use it; don't nest extra providers. The panel deliberately has none — it is a 420×320 card with a latency budget.
+- **Two window surfaces, not one page.** The panel (`src/panel/`) is frameless, transparent and always-on-top; the extended window (`src/extended/`) is a normal decorated window. They are separate Vite inputs with separate entry HTML, and a component that assumes one will not fit the other.
 
-When in doubt: open `apps/desktop/src/components/ui/` to see what's already installed. If it's not there, install it via shadcn — never re-implement.
+When in doubt: open `apps/companion/src/components/ui/` to see what's already installed. If it's not there, install it via shadcn — never re-implement.

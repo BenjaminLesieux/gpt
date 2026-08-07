@@ -120,15 +120,15 @@ pnpm nx sync  # always run after scaffolding to sync tsconfig references
 - **`function` keyword** — React components and top-level named functions must use `function` declarations, not arrow-function assignments. `function Foo()` not `const Foo = () =>`. Enforced via `react/function-component-definition`.
 - **No CSS modules** — `.module.css` / `.module.scss` imports are banned. Use **Tailwind CSS** or **styled-components** only. Enforced via `no-restricted-imports`.
 - **UI library — shadcn/ui first, every time.** This is non-negotiable. Before writing any markup:
-  1. Check `apps/desktop/src/components/ui/` for an existing primitive.
+  1. Check `apps/companion/src/components/ui/` for an existing primitive.
   2. If missing, search the registry with the **shadcn MCP** (`mcp__shadcn__search_items_in_registries`, `mcp__shadcn__view_items_in_registries`).
-  3. Install with `pnpm dlx shadcn@latest add @shadcn/<name>` from `apps/desktop/`. The shadcn config is at `apps/desktop/components.json`; aliases use `@/...`.
-  4. Theme via the existing `apps/desktop/src/styles/app.css` (Tailwind v4 `@theme inline` maps Gitarpro tokens onto shadcn's slots). Never override component internals — adjust the theme variables instead.
+  3. Install with `pnpm dlx shadcn@latest add @shadcn/<name>` from `apps/companion/`. The shadcn config is at `apps/companion/components.json`; aliases use `@/...`.
+  4. Theme via the existing `apps/companion/src/styles/app.css` (Tailwind v4 `@theme inline` maps Gitarpro tokens onto shadcn's slots). Never override component internals — adjust the theme variables instead.
   5. Use **shadcn variant names verbatim** (`default | destructive | outline | secondary | ghost | link`). Do not invent `primary`/`subtle`/`danger`.
   6. Use **shadcn slot classes** (`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-card`, `bg-accent`, `border-border`, `text-destructive`). Never `text-fg-meta`, `border-border-subtle`, `text-fg-muted`, etc. — those are dead.
   7. Never re-implement Button, Card, Tabs, ScrollArea, Tooltip, Empty, Alert, Skeleton, Separator, Badge, ToggleGroup, Sonner, Spinner, Dialog, etc. from scratch.
 - **BaseUI** — use only for headless primitives that shadcn doesn't ship.
-- **Title bar** — Electron uses `titleBarStyle: "hiddenInset"` on macOS. The `<TitleBar>` in `apps/desktop/src/components/chrome/TitleBar.tsx` reserves the OS drag region; every top-level view renders below it via the layout in `app/app.tsx`. Do not use `h-screen` inside views — use `h-full min-h-0` so they fit under the title bar.
+- **Two window surfaces** — the panel (`apps/companion/src/panel/`) is frameless, transparent, always-on-top and never recreated; the extended window (`apps/companion/src/extended/`) is a normal decorated window created lazily. They are separate Vite inputs with their own entry HTML. Panel latency is the product: if hotkey→visible exceeds ~100 ms, fix that before adding anything to it.
 - **Design system** — follow the Gitarpro design system at all times: tokens from `colors_and_type.css`, Bauhaus font for UI text, Space Mono for hashes/paths/CLI output, 2px sharp radii, accent color sparingly.
 - **Skill** — invoke the `frontend-design` skill when implementing UI components or pages.
 
