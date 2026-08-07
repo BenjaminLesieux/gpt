@@ -32,6 +32,48 @@ unix, so enabling `https` builds it regardless.
 | `pnpm nx cargo-check @gpt/companion` | `cargo check` on `src-tauri`                             |
 | `pnpm nx cargo-test @gpt/companion`  | `cargo test` on `src-tauri`                              |
 
+## Bundling
+
+`tauri build` signs with whatever `APPLE_SIGNING_IDENTITY` holds; the config
+names no identity, so the same target serves both cases below.
+
+```bash
+APPLE_SIGNING_IDENTITY="-" pnpm nx bundle @gpt/companion
+```
+
+That is the alpha build: ad-hoc signed, hardened runtime on (Tauri's default),
+notarization skipped. Two consequences to know before handing the `.dmg` to
+anyone.
+
+*Gatekeeper rejects it.* `spctl -a` says so, and a first launch needs
+right-click → **Open**, or `xattr -dr com.apple.quarantine /Applications/Gitarpro.app`.
+Nothing is wrong with the build; it simply has no Developer ID behind it.
+
+*The Accessibility grant does not survive a rebuild.* An ad-hoc signature has no
+team identity, so TCC remembers the app by the hash of its code. Every build
+changes that hash, and the permission the app needs to read which score Guitar
+Pro has in front (see [`guitar_pro.rs`](src-tauri/src/guitar_pro.rs)) has to be
+granted again — remove the stale entry in **System Settings → Privacy & Security
+→ Accessibility** first, since macOS will not replace it on its own. A Developer
+ID signature is keyed to the team instead, and does survive.
+
+For a distributable build, swap the identity for a real one and add the
+notarization credentials — no config change, only environment:
+
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export APPLE_ID="you@example.com" APPLE_PASSWORD="app-specific-password" APPLE_TEAM_ID="TEAMID"
+pnpm nx bundle @gpt/companion
+```
+
+Tauri notarizes and staples when all three of the second group are present, and
+prints `skipping app notarization` when they are not.
+
+> If the DMG step fails with `error running bundle_dmg.sh`, look in `/Volumes`
+> for a leftover `Gitarpro <version>` mount from an interrupted run and
+> `hdiutil detach` it. The script mounts under that name and does not reuse or
+> clean up one it did not create.
+
 ## Layout
 
 ```
