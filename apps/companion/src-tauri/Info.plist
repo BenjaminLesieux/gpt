@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  lib.rs already asks for ActivationPolicy::Accessory, but it does so from
+	  `setup`, which runs after AppKit has decided whether to show a dock icon.
+	  The bounce is brief and harmless and looks like a bug. Declaring it here
+	  means the app is never a dock app in the first place.
+	-->
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>
