@@ -10,12 +10,6 @@
       "path": "./packages/gpt-core"
     },
     {
-      "path": "./apps/desktop-e2e"
-    },
-    {
-      "path": "./apps/desktop"
-    },
-    {
       "path": "./apps/cli"
     },
     {
