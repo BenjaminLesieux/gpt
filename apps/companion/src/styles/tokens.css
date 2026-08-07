@@ -69,7 +69,9 @@
   --color-warning:        var(--color-changed);
   --color-info:           oklch(60% 0.12 230);
 
-  --color-focus:          oklch(55% 0.16 22 / 60%);
+  /* Kept in step with --color-ring in app.css: focus must not wear the same
+     red as danger, or a focused control reads as a rejected one. */
+  --color-focus:          oklch(80% 0 0 / 70%);
 }
 
 /* ── Spacing / radius / shadow ────────────────────────────── */
