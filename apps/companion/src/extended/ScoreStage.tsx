@@ -69,7 +69,10 @@ function StageContent({
         </>
       )}
 
-      <div className="relative min-h-0 flex-1 overflow-auto bg-background">
+      {/* `isolate` contains alphaTab's cursor wrapper, which it hardcodes to
+          z-index 1000. Without a stacking context here that number lands in the
+          root one and paints the beat cursor over dialogs and menus. */}
+      <div className="relative isolate min-h-0 flex-1 overflow-auto bg-background">
         <AlphaTab.Viewport
           cursorClassNames={{
             bar: 'bg-accent/20',
