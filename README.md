@@ -1,106 +1,69 @@
-# New Nx Repository
+# Gitarpro
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Version control for Guitar Pro scores, for people who do not want to know that.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+Guitar Pro is not extensible, so Gitarpro sits beside it: a macOS menu-bar app
+that watches the `.gp` files you point it at. Every save Guitar Pro makes is
+captured silently. When a version is worth keeping, a global hotkey brings up a
+small panel, you name it, and press Enter — about two seconds, without leaving
+the score.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-## Finish your Nx platform setup
+Underneath it is real git — one bare repository per tracked file — and you never
+see a commit, a branch or a hash. What you see instead is what changed
+*musically*: which measures moved, which bars a track gained or lost, rendered
+as tablature next to the version it came from.
 
-🚀 [Finish setting up your workspace](https://cloud.nx.app/connect/qkxrjXaTt5) to get faster builds with remote caching, distributed task execution, and self-healing CI. [Learn more about Nx Cloud](https://nx.dev/ci/intro/why-nx-cloud).
-## Generate a library
+## Where things are
 
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+| Project                                            | What it is                                              |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| [`apps/companion`](apps/companion)                   | The app. Tauri v2 — Rust host, React webview.           |
+| [`packages/gpt-core`](packages/gpt-core)             | The diff and merge engine. Knows what a score is.       |
+| [`packages/alphatab-react`](packages/alphatab-react) | React bindings for AlphaTab — rendering and playback.   |
+
+The split that matters: everything that understands *music* is TypeScript in
+`gpt-core`. The Rust host stores bytes, watches files and talks to remotes, and
+knows nothing about a note.
+
+## Getting it running
+
+Needs [pnpm](https://pnpm.io) and a [Rust toolchain](https://rustup.rs).
+
+```bash
+pnpm install
+pnpm nx dev @gpt/companion
 ```
 
-## Run tasks
+Then `pnpm nx bundle @gpt/companion` for a `.app` and `.dmg`. See the
+[companion README](apps/companion/README.md) for signing, and what an ad-hoc
+build means for Gatekeeper and the Accessibility permission.
 
-To build the library use:
-
-```sh
-npx nx build pkg1
+```bash
+pnpm nx run-many -t test        # vitest, everywhere
+pnpm nx cargo-test @gpt/companion
+pnpm lint
 ```
 
-To run any task with Nx use:
+Tasks go through Nx, always — `pnpm nx ...`, never the underlying tool.
 
-```sh
-npx nx <target> <project-name>
-```
+## Reading further
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+- [`docs/companion-v1-plan.md`](docs/companion-v1-plan.md) — the product brief,
+  the decisions that are settled, and what each milestone actually landed
+  versus what it was scoped to.
+- [`CONTEXT.md`](CONTEXT.md) — the vocabulary. *Measure* and *bar* are not
+  synonyms here, and the distinction runs through the whole diff engine.
+- [`docs/adr/`](docs/adr) — why the diff reads AlphaTab's model rather than the
+  GPIF XML, and what the fingerprint is allowed to notice.
+- [`docs/alpha-smoke-test.md`](docs/alpha-smoke-test.md) and
+  [`docs/forgejo-check.md`](docs/forgejo-check.md) — the two walkthroughs for
+  what no test covers.
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Status
 
-## Versioning and releasing
+Alpha. macOS only. No merge and no branches by design — a score changed in two
+places is reported and left alone rather than combined badly.
 
-To version and release the library use
-
-```
-npx nx release
-```
-
-Pass `--dry-run` to see what would happen without actually releasing the library.
-
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Keep TypeScript project references up to date
-
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
-
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
-
-```sh
-npx nx sync
-```
-
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
-
-```sh
-npx nx sync:check
-```
-
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
-
-## Nx Cloud
-
-Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Set up CI (non-Github Actions CI)
-
-**Note:** This is only required if your CI provider is not GitHub Actions.
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+> **Being retired:** `apps/desktop`, `apps/desktop-e2e` and `apps/cli` are the
+> pre-pivot Electron app and its engine, kept only until M6 removes them. Do not
+> build on them.
