@@ -24,164 +24,258 @@
 
 ---
 
-# GPT — Guitar Pro Tracker: Workspace Root
+# Gitarpro: Workspace Root
 
 ## What this is
 
-A monorepo for GPT (Guitar Pro Tracker), a Git-like version control system for `.gp` (Guitar Pro) music files. Think "Git + GitHub, but for musicians." Built with NX workspaces.
+Version control for Guitar Pro `.gp` files, built as a resident macOS menu-bar
+app. Guitar Pro is not extensible, so this stands beside it: every save of a
+tracked file becomes a silent snapshot, and a global hotkey names the versions
+that count. Git stores the bytes and the user never sees a git concept.
 
 ## Repo map
 
 ```
 apps/
-  cli/          — Core engine. All business logic lives here. Scriptable, runs standalone.
-  desktop/      — Electron + React UI. Thin wrapper around the CLI. Zero business logic.
-  desktop-e2e/  — Playwright end-to-end tests for the desktop app.
+  companion/    — The app. Tauri v2: Rust host (src-tauri/) + React webview (src/).
 packages/
-  gpt-core/     — Shared types, serializer, and diff/merge algorithm. Zero runtime deps.
-  alphatab-react/ — React wrapper around the AlphaTab tablature renderer. Publishable to npm.
+  gpt-core/     — Diff and merge over AlphaTab's model. Knows what a score is.
+  alphatab-react/ — React bindings for AlphaTab: rendering, playback, diff overlays.
 ```
 
 ## Tech stack
 
-| Concern | Tool |
-|---|---|
-| Monorepo orchestration | NX 22 |
-| Package manager | pnpm (workspaces) |
-| Language | TypeScript 5 (strict) |
-| CLI runtime | Effect.ts v3 (typed errors, DI via layers) |
-| Desktop shell | Electron + electron-vite |
-| UI framework | React 19 + shadcn/ui + BaseUI |
-| State | Zustand (desktop) |
-| Data fetching | TanStack Query (desktop) |
-| Tablature rendering | AlphaTab (@coderline/alphatab) |
-| Git backend | isomorphic-git |
-| Testing | Vitest + @testing-library/react |
-| Linting | ESLint 10 flat config (typescript-eslint) |
+| Concern                | Tool                                       |
+| ---------------------- | ------------------------------------------ |
+| Monorepo orchestration | Nx 22                                      |
+| Package manager        | pnpm (workspaces)                          |
+| App shell              | Tauri v2 (Rust host, WKWebView)            |
+| Host language          | Rust 2021 (edition), rust-version 1.82     |
+| UI language            | TypeScript 5 (strict)                      |
+| UI framework           | React 19 + shadcn/ui + Base UI             |
+| Styling                | Tailwind v4 (`@theme inline`)              |
+| Tablature rendering    | AlphaTab (`@coderline/alphatab`)           |
+| Git backend            | libgit2 via the `git2` crate               |
+| File watching          | `notify`                                   |
+| Secrets                | `keyring` (macOS login keychain)           |
+| Testing                | Vitest + @testing-library/react; `cargo test` |
+| Linting                | ESLint 10 flat config; clippy `-D warnings`   |
 
 ## Key architectural decisions
 
-1. **CLI is the engine, desktop is the UI.** The desktop app never calls business logic directly. It spawns the CLI or connects to `gpt serve` over HTTP. This keeps the two completely decoupled.
-2. **Binary stored as-is, diffs computed at read time.** `.gp` files are stored verbatim in the git object store. Diffing means: parse both versions with AlphaTab → structural JSON → diff the JSON. Nothing intermediate is persisted.
-3. **Diff happens at the measure level.** The natural unit of musical change is the measure, not the byte or the line. This makes diffs human-readable and merges optimistic.
+1. **The Rust host stores; TypeScript understands.** `src-tauri/` reads and
+   writes bytes, watches files, talks to remotes and owns the windows. Anything
+   that knows what a *note* is lives in `gpt-core`. Keep the Rust layer thin —
+   this is the constraint most easily broken by adding a feature in the nearest
+   place.
+2. **One `.gp` file is one project.** No multi-file repos. One bare git repo per
+   tracked file, under the app data dir. Named versions are commits on `main`;
+   silent auto-snapshots are a separate chain on `refs/snapshots`.
+3. **Two tiers of history.** Every Guitar Pro save is captured with nothing
+   asked of the user. Only named versions form the official history and only
+   they are pushed.
+4. **Normalize before writing a blob, always.** `.gp` files are zip containers
+   whose headers change on every save. Git clean/smudge filters are forbidden —
+   git2 does not run them, so one would look configured and do nothing. See
+   `docs/normalize-gp.md`.
+5. **A local commit never blocks on the network.** Push is queued and
+   best-effort. Pull is fast-forward only; there is no merge UI in v1.
+6. **Diff at the measure level.** The natural unit of musical change is the
+   measure, not the byte. `CONTEXT.md` defines *measure* vs *bar* — they are not
+   synonyms, and the distinction runs through the whole engine.
 
 ## Running tasks
 
-Always use NX to run tasks — never invoke compilers or test runners directly.
+Always use Nx — never invoke compilers or test runners directly.
 
 ```bash
-pnpm nx build @gpt/gpt-core          # build one project
-pnpm nx test @gpt/gpt-core           # test one project
-pnpm nx run-many -t build            # build everything
-pnpm nx run-many -t test             # test everything
-pnpm nx affected -t test             # test only what changed
-pnpm nx graph                         # visualize project dependencies
-pnpm lint                             # lint the whole workspace
-pnpm lint:fix                         # auto-fix lint issues
+pnpm nx dev @gpt/companion            # tauri dev: Vite on :4210 + the Rust host
+pnpm nx bundle @gpt/companion         # tauri build: the .app / .dmg
+pnpm nx test @gpt/gpt-core            # test one project
+pnpm nx run-many -t test              # test everything (vitest)
+pnpm nx run-many -t typecheck         # tsc --build, everywhere
+pnpm nx affected -t test              # only what changed
+pnpm nx cargo-test @gpt/companion     # the Rust suite
+pnpm nx cargo-clippy @gpt/companion   # clippy, warnings are errors
+pnpm lint                             # eslint, whole workspace
 ```
+
+`APPLE_SIGNING_IDENTITY="-"` in front of `bundle` produces the ad-hoc signed
+alpha build. See `apps/companion/README.md` for what that means downstream.
 
 ## Adding a new project
 
-Use NX generators — never create project files by hand:
+Use Nx generators — never create project files by hand:
 
 ```bash
 pnpm nx g @nx/react:library packages/my-lib --bundler=vite --unitTestRunner=vitest
-pnpm nx g @nx/node:app apps/my-service --bundler=esbuild
 pnpm nx sync  # always run after scaffolding to sync tsconfig references
 ```
 
+`apps/companion` is the exception and stays hand-written: there is no official
+Nx plugin for Tauri, so its `project.json` targets shell out to `tauri` and
+`cargo` directly.
+
 ## Code conventions
 
-- **Comments** — Add a comment only when the WHY is non-obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug, or behaviour that would surprise a reader. Never describe WHAT the code does (the code already does that). Never reference PLAN.md, milestone numbers, or sprint context — those belong in commit messages and PRs, not source files. No AI-generated boilerplate comments.
-- **Effect.ts in CLI/gpt-core.** Use `Effect.gen` + service layers. Never use try/catch.
-- **Typed errors.** Tag all error types with `_tag` so Effect can match them structurally.
-- **`--json` flag on every CLI command.** Machine-readable output is required for the desktop bridge.
-- **Workspace imports.** Import internal packages as `@gpt/gpt-core`, never via relative paths that cross package boundaries.
-- **No non-null assertions (`!`) in production code.** Use type narrowing (`if (!x) return`) or extend the null guard to cover all variables you need. The one accepted exception is TanStack Query's `queryFn` when `enabled: !!x` already guards the call — TypeScript can't see through `enabled`, so `x!` inside `queryFn` is intentional.
-- **No `as` type assertions** unless casting to/from `unknown` at a system boundary (e.g. Electron IPC, JSON parse). Prefer type guards.
-- **`cn()` for all className construction.** Never use `[...].join(" ")` or string concatenation for Tailwind classes — `cn()` handles conflict resolution correctly.
-- **No dead code.** Remove placeholder components and unreferenced files immediately rather than leaving them in the tree with a TODO comment.
-- **Module resolution — `.js` extensions:**
-  - `apps/cli` and `packages/*` use `moduleResolution: nodenext` (Node.js ESM). Relative imports **must** include the `.js` extension.
-  - `apps/desktop/src` uses `moduleResolution: bundler` (Vite). Relative imports **must not** include a file extension — Vite resolves `.ts`/`.tsx` without it, and the extensions are misleading noise.
+- **Comments** — Add a comment only when the WHY is non-obvious: a hidden
+  constraint, a subtle invariant, a workaround for a specific bug, or behaviour
+  that would surprise a reader. Never describe WHAT the code does. Never
+  reference milestone numbers or sprint context in source — those belong in
+  commit messages.
+- **Workspace imports.** Import internal packages as `@gpt/gpt-core`, never via
+  relative paths that cross package boundaries.
+- **No `.js` import extensions.** `tsconfig.base.json` sets `nodenext`, and
+  every project overrides it with `moduleResolution: bundler`. Relative imports
+  carry no file extension anywhere in this workspace.
+- **No non-null assertions (`!`) in production code.** Use type narrowing
+  (`if (!x) return`) or widen the guard.
+- **No `as` type assertions** unless casting to or from `unknown` at a system
+  boundary — Tauri IPC and `JSON.parse` are the two that qualify. Prefer type
+  guards.
+- **`cn()` for all className construction.** Never `[...].join(" ")` — `cn()`
+  resolves Tailwind conflicts correctly.
+- **No dead code.** Remove unreferenced files and placeholder components rather
+  than leaving them with a TODO.
 
 ## Testing conventions
 
-- Use Vitest for all tests.
-- Test file names: `<subject>.spec.ts` or `<subject>.spec.tsx`.
-- Test names: **`should <action> when <condition>`**
-- Structure each test with **Given / When / Then** comments.
-- Mock external I/O (filesystem, git, AlphaTab API) — never hit real files in unit tests.
-- Integration tests (CLI commands end-to-end) live in `apps/cli/src/**/*.integration.spec.ts` and use a real temp directory.
-- Do NOT write tests for placeholder/skeleton components. Only test components and functions with real logic.
+- Vitest for TypeScript, `cargo test` for Rust.
+- Test file names: `<subject>.spec.ts` / `<subject>.spec.tsx`.
+- Test names: **`should <action> when <condition>`**, structured with Given /
+  When / Then comments. The Rust suite names its tests as sentences instead —
+  `a_burst_of_writes_debounces_into_one_capture`.
+- Mock external I/O in TypeScript unit tests. The Rust tests do the opposite
+  where it is cheap: real temp dirs, real fs events, real bare repos in a
+  tempdir for push and fetch. libgit2 treats a local bare repo as a real remote,
+  so sync logic is covered without a network.
+- Do NOT write tests for placeholder or skeleton components.
+- Two things no suite covers, both manual walkthroughs:
+  `docs/alpha-smoke-test.md` (the whole loop, against the bundle) and
+  `docs/forgejo-check.md` (TLS and token auth against a real server).
 
 ## Frontend code style
 
-- **`function` keyword** — React components and top-level named functions must use `function` declarations, not arrow-function assignments. `function Foo()` not `const Foo = () =>`. Enforced via `react/function-component-definition`.
-- **No CSS modules** — `.module.css` / `.module.scss` imports are banned. Use **Tailwind CSS** or **styled-components** only. Enforced via `no-restricted-imports`.
-- **UI library — shadcn/ui first, every time.** This is non-negotiable. Before writing any markup:
+- **`function` keyword** — React components and top-level named functions must
+  use `function` declarations, not arrow-function assignments.
+- **No CSS modules** — `.module.css` / `.module.scss` imports are banned. Use
+  Tailwind. Enforced via `no-restricted-imports`.
+- **UI library — shadcn/ui first, every time.** This is non-negotiable. Before
+  writing any markup:
   1. Check `apps/companion/src/components/ui/` for an existing primitive.
-  2. If missing, search the registry with the **shadcn MCP** (`mcp__shadcn__search_items_in_registries`, `mcp__shadcn__view_items_in_registries`).
-  3. Install with `pnpm dlx shadcn@latest add @shadcn/<name>` from `apps/companion/`. The shadcn config is at `apps/companion/components.json`; aliases use `@/...`.
-  4. Theme via the existing `apps/companion/src/styles/app.css` (Tailwind v4 `@theme inline` maps Gitarpro tokens onto shadcn's slots). Never override component internals — adjust the theme variables instead.
-  5. Use **shadcn variant names verbatim** (`default | destructive | outline | secondary | ghost | link`). Do not invent `primary`/`subtle`/`danger`.
-  6. Use **shadcn slot classes** (`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-card`, `bg-accent`, `border-border`, `text-destructive`). Never `text-fg-meta`, `border-border-subtle`, `text-fg-muted`, etc. — those are dead.
-  7. Never re-implement Button, Card, Tabs, ScrollArea, Tooltip, Empty, Alert, Skeleton, Separator, Badge, ToggleGroup, Sonner, Spinner, Dialog, etc. from scratch.
-- **BaseUI** — use only for headless primitives that shadcn doesn't ship.
-- **Two window surfaces** — the panel (`apps/companion/src/panel/`) is frameless, transparent, always-on-top and never recreated; the extended window (`apps/companion/src/extended/`) is a normal decorated window created lazily. They are separate Vite inputs with their own entry HTML. Panel latency is the product: if hotkey→visible exceeds ~100 ms, fix that before adding anything to it.
-- **Design system** — follow the Gitarpro design system at all times: tokens from `colors_and_type.css`, Bauhaus font for UI text, Space Mono for hashes/paths/CLI output, 2px sharp radii, accent color sparingly.
-- **Skill** — invoke the `frontend-design` skill when implementing UI components or pages.
+  2. If missing, search the registry with the **shadcn MCP**
+     (`mcp__shadcn__search_items_in_registries`,
+     `mcp__shadcn__view_items_in_registries`).
+  3. Install with `pnpm dlx shadcn@latest add @shadcn/<name>` from
+     `apps/companion/`. The config is `apps/companion/components.json`; aliases
+     use `@/...`.
+  4. Theme via `apps/companion/src/styles/app.css` (Tailwind v4 `@theme inline`
+     maps Gitarpro tokens onto shadcn's slots). Never override component
+     internals — adjust the theme variables instead.
+  5. Use **shadcn variant names verbatim** (`default | destructive | outline |
+     secondary | ghost | link`). Do not invent `primary`/`subtle`/`danger`.
+  6. Use **shadcn slot classes** (`bg-background`, `text-foreground`,
+     `text-muted-foreground`, `bg-card`, `bg-accent`, `border-border`,
+     `text-destructive`). Never `text-fg-meta`, `border-border-subtle`,
+     `text-fg-muted` — those are dead.
+  7. Never re-implement Button, Card, Tabs, ScrollArea, Tooltip, Empty, Alert,
+     Skeleton, Separator, Badge, ToggleGroup, Spinner, Dialog, etc.
+- **Base UI** — use only for headless primitives shadcn does not ship.
+- **Two window surfaces** — the panel (`src/panel/`) is frameless, transparent,
+  always-on-top and never recreated; the extended window (`src/extended/`) is a
+  normal decorated window created lazily. Separate Vite inputs, separate entry
+  HTML. **Panel latency is the product**: if hotkey→visible exceeds ~100 ms, fix
+  that before adding anything to it.
+- **`var(--color-accent)` means two things.** In raw CSS it is the brand red
+  from `tokens.css`; only the `@theme inline` utilities carry shadcn's
+  hover-surface meaning. Name the token you actually want.
+- **Design system** — tokens from `colors_and_type.css`, Bauhaus for UI text,
+  Space Mono for hashes and paths, 2px radii, accent colour sparingly.
+- **Skill** — invoke the `frontend-design` skill when implementing UI.
 
 ## Linting
 
-The root `eslint.config.mjs` applies automatically to all packages. Key rules:
+The root `eslint.config.mjs` applies to the whole workspace. Key rules:
+
 - `@typescript-eslint/no-explicit-any` — error
 - `react-hooks/rules-of-hooks` — error
-- `react-hooks/exhaustive-deps` — warn
-- `@typescript-eslint/consistent-type-imports` — enforced (use `import type`)
-- `no-restricted-syntax` (React files) — error (named PascalCase components must use `function` declaration, not arrow functions)
-- `no-restricted-imports` (React files) — error (CSS module imports banned)
+- `@typescript-eslint/consistent-type-imports` — enforced (`import type`)
+- `no-restricted-syntax` (React files) — PascalCase components must be
+  `function` declarations
+- `no-restricted-imports` (React files) — CSS module imports banned
 - `@eslint-react/no-nested-component-definitions` — error
-- `@eslint-react/no-array-index-key` — warn
-- Test files get relaxed rules (no-explicit-any off, no-non-null-assertion off)
+- Test files get relaxed rules (`no-explicit-any` and `no-non-null-assertion`
+  off)
 
-> Note: React rules use `@eslint-react/eslint-plugin` (ESLint 10 compatible) instead of the legacy `eslint-plugin-react@7.x`, which is broken on ESLint 10.
+> React rules use `@eslint-react/eslint-plugin` (ESLint 10 compatible) rather
+> than the legacy `eslint-plugin-react@7.x`, which is broken on ESLint 10.
 
 ---
 
 ## AlphaTab rules
 
-- **`loadScoreFromBytes` always needs a true `Uint8Array`.** Wrap with `new Uint8Array(bytes)` — AlphaTab calls `.subarray()` internally, which does not exist on `ArrayBuffer`. A bare `bytes.buffer` or `bytes.buffer.slice()` will throw `TypeError: this._buffer.subarray is not a function`.
+- **`loadScoreFromBytes` always needs a true `Uint8Array`.** Wrap with
+  `new Uint8Array(bytes)` — AlphaTab calls `.subarray()` internally, which does
+  not exist on `ArrayBuffer`. A bare `bytes.buffer` or `bytes.buffer.slice()`
+  throws `TypeError: this._buffer.subarray is not a function`.
 
-- **Bar bounds lookup.** After `postRenderFinished`, use `api.boundsLookup.findMasterBarByIndex(i)` (not `api.renderer.boundsLookup`). Returns `MasterBarBounds { visualBounds: { x, y, w, h } }`.
+- **Bar bounds lookup.** After `postRenderFinished`, use
+  `api.boundsLookup.findMasterBarByIndex(i)` (not `api.renderer.boundsLookup`).
+  Returns `MasterBarBounds { visualBounds: { x, y, w, h } }`.
 
-- **Overlay injection.** Inject overlay divs imperatively into `viewportEl` (same as AlphaTab's own cursor elements). Use `position:absolute;inset:0;pointer-events:none;overflow:visible` on the container. Clean up with `viewportEl.removeChild(container)` on effect teardown.
+- **Overlay injection.** Inject overlay divs imperatively into `viewportEl`, the
+  same way AlphaTab's own cursor elements go in. Use
+  `position:absolute;inset:0;pointer-events:none;overflow:visible` on the
+  container, and clean up with `viewportEl.removeChild(container)` on teardown.
 
-- **`optimizeDeps.exclude`.** Every Vite config that imports AlphaTab must have `optimizeDeps: { exclude: ["@coderline/alphatab"] }`. Without it, esbuild strips `import.meta.url` worklet references and rendering silently breaks.
+- **The cursor sits at z-index 1000.** Contain it with `isolation: isolate` on
+  the stage rather than trying to outbid it from an overlay.
 
-- **`isReadyForPlayback` resets on load.** Set it back to `false` whenever a new score starts loading — stale `true` causes premature `play()` calls.
+- **`optimizeDeps.exclude`.** Every Vite config importing AlphaTab must have
+  `optimizeDeps: { exclude: ["@coderline/alphatab"] }`. Without it, esbuild
+  strips `import.meta.url` worklet references and rendering silently breaks.
 
-- **`stop()` can throw.** Wrap in try/catch (AlphaTab 1.8.x bug). After catching, dispatch a `stopped` event manually to reset UI state.
+- **The webview CSP must allow `blob:` scripts and workers.** AlphaTab renders
+  through a worker and plays through an audio worklet.
 
-- **`Score.tempo` is getter-only.** `Score.tempo` is computed from `masterBars[0].tempoAutomations[0].value` — there is no setter. To change tempo, mutate the existing `Automation` at `ratioPosition === 0` in `masterBars[0].tempoAutomations`, or create one via `new model.Automation()` if none exists. Never write `score.tempo = value` — it throws at runtime.
+- **`isReadyForPlayback` resets on load.** Set it back to `false` whenever a new
+  score starts loading — a stale `true` causes premature `play()` calls.
 
-- **`gpt-core` bundle must be rebuilt after source changes.** The CLI resolves `@gpt/gpt-core` to `packages/gpt-core/dist/index.js` (a Vite/rollup bundle via the pnpm workspace symlink). Editing source files under `packages/gpt-core/src/` has no effect on the running `gpt serve` process until you run `pnpm nx build @gpt/gpt-core` and restart the server.
+- **`stop()` can throw.** Wrap in try/catch (AlphaTab 1.8.x bug). After
+  catching, dispatch a `stopped` event manually to reset UI state.
 
-- **`ScoreDiff` computation in the desktop.** Never try to deserialize `ScoreDiff` from HTTP — it contains live `alphaTab.model.Score` objects that don't survive JSON. Fetch both `.gp` blobs from `GET /show/:hash/:file`, then call `diffScores()` client-side inside `useDiffScores`.
+- **`Score.tempo` is getter-only.** It is computed from
+  `masterBars[0].tempoAutomations[0].value`. To change tempo, mutate the
+  existing `Automation` at `ratioPosition === 0`, or create one via
+  `new model.Automation()`. `score.tempo = value` throws at runtime.
+
+- **Diffs are computed in the webview, never serialized.** `ScoreDiff` holds
+  live `alphaTab.model.Score` objects that do not survive JSON. `getVersionBlob`
+  returns raw bytes for exactly this reason — fetch both versions, then call
+  `diffScores()` client-side.
 
 ---
 
-## Base UI (`@base-ui-components/react`) rules
+## Base UI (`@base-ui/react`) rules
 
-- **`asChild` does not exist in BaseUI.** `asChild` is a Radix UI / shadcn pattern. BaseUI uses a `render` prop instead — e.g. `<Tooltip.Trigger render={<button />}>`. Never pass `asChild` to a BaseUI component; it will be silently ignored and the component won't render as expected.
+- **`asChild` does not exist in Base UI.** That is a Radix/shadcn pattern. Base
+  UI uses a `render` prop — `<Tooltip.Trigger render={<button />}>`. Passing
+  `asChild` is silently ignored.
 
-- **`data-orientation` ≠ `data-horizontal:`.** Base UI sets `data-orientation="horizontal"` (string attribute). Tailwind's `data-horizontal:` expands to `[data-horizontal]:` (boolean attribute selector) — they do **not** match; the utility is silently ignored. Use hardcoded height/dimension classes instead of orientation-conditional ones in Base UI-backed components. (`data-disabled:` works because Base UI sets `data-disabled=""`, a boolean-style empty attribute.)
+- **`data-orientation` ≠ `data-horizontal:`.** Base UI sets
+  `data-orientation="horizontal"` (a string attribute); Tailwind's
+  `data-horizontal:` expands to `[data-horizontal]:` (a boolean attribute
+  selector). They do not match and the utility is silently dropped. Use
+  hardcoded dimension classes instead. (`data-disabled:` works because Base UI
+  sets `data-disabled=""`.)
 
 ---
 
 ## Synchronized scroll pattern
 
-When mirroring scroll between two containers, use an `isSyncing` ref to prevent mutual listener loops. Reset via `requestAnimationFrame`, not `setTimeout`, so the flag clears in the same paint cycle:
+When mirroring scroll between two containers, use an `isSyncing` ref to prevent
+mutual listener loops. Reset via `requestAnimationFrame`, not `setTimeout`, so
+the flag clears in the same paint cycle:
 
 ```ts
 const isSyncing = useRef(false);
@@ -194,118 +288,67 @@ const syncFrom = (source: HTMLDivElement, target: HTMLDivElement) => () => {
 };
 ```
 
-When imperatively setting `scrollTop` from a click handler, also set `isSyncing.current = true` before touching both elements.
+When imperatively setting `scrollTop` from a click handler, also set
+`isSyncing.current = true` before touching both elements.
+
+> Note that the diff panes are **anchored, not scroll-synced** — see
+> `docs/adr/0005`. The pattern above still applies wherever two viewports do
+> need to track each other.
 
 ---
 
 ## `@gpt/alphatab-react` package rules
 
-- Always update `packages/alphatab-react/src/index.ts` when adding a new export. Forgetting breaks consumers silently — tree-shaking hides missing exports until runtime.
-- The `@gpt/source` export condition in `package.json` lets Vite resolve TypeScript source directly. Do not add a build step just to test desktop ↔ package integration in dev.
+- Always update `packages/alphatab-react/src/index.ts` when adding an export.
+  Forgetting breaks consumers silently — tree-shaking hides a missing export
+  until runtime.
+- The `@gpt/source` export condition lets Vite resolve TypeScript source
+  directly, and `apps/companion/vite.config.mts` honours it. This is what keeps
+  `tauri dev` on source: the fallback is each package's `dist`, which nothing
+  rebuilds during a dev session, so edits to the diff engine would show up in
+  typecheck and tests but silently not in the running app.
 
 ---
-
-## Merge HTTP API conventions
-
-- `GET /merge` — returns `{ active: false }` or `{ active: true, sidecar, unresolved }`. Always safe to call.
-- `POST /merge` — body `{ branch, noCommit? }`. Returns 200 for clean/fast-forward, **409 for conflicts** (not 500). `data` is the `MergeOutcome` discriminated union.
-- `PUT /merge/resolve` — body `{ file, path, resolution: "ours"|"theirs" }`. `path` is a `ConflictLocation.path` string from the sidecar. Updates sidecar on disk, returns `{ unresolved, fullyResolved }`.
-- `POST /merge/finalize` — body `{ message? }`. Requires all conflicts resolved (409 otherwise). Applies bar-level resolutions: finds `track[T].bar[B]` in the path, copies theirs' bar into ours, re-exports, stages, commits, deletes sidecar. Returns `{ commitHash, shortHash }`.
-- `DELETE /merge` — removes the sidecar only. Does **not** restore working-tree file contents.
-- Resolution granularity is **bar-level in v1**: `parseBarRef("track[0].bar[4].voice[...]...")` extracts `{trackIndex, barIndex}`. Paths that don't match (e.g. `score.tempo`) are skipped for now.
-
-## Merge UI conventions (5.3)
-
-- `MergeView` reads `useMergeStatus` on mount; branches on `active` vs idle.
-- `useResolveConflict` uses **optimistic updates** (`onMutate` sets cache immediately, `onError` rolls back). Resolution feels instant even on slow drives.
-- `POST /merge` always returns `{ ok: true, data: MergeOutcome }` with **status 200** — caller checks `outcome.type`. The 409 convention was reverted because `unwrap()` throws on `!ok`.
-- `humanPath(path)` in `features/merge/conflictPath.ts` converts raw `ConflictLocation.path` strings to readable labels. Update it when adding new path segment types.
-- The sidebar Merge nav item shows an unresolved-count badge by reading `useMergeStatus` in `RepoShell` — keep the query lightweight (staleTime: 0, no polling interval).
-- Kind badge mapping: `field` → blue/info, `structural-note` / `structural-beat` → amber/changed.
-- Color convention in merge UI: **ours = info (blue)**, **theirs = diff-added (green)**, **unresolved = diff-changed (amber)**. Match this in any future AlphaTab-based conflict previews.
 
 ## Merge algorithm rules
 
-- **`MergeCell<T>` is the core abstraction.** Every mergeable scalar at every level — meta, masterBar, beat, note — is one `MergeCell<T>`. Adding a new field is one line: `field: cell(base.field, ours.field, theirs.field)`.
+`gpt-core` still owns merge and it is still tested. There is no UI on it —
+locked decision 8 keeps merge out of v1, and pull fast-forwards or stops.
 
-- **Boolean fields cannot produce 3-way conflicts.** Two states (true/false) can never all differ. Only numeric and string fields can conflict.
+- **`MergeCell<T>` is the core abstraction.** Every mergeable scalar at every
+  level — meta, masterBar, beat, note — is one `MergeCell<T>`. Adding a field is
+  one line: `field: cell(base.field, ours.field, theirs.field)`.
 
-- **"Both-added" notes use `newField(ours, theirs)` not `cell()`.** When both sides add a note at the same string but the string didn't exist in base, using `cell(ours, ours, theirs)` accidentally auto-resolves to theirs (it looks like "base==ours, take theirs"). Use the dedicated `newField` helper instead.
+- **Boolean fields cannot produce 3-way conflicts.** Two states can never all
+  differ. Only numeric and string fields can conflict.
 
-- **`diff.ts` stays bar-level; `merge.ts` goes to note-level.** The diff is for visualization (highlighting whole bars). The merge needs note precision to minimize what users must manually resolve. Don't conflate the two.
+- **"Both-added" notes use `newField(ours, theirs)`, not `cell()`.** When both
+  sides add a note at a string that did not exist in base, `cell(ours, ours,
+  theirs)` accidentally auto-resolves to theirs — it looks like "base == ours,
+  take theirs".
 
-- **`fingerprint.ts` is the shared source of truth.** Both `diff.ts` and `merge.ts` import from `fingerprint.ts`. Never duplicate `barFingerprint`, `noteSnapshot`, or `beatSnapshot`.
+- **`diff.ts` stays bar-level; `merge.ts` goes to note-level.** The diff is for
+  visualization (highlighting whole bars); the merge needs note precision to
+  minimize what a user must resolve by hand. Do not conflate them.
 
-- **`BarDiff.changed` always carries `changedFields: BarChangedField[]`.** Categories: `"notes"`, `"beats"`, `"articulation"`, `"dynamics"`. Used by the CLI summary and the `<TabDiff>` chip breakdown. Populate it via `categorizeBarChanges()`, not by adding fields to the fingerprint.
+- **`fingerprint.ts` is the shared source of truth.** Both import from it. Never
+  duplicate `barFingerprint`, `noteSnapshot` or `beatSnapshot`.
 
-- **`ConflictLocation.path` format:** `meta.tempo`, `masterBar[2].timeSignatureNumerator`, `track[0].bar[4].voice[0].beat[2].note[s=3].fret`, `track[0].bar[4].voice[0].structuralBeats`.
+- **`BarDiff.changed` always carries `changedFields: BarChangedField[]`** —
+  `"notes"`, `"beats"`, `"articulation"`, `"dynamics"`. Populate via
+  `categorizeBarChanges()`, not by adding fields to the fingerprint.
 
----
-
-## Commit log ordering
-
-`/log` returns commits newest-first (index 0 = most recent). When determining base vs head for a diff, the commit at the **higher index** is the older one (base); the commit at the **lower index** is the newer one (head).
-
----
-
-## Current milestone status (as of 2026-05-01)
-
-| Milestone | Status |
-|---|---|
-| M1 — CLI: load & version `.gp` files | ✅ Done |
-| M2 — Desktop: open repo & browse history | ✅ Done |
-| M3 — Desktop: commit workflow | ✅ Done |
-| M4 — Diff view & branching | ✅ Done |
-| M5 — Merge | ✅ Done |
-| M6 — Daily driver polish | 🔲 Not started |
-| M7 — Git power features | 🔲 Not started |
-| M8 — Remote backup & sharing | 🔲 Not started |
-| M9 — Commit graph & visual history | 🔲 Not started |
+- **`ConflictLocation.path` format:** `meta.tempo`,
+  `masterBar[2].timeSignatureNumerator`,
+  `track[0].bar[4].voice[0].beat[2].note[s=3].fret`,
+  `track[0].bar[4].voice[0].structuralBeats`.
 
 ---
 
-## Missing CLI commands (to add in M6–M7)
+## Milestone status
 
-| Command | HTTP equivalent | Notes |
-|---|---|---|
-| `gpt reset HEAD <file>` | `DELETE /staged` | Unstage; deferred from M3 |
-| `gpt tag [--list\|--delete] <name> [<hash>]` | `GET/POST/DELETE /tags` | Version milestones |
-| `gpt stash` / `gpt stash pop` / `gpt stash list` | `GET/POST/DELETE /stash` | isomorphic-git has no native stash; use `refs/gpt-stash/<n>` ref shim |
-| `gpt commit --amend` | `POST /commit { amend: true }` | Amend last commit |
-| `gpt log --file <path>` | `GET /log?file=<path>` | isomorphic-git `filepath` option in `git.log()` |
-| `gpt restore <hash> <file>` | `POST /restore` | Overwrite working-tree file with version at commit |
-| `gpt remote add/remove/list` | `GET/POST/DELETE /remotes` | Standard git remotes |
-| `gpt push` / `gpt pull` / `gpt clone` | `POST /push`, `POST /pull`, `POST /clone` | isomorphic-git HTTPS transport |
+The companion's plan, the decisions behind it, and what each milestone actually
+landed versus what it was scoped to: `docs/companion-v1-plan.md`. That file is
+the record — do not duplicate its status here, it only goes stale.
 
----
-
-## UX conventions established in M1–M5 (do not break)
-
-- **`+` button on unstaged rows** → stage. The `-` counterpart (unstage, M6.1) goes on staged rows at the same position.
-- **JetBrains-style action buttons** appear on row hover (right side). Spinner replaces the button during mutation.
-- **Sonner toasts for all mutation outcomes** — success and error. Never use `alert()` or inline error text persisting beyond 3 s.
-- **TanStack Query invalidation pattern** — after any mutation, invalidate the specific keys: `["status", repoPath]`, `["log", repoPath]`, `["branches", repoPath]`. Do not call `queryClient.invalidateQueries()` with no filter.
-- **Zustand store is navigation-only** — never put server state here. If a value can be a query key, it should be.
-- **`staleTime` policy** — `0` for `/status` and `/merge` (must be fresh); `2000` for `/log` and `/branch` (eliminates focus-refetch flicker). This is fixed in M6.6.
-
----
-
-## Known TODOs carried over from M5
-
-- `/repo/history` redirects to `/repo/status` — the History nav item toggles `historyPanelOpen` in Zustand instead of navigating. Temporary workaround; M6 should give History its own view.
-- `ViewPlaceholder` at `/repo/diff` is still a stub. The diff flow goes through the History view (selecting two commits). Remove or wire it to cross-branch diff (M7.6).
-- Unstage (`gpt reset HEAD <file>`) was explicitly deferred in M3.2 with the note "not in API yet." This is M6.1.
-- `staleTime: 0` on all queries causes refetch flicker on window focus. Fixed in M6.6.
-
----
-
-## `gpt-core` rebuild requirement
-
-`packages/gpt-core/src/` changes have **no effect** on a running `gpt serve` until you rebuild:
-
-```bash
-pnpm nx build @gpt/gpt-core   # one-off rebuild
-pnpm nx watch @gpt/gpt-core   # auto-rebuild on change (run in a separate terminal during dev)
-```
-
-The CLI resolves `@gpt/gpt-core` to `packages/gpt-core/dist/index.js` via the pnpm workspace symlink. Source edits are invisible until the dist is regenerated.
+Architecture decision records are in `docs/adr/`.
