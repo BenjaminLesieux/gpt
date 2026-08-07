@@ -124,20 +124,10 @@ export default tseslint.config(
     files: ["packages/alphatab-react/**/*.{ts,tsx}"],
     extends: [...react],
   },
-  // apps/desktop (renderer)
-  {
-    files: ["apps/desktop/src/**/*.{ts,tsx}"],
-    extends: [...react],
-  },
   // apps/companion (Tauri webview: panel + extended window)
   {
     files: ["apps/companion/src/**/*.{ts,tsx}"],
     extends: [...react],
-  },
-  // apps/desktop (electron main + preload — no React, Node-like context)
-  {
-    files: ["apps/desktop/electron/**/*.ts"],
-    extends: [...node],
   },
   // Test files — relax some rules
   {
