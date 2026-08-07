@@ -44,7 +44,10 @@
   /* Strokes */
   --color-border:              #2a2a2a;
   --color-input:               #2a2a2a;
-  --color-ring:                oklch(55% 0.16 22 / 60%);
+  /* Neutral on purpose: red is spoken for by destructive/brand/diff-removed,
+     and a red focus ring makes every focused field look like it failed
+     validation. Hue is what separates "you are here" from "this is wrong". */
+  --color-ring:                oklch(80% 0 0 / 70%);
 
   /* Diff palette */
   --color-diff-added:          oklch(58% 0.13 145);
