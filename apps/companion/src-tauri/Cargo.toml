@@ -25,10 +25,19 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Storage: one bare repo per tracked file, and the transport that syncs it.
-# `https` only — on macOS libgit2 speaks it through SecureTransport, so this
-# costs no openssl. `ssh` would drag in libssh2 and stays unbuilt until
-# something asks for it.
-git2 = { version = "0.21", default-features = false, features = ["https"] }
+# `ssh` would drag in libssh2 and stays unbuilt until something asks for it.
+#
+# `vendored-openssl` is not about which TLS backend git2 uses — on Apple that is
+# SecureTransport, and libgit2 is compiled without an OpenSSL line in it. It is
+# about `libgit2-sys::openssl_init`, which is gated on `all(unix, https)` and so
+# calls `OPENSSL_init_ssl` on macOS too. That one live call is enough to put a
+# `/opt/homebrew` load command in the binary, which is not a path a user has and
+# not a signature the hardened runtime will map. Vendoring resolves the symbol
+# inside the binary and the dependency disappears.
+git2 = { version = "0.21", default-features = false, features = [
+  "https",
+  "vendored-openssl",
+] }
 # Save detection. Watching is per parent directory (Guitar Pro saves
 # atomically, so the inode of the file itself is replaced).
 notify = "8"
