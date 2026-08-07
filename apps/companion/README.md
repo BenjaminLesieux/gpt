@@ -95,7 +95,7 @@ src-tauri/
   src/push.rs      # the background push queue
   src/pull.rs      # taking a remote version into the score on disk
   src/secrets.rs   # remote tokens, in the system keychain
-  src/normalize.rs # deterministic .gp rebuild (port of gpt-core's normalizeGp)
+  src/normalize.rs # deterministic .gp rebuild — the only implementation
   src/watcher.rs   # save detection → auto-snapshot
   src/events.rs    # events pushed to the webview
   src/panel.rs     # show/hide/position the hotkey panel
@@ -121,10 +121,13 @@ Pruning rewrites the kept snapshots, so their ids change — re-list rather than
 holding one across a prune.
 
 Bytes are run through `normalize_gp` before hashing, so a Guitar Pro save that
-changed no music produces no new version. That is a Rust port of `gpt-core`'s
-`normalizeGp`: auto-snapshots fire from a background thread and must not depend
-on a live webview. It only rebuilds the zip container — everything that
-understands a *score* stays in `gpt-core`.
+changed no music produces no new version. It lives in Rust because
+auto-snapshots fire from a background thread and must not depend on a live
+webview. It began as a port of a TypeScript version in `gpt-core`, which went
+with the CLI in M6 — there is one implementation now, and no pair that has to
+agree on byte-exact output. It only rebuilds the zip container: everything that
+understands a *score* stays in `gpt-core`. See
+[`docs/normalize-gp.md`](../../docs/normalize-gp.md).
 
 Untracking keeps the repo, so re-tracking the same path finds its history.
 
