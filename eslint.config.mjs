@@ -92,19 +92,15 @@ const react = tseslint.config(
   }
 );
 
-// ─── Node surface (cli + gpt-core) ───────────────────────────────────────────
+// ─── Non-React surface (gpt-core) ────────────────────────────────────────────
 
-const node = tseslint.config(
-  ...base,
-  {
-    rules: {
-      // Effect.ts uses lots of generators; allow complex functions
-      "max-lines-per-function": "off",
-      // Node scripts often use process.exit — allow it
-      "no-process-exit": "off",
-    },
-  }
-);
+const node = tseslint.config(...base, {
+  rules: {
+    // The diff walks a whole score in one pass; splitting it up to satisfy a
+    // line count would not make it easier to follow.
+    "max-lines-per-function": "off",
+  },
+});
 
 // ─── Per-project overrides ────────────────────────────────────────────────────
 
@@ -112,11 +108,6 @@ export default tseslint.config(
   // packages/gpt-core
   {
     files: ["packages/gpt-core/**/*.ts"],
-    extends: [...node],
-  },
-  // apps/cli
-  {
-    files: ["apps/cli/**/*.ts"],
     extends: [...node],
   },
   // packages/alphatab-react
