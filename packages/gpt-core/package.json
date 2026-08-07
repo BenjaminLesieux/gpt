@@ -16,9 +16,6 @@
     }
   },
   "dependencies": {
-    "@coderline/alphatab": "^1.8.2",
-    "effect": "^3.21.1",
-    "fflate": "^0.8.3",
-    "isomorphic-git": "^1.37.5"
+    "@coderline/alphatab": "^1.8.2"
   }
 }

@@ -52,7 +52,3 @@ export { alignedSystems, DEFAULT_BARS_PER_ROW } from "./systems";
 export type { AlignedSystems } from "./systems";
 export { mergeScores } from "./merge";
 export { applyMerge } from "./applyMerge";
-
-// Guitar Pro file normalization (git clean filter)
-export { normalizeGp } from "./normalizeGp";
-export type { NormalizeGpOptions } from "./normalizeGp";
