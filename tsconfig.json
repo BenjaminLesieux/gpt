@@ -10,9 +10,6 @@
       "path": "./packages/gpt-core"
     },
     {
-      "path": "./apps/cli"
-    },
-    {
       "path": "./apps/companion"
     }
   ]
