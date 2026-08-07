@@ -67,12 +67,19 @@ M5 grew a half the plan did not scope: **pull**. Push alone is a backup, not ver
 
 Not done, and deliberately: **clone-to-track**, i.e. adding a score from a remote URL on a second machine. v1 assumes the `.gp` already exists locally and gets pointed at a remote. That is its own story.
 
-**M6 — Cleanup & ship.** Delete `apps/desktop`, `apps/desktop-e2e`, `apps/cli`; macOS bundle/signing via Tauri bundler; smoke-test the full loop (track → save → snapshot → hotkey commit → diff → restore → push).
+**M6 — Cleanup & ship.** ✅ Delete `apps/desktop`, `apps/desktop-e2e`, `apps/cli`; macOS bundle/signing via Tauri bundler; smoke-test the full loop (track → save → snapshot → hotkey commit → diff → restore → push).
 
-Deleting the CLI orphans the TypeScript `normalizeGp` (`packages/gpt-core/src/normalizeGp.ts` + spec + the `index.ts` exports) — the CLI is its last consumer, so it goes too, leaving `apps/companion/src-tauri/src/normalize.rs` as the single implementation. Two caveats:
+The three apps are gone, and the TypeScript `normalizeGp` with them — the CLI was its last consumer, so `apps/companion/src-tauri/src/normalize.rs` is the single implementation now. The `volatileElements` caveat resolved in favour of deleting: nothing called it, and the Rust port covers everything else and a little more. `normalize-gp.md` is retargeted and the clean-filter recipe is gone. `gpt-core` is down to one dependency; `effect` and `isomorphic-git` turned out to have been unreferenced for some time.
 
-- The Rust port does **not** implement the `volatileElements` option (blanking named XML elements). It is unused today; if a Guitar Pro version turns out to rewrite an element inside `score.gpif` on every save, port the option to Rust *before* deleting the TS version.
-- `docs/normalize-gp.md` explains why `.gp` bytes churn — worth keeping, but retarget it at `normalize.rs` and drop the `.gitattributes` clean-filter recipe.
+Three things the milestone found that it was not looking for.
+
+*Shipping is what runs the bundle.* Every check to this point had run `tauri dev`, and the `.app` did not start at all: `git2/https` puts `openssl-sys` in the link, and the binary carried a load command for the build machine's Homebrew prefix. The hardened runtime — which only a bundle gets — refused it a second time over the team id. M5's note that openssl "goes unused" was the reason nobody looked; `libgit2_sys::openssl_init` is gated on `all(unix, https)` without excluding Apple, so it is called. Vendored now. **A milestone that ends in a distributable artifact has to build and launch that artifact, not a debug build of it.**
+
+*Two small things the dev build cannot show either.* The dock icon appeared for a moment at every launch, because `set_activation_policy` runs from `setup` and AppKit has decided by then; `LSUIElement` in an `Info.plist` fixes it and only exists in a bundle. And the tray wore the colour app icon, which a menu bar cannot recolour — it now draws a black-on-alpha plectrum as a template.
+
+*The alpha smoke test is [`alpha-smoke-test.md`](alpha-smoke-test.md)*, deliberately written against the bundle for the reasons above. It stops short of Guitar Pro itself, which no automation here reaches.
+
+Not done: notarization. The alpha is ad-hoc signed, so Gatekeeper rejects it and the Accessibility grant dies on every rebuild — an ad-hoc signature has no team identity, so TCC keys the permission to the code hash. Both are one environment variable away from fixed and neither is a code change.
 
 ### Parallelization
 

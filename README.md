@@ -63,7 +63,3 @@ Tasks go through Nx, always — `pnpm nx ...`, never the underlying tool.
 
 Alpha. macOS only. No merge and no branches by design — a score changed in two
 places is reported and left alone rather than combined badly.
-
-> **Being retired:** `apps/desktop`, `apps/desktop-e2e` and `apps/cli` are the
-> pre-pivot Electron app and its engine, kept only until M6 removes them. Do not
-> build on them.
