@@ -21,15 +21,12 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         ],
     )?;
 
-    // TODO(M6): ship a monochrome template icon instead of the app icon so the
-    // tray adapts to light/dark menu bars.
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or("no default window icon configured")?;
-
     TrayIconBuilder::with_id("gitarpro")
-        .icon(icon)
+        .icon(tauri::include_image!("icons/tray.png"))
+        // The icon is black-on-alpha; as a template macOS recolours it to match
+        // the menu bar, including the inversion under a dark or tinted one. The
+        // app icon cannot do that — it is a colour logotype on an opaque square.
+        .icon_as_template(true)
         .tooltip("Gitarpro")
         .menu(&menu)
         // Left click toggles the panel; the menu is right-click only.

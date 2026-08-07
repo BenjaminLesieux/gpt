@@ -183,9 +183,13 @@ Two styling notes worth knowing before touching `styles/app.css`:
 ## Notes
 
 - The app runs as a macOS *accessory* (no dock icon); the tray is the only
-  entrypoint.
-- The tray currently reuses the app icon. A monochrome template icon that
-  adapts to light/dark menu bars is a M6 task.
+  entrypoint. `LSUIElement` in [`src-tauri/Info.plist`](src-tauri/Info.plist)
+  says so before AppKit launches — `set_activation_policy` in `lib.rs` runs from
+  `setup`, by which point the dock icon has already appeared and gone.
+- The tray draws [`icons/tray.png`](src-tauri/icons/tray.png), a black-on-alpha
+  plectrum flagged as a template so macOS recolours it for the menu bar it lands
+  in. The brand has only a logotype and `gpt` is unreadable at 16pt, so the tray
+  carries a glyph the rest of the app does not use.
 - `Space Mono` (design-system mono face) is not vendored yet; the fallback
   stack (`Fira Code`, `Courier New`) carries it. The Bauhaus faces are local.
 - Verifying sync against a real server is a manual step — see
