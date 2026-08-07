@@ -15,10 +15,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 `cargo`, `rustfmt` and `clippy` must be on `PATH` (`rustup component add rustfmt clippy`).
 
-OpenSSL headers must also be findable at build time (`brew install openssl@3`).
-Nothing links against them — on Apple targets libgit2 speaks HTTPS through
-SecureTransport — but `libgit2-sys` declares `openssl-sys` for the whole of
-unix, so enabling `https` builds it regardless.
+OpenSSL is vendored, not borrowed from the system, so nothing needs to be
+installed for it — but building it from source wants `perl` and `make` on
+`PATH`, which macOS ships. See the `git2` entry in
+[`Cargo.toml`](src-tauri/Cargo.toml) for why a SecureTransport build links
+OpenSSL at all.
 
 ## Targets
 
