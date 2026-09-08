@@ -120,6 +120,11 @@ export default tseslint.config(
     files: ["apps/companion/src/**/*.{ts,tsx}"],
     extends: [...react],
   },
+  // apps/hub (Fastify server)
+  {
+    files: ["apps/hub/src/**/*.ts"],
+    extends: [...node],
+  },
   // Test files — relax some rules
   {
     files: ["**/*.spec.{ts,tsx}", "**/*.test.{ts,tsx}"],
