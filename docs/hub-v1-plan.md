@@ -148,15 +148,25 @@ a second repo in the same account* — the second half is what proves decision 3
 the same version as everything else: `pnpm add -Dw @nx/node@22.6.5`. Then
 `pnpm nx g @nx/node:application apps/hub --framework=fastify
 --bundler=esbuild --unitTestRunner=none --e2eTestRunner=none --docker`, then
-`pnpm nx sync`. Add `vitest.config.mts` by hand — check `--help` for what the
-generator actually offers before assuming jest-or-nothing, since `@nx/vitest`
-*is* in the workspace. Add `.env` to `.gitignore`
+`pnpm nx sync`. Add `vitest.config.mts` by hand — the generator's
+`unitTestRunner` really is `jest|none`, confirmed against its schema, and the
+workspace runs vitest. Add `.env` to `.gitignore`
 **before** the first secret exists. Register `apps/hub/**/*.ts` in
 `eslint.config.mjs` — the root config is per-path opt-in, so an unregistered
-project is linted by nothing. Env validation, empty Drizzle schema, health
-route, and `src/forgejo/` implementing M1's three calls against mocked HTTP.
+project is linted by nothing. Env validation, health route, and
+`src/forgejo/` implementing M1's three calls against mocked HTTP.
 *Gate: `pnpm nx serve @gpt/hub` responds; `pnpm nx test @gpt/hub` passes;
 `pnpm lint` covers the new files (verify by breaking one deliberately).*
+
+The Drizzle schema does **not** land here as an empty file: `AGENTS.md` bans
+placeholder modules, and M3 creates it one commit later with real tables.
+
+Two things the scaffold settles. The generator sets `bundle: false`, so the
+`better-sqlite3` external-marking pitfall below does not apply unless someone
+turns bundling on — but it also leaves `exclude` empty, which sweeps every
+`*.spec.ts` into `dist`, so that needs closing. And registering the project in
+ESLint immediately errors on the generator's own `import { FastifyInstance }`,
+which answers the "break one deliberately" half of the gate for free.
 
 **M3 — Platform auth.** `accounts` and `sessions` + migrations, argon2id,
 signup/login/logout, session middleware, and `@fastify/rate-limit` on the auth
