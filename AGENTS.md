@@ -97,7 +97,7 @@ pnpm nx run-many -t typecheck         # tsc --build, everywhere
 pnpm nx affected -t test              # only what changed
 pnpm nx cargo-test @gpt/companion     # the Rust suite
 pnpm nx cargo-clippy @gpt/companion   # clippy, warnings are errors
-pnpm lint                             # eslint, whole workspace
+pnpm lint                             # eslint; only over registered paths
 ```
 
 `APPLE_SIGNING_IDENTITY="-"` in front of `bundle` produces the ad-hoc signed
@@ -195,7 +195,13 @@ Nx plugin for Tauri, so its `project.json` targets shell out to `tauri` and
 
 ## Linting
 
-The root `eslint.config.mjs` applies to the whole workspace. Key rules:
+Linting is `pnpm lint` at the root. There is no `lint` target on any project,
+so `nx run-many -t lint` silently does nothing.
+
+The root `eslint.config.mjs` is **per-path opt-in**, not workspace-wide: the
+final `export default` lists each project's files explicitly, and a project
+that is not listed there is linted by nothing at all. A new project has to
+register itself. Key rules:
 
 - `@typescript-eslint/no-explicit-any` — error
 - `react-hooks/rules-of-hooks` — error
