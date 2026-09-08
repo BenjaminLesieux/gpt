@@ -63,3 +63,8 @@ opencode.json
 
 # TypeScript build-mode artifact (nx typecheck runs `tsc --build`)
 *.tsbuildinfo
+
+# secrets
+.env
+.env.*
+!.env.example
