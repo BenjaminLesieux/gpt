@@ -34,6 +34,15 @@ describe('loadEnv', () => {
     expect(() => loadEnv(withoutToken)).toThrow(/FORGEJO_ADMIN_TOKEN/);
   });
 
+
+  it('should reject an empty admin token, not treat it as absent', () => {
+    // Given .env.example copied verbatim, which leaves the token blank
+    // When / Then
+    expect(() => loadEnv({ ...complete, FORGEJO_ADMIN_TOKEN: '' })).toThrow(
+      /FORGEJO_ADMIN_TOKEN/
+    );
+  });
+
   it('should reject a Forgejo URL that is not a URL', () => {
     // Given / When / Then
     expect(() => loadEnv({ ...complete, FORGEJO_URL: 'not-a-url' })).toThrow(
