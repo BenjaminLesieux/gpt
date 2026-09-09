@@ -2,9 +2,11 @@
  * The subset of Forgejo's admin API the hub uses. Field names are Forgejo's,
  * not ours — snake_case throughout.
  *
- * These shapes are transcribed from the plan and have NOT yet been checked
- * against a live instance's /swagger. M1 is what confirms them; neither
- * Forgejo's nor Gitea's published spec is trustworthy on this surface.
+ * Checked field for field against a live forgejo:16.0.3 — `/swagger.v1.json`,
+ * definitions CreateUserOption, CreateRepoOption, CreateAccessTokenOption and
+ * RepoTargetOption. Check behaviour there too, not just shapes: the spec
+ * declares no per-endpoint auth constraints, because those live in router
+ * middleware.
  */
 
 export interface CreateUserOptions {
