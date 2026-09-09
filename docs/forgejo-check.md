@@ -12,11 +12,15 @@ again whenever `remote.rs` or the credential callback changes.
 ## Bring up a server
 
 ```bash
-docker run -d --name forgejo -p 3000:3000 -v forgejo-data:/data codeberg.org/forgejo/forgejo:11
+pnpm nx run @gpt/hub:forgejo-up
 ```
 
-Open <http://localhost:3000>, complete the installer (SQLite is fine), and
-create the admin account. Then:
+That brings up `forgejo:16` on <http://localhost:3001>, creates the site admin
+and mints the hub's token. Port 3001, not 3000, because 3000 is the hub's; the
+version matters because the hub needs admin endpoints that do not exist before
+v16. It prints the admin's web password once — nothing stores it.
+
+Then, signed in as that admin:
 
 1. Create an empty repository — no README, no initial commit. A repo with a
    commit in it is *diverged* from any local score, which is a real case but
@@ -24,7 +28,7 @@ create the admin account. Then:
 2. **Settings → Applications → Generate token**, scope `write:repository`.
    Copy it; Forgejo shows it once.
 
-Forgejo over plain `http://localhost` will make the app warn that the token
+Forgejo over plain `http://localhost:3001` will make the app warn that the token
 travels unencrypted. That warning is correct and worth seeing at least once —
 it is why the check below also covers a real HTTPS host.
 

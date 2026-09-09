@@ -138,10 +138,27 @@ apps/hub/
 account and its PAT by hand (nothing bootstraps the very first admin token —
 this stays manual forever). Then, by throwaway script: the three calls of
 decision 2, with the request bodies checked against the live instance's own
-`/swagger` page rather than against this document. Paste the result into a real
+spec — `/api/swagger` for the UI, `/swagger.v1.json` for the raw document; a
+bare `/swagger` is not a route — rather than against this document. Paste the result into a real
 companion **Set up sync** dialog and push. *Gate: a token minted entirely by
 script authenticates a real companion push, and that same token is rejected by
 a second repo in the same account* — the second half is what proves decision 3.
+
+M1 landed against `forgejo:16.0.3`, and it moved one thing this plan asserted.
+"Nothing bootstraps the very first admin token — this stays manual forever" is
+wrong: `forgejo admin user create` and `forgejo admin user generate-access-token
+--raw` do it from the container's own CLI, and `INSTALL_LOCK` skips the web
+installer entirely, so `pnpm nx run @gpt/hub:forgejo-up` goes from nothing to a
+usable token unattended. That is not the container-exec provisioning decision 2
+rejects — decision 2 governs how the *hub* provisions, and the hub still does
+every user, repo and token over HTTP.
+
+Two observations worth keeping. `CreateUserOption`, `CreateRepoOption`,
+`CreateAccessTokenOption` and `RepoTargetOption` on the live instance match
+`src/forgejo/types.ts` field for field, so nothing transcribed here was wrong.
+And a repo-scoped token does not 403 the API — `GET /repos/{owner}/{other}`
+returns **404**, because Forgejo hides what the token cannot see. Over git it
+is a 403. Anything that branches on the status has to expect both.
 
 **M2 — Scaffold.** `@nx/node` is **not installed** — the workspace has only
 `devkit, js, react, vite, vitest, web` — so the plugin lands first, pinned to
@@ -257,7 +274,8 @@ finds nothing.*
   pass them.
 - **Scopes are mandatory.** An empty scope is a 400; the old unscoped-token mode
   is gone. The string is `write:repository`, not `write:repo`.
-- **Trust the live `/swagger`, not the docs.** Neither Forgejo's nor Gitea's
+- **Trust the live spec, not the docs.** It is served at `/api/swagger`
+  (UI) and `/swagger.v1.json` (raw), not at `/swagger`. Neither Forgejo's nor Gitea's
   swagger declares per-endpoint auth constraints — those live in router
   middleware — so the security block on an operation means nothing. Check
   behaviour, not the spec.
