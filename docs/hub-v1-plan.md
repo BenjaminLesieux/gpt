@@ -175,6 +175,34 @@ signup provisions real remote resources — an abuse amplifier is not something
 to leave running through M4. *Gate: signup → login → authenticated route round-
 trips; tampered, expired and missing cookies are each rejected distinctly.*
 
+Four things M3 settled.
+
+*Sessions are stored by hash.* Decision 7 says "opaque session id in a cookie,
+sessions as rows"; it did not say the row holds the id. It holds the sha256 of
+it, so a copy of the SQLite file is a list of spent hashes rather than a drawer
+of working cookies. This is not password hashing and deliberately uses nothing
+expensive — the token is 256 bits of randomness, so there is no low-entropy
+secret to slow an attacker down over.
+
+*The `accounts` table has no Forgejo columns yet.* `forgejo_provisioned_at`
+appears in the architecture above, but nothing reads it until M4 and
+`AGENTS.md` bans a field that exists only to be filled in later. The migration
+that adds it lands with the code that uses it.
+
+*`@node-rs/argon2`, not `argon2`.* Prebuilt binaries; a node-gyp step in a
+workspace whose only other native dependency is `better-sqlite3` buys nothing.
+
+*The generator's `@fastify/autoload` had to go.* It walks `__dirname`, which
+vitest's ESM transform does not define, so `app.ts` could only ever be
+assembled in production — the one place nothing checks that it assembles.
+Registering the plugins by hand is shorter than the comment explaining why the
+app could not be tested. The "Hello API" root route and the never-used
+`@fastify/sensible` went with it.
+
+The session guard is a function a handler calls, not a Fastify `preHandler`: a
+preHandler has to leave the account on the request as optional, and every
+handler then narrows an `account?` the guard has already guaranteed.
+
 **M4 — Score provisioning.** `scores` table, `POST /scores`, `GET /scores`,
 signup extended to provision the Forgejo user. *Gate — this slice's definition
 of done: signup via the API → create a score via the API → paste the returned
@@ -205,7 +233,21 @@ finds nothing.*
   `eslint.config.mjs`. (`AGENTS.md`'s claim that the config "applies to the
   whole workspace" is wrong and worth fixing while nearby.)
 - **`better-sqlite3` is a native CJS addon** — mark it external in the esbuild
-  bundle or the build silently produces something that won't boot.
+  bundle or the build silently produces something that won't boot. Inert while
+  `bundle: false`, which is where the generator left it.
+- **With `bundle: false`, `dist/main.js` is a loader shim.** The real
+  entrypoint is emitted at `dist/apps/hub/src/main.js`, so anything resolved
+  off `__dirname` — the Drizzle migrations folder, which ships as a build asset
+  — has to be copied to the mirrored path, not to the dist root.
+- **The build target and the typecheck target both wanted `apps/hub/dist`.**
+  `tsc --build` writes declarations and a `.tsbuildinfo` there, esbuild deletes
+  the directory and writes a different layout, and the surviving `.tsbuildinfo`
+  then reports everything up to date while the declarations are gone — so
+  `build` followed by `typecheck` failed the whole workspace with `TS6305`.
+  tsc now emits to `out-tsc/app` and the bundle emits no declarations at all.
+- **The Nx daemon caches project config across `package.json` edits.** Changing
+  a target's `assets` and rebuilding can silently use the previous value;
+  `pnpm nx reset` is what makes the edit take.
 - **`must_change_password` defaults to `true`** on `POST /admin/users` and must
   be sent explicitly as `false`. It gates only the web sign-in chain, so it
   breaks neither the API nor git push — set it anyway.
