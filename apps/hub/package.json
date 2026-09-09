@@ -56,6 +56,27 @@
           "cwd": "apps/hub"
         }
       },
+      "forgejo-up": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "./scripts/forgejo-dev.sh",
+          "cwd": "apps/hub"
+        }
+      },
+      "forgejo-down": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "docker compose -f docker-compose.dev.yml down",
+          "cwd": "apps/hub"
+        }
+      },
+      "forgejo-reset": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "docker compose -f docker-compose.dev.yml down --volumes",
+          "cwd": "apps/hub"
+        }
+      },
       "prune-lockfile": {
         "dependsOn": [
           "build"
