@@ -68,3 +68,8 @@ opencode.json
 .env
 .env.*
 !.env.example
+
+# the hub's SQLite file, plus WAL's two sidecars
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
