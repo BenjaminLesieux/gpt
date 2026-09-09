@@ -17,6 +17,8 @@
             "cjs"
           ],
           "bundle": false,
+          "declaration": false,
+          "skipTypeCheck": true,
           "main": "apps/hub/src/main.ts",
           "tsConfig": "apps/hub/tsconfig.app.json",
           "assets": [
@@ -24,7 +26,7 @@
             {
               "glob": "**/*",
               "input": "apps/hub/src/db/migrations",
-              "output": "db/migrations"
+              "output": "apps/hub/src/db/migrations"
             }
           ],
           "esbuildOptions": {
