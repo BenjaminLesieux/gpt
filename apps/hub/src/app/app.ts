@@ -1,18 +1,26 @@
-import * as path from 'path';
+import cookie from '@fastify/cookie';
 import type { FastifyInstance } from 'fastify';
-import AutoLoad from '@fastify/autoload';
+import { authRoutes } from '../auth/routes';
+import type { HubDatabase } from '../db/client';
+import errorHandler from './plugins/error-handler';
+import health from './routes/health';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface AppOptions {}
+export interface AppOptions {
+  db: HubDatabase;
+  /** Only ever false over plain-http development. */
+  cookieSecure: boolean;
+}
 
+/**
+ * Registered by hand rather than by @fastify/autoload. Autoload walks
+ * `__dirname`, which does not exist under vitest's ESM transform, so the
+ * whole app could only ever be assembled in production — the one place
+ * nothing checks that it assembles.
+ */
 export async function app(fastify: FastifyInstance, opts: AppOptions) {
-  fastify.register(AutoLoad, {
-    dir: path.join(__dirname, 'plugins'),
-    options: { ...opts },
-  });
+  await fastify.register(errorHandler);
+  await fastify.register(cookie);
 
-  fastify.register(AutoLoad, {
-    dir: path.join(__dirname, 'routes'),
-    options: { ...opts },
-  });
+  await fastify.register(health);
+  await fastify.register(authRoutes, { ...opts, prefix: '/auth' });
 }
