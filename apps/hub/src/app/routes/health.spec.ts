@@ -4,8 +4,7 @@ import health from './health';
 
 describe('health route', () => {
   it('should report ok when the server is up', async () => {
-    // Given a server with only the health route registered — autoload walks
-    // __dirname, which vitest's ESM transform does not define.
+    // Given a server with only the health route registered
     const fastify = Fastify();
     fastify.register(health);
 
