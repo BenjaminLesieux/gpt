@@ -1,0 +1,125 @@
+name: Release hub
+
+on:
+  push:
+    tags:
+      # Scoped to hub-v* rather than v*: the companion app ships out of this
+      # same repository and will want its own version sequence, and a bare v*
+      # would fire this workflow for the companion's tags too.
+      - 'hub-v*'
+  # Someone forking this to self-host has no reason to cut a tag in a version
+  # sequence that isn't theirs, so give them a way to build the current ref.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # GITHUB_TOKEN gets read-only package scope by default, so the push to GHCR
+  # needs this even though the package ends up attached to this same repository.
+  packages: write
+
+env:
+  # nx.json still carries an nxCloudId this workspace was never claimed
+  # against, so every task otherwise ends in a 401. Disabling the cloud from
+  # the environment keeps the release self-contained without editing nx.json.
+  NX_NO_CLOUD: 'true'
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm must exist before setup-node, otherwise `cache: 'pnpm'` has no
+      # store path to resolve.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          # Held in step with ci.yml so a tag is built on the same version the
+          # tests passed against.
+          node-version: 22.12.0
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # apps/hub/Dockerfile copies dist/package.json, dist/pnpm-lock.yaml,
+      # dist/workspace_modules, dist/apps and dist/main.js straight out of its
+      # context and compiles nothing itself, so Nx has to produce all of that
+      # before buildx starts. `prune` reaches `build` through its dependsOn
+      # chain, so this one target is the whole JS build.
+      #
+      # Not `docker:build`: that target is inferred by @nx/docker and shells
+      # out to a plain single-platform `docker build`, which cannot emit the
+      # multi-arch manifest this workflow exists to publish.
+      - run: pnpm nx run @gpt/hub:prune
+
+      # GitHub offers no arm64 runner on this plan, so the arm64 leg executes
+      # through binfmt on amd64 hardware and needs the handlers registered.
+      - uses: docker/setup-qemu-action@v3
+
+      # The default `docker` driver cannot assemble a multi-platform manifest
+      # at all; setup-buildx swaps in the docker-container driver that can.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # This repository's owner is mixed-case and GHCR rejects mixed-case
+          # references. metadata-action lowercases the image name for us, which
+          # is the argument for computing the tags here instead of interpolating
+          # github.repository into build-push-action's `tags` by hand.
+          #
+          # The /hub suffix is not decoration: the companion app will publish
+          # from this repository too, and package names are per-repository.
+          images: ghcr.io/${{ github.repository }}/hub
+          # `latest` is decided explicitly below, because the automatic
+          # behaviour keys off a recognised semver tag and hub-v1.2.3 is not one.
+          flavor: latest=false
+          tags: |
+            # type=semver cannot parse hub-v1.2.3; type=match pulls the version
+            # back out of the prefixed tag. The three patterns give the rolling
+            # major and minor pointers alongside the exact version.
+            type=match,pattern=hub-v(\d+\.\d+\.\d+),group=1
+            type=match,pattern=hub-v(\d+\.\d+),group=1
+            type=match,pattern=hub-v(\d+),group=1
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/hub-v') }}
+            # A workflow_dispatch run has no version to name the image after,
+            # so these are what a self-hoster building off a branch can pull.
+            type=ref,event=branch
+            type=sha
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/hub
+          file: apps/hub/Dockerfile
+          # The Nx build above ran once, on the runner, and both architectures
+          # copy its output — nothing in the Dockerfile compiles TypeScript, so
+          # the expensive part of the release is genuinely shared.
+          #
+          # `pnpm install --prod` is not shared, though, and it runs per
+          # architecture under emulation: @node-rs/argon2 ships its native code
+          # as per-platform optional dependencies, so the arm64 leg resolves and
+          # fetches argon2-linux-arm64-musl where amd64 takes x64-musl.
+          # better-sqlite3 is the easy case by contrast — its tarball carries
+          # every prebuild and the Dockerfile suppresses its build script, so
+          # both arches unpack identical bytes and pick a .node at require time.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Emulation makes a cold arm64 leg slow enough to be worth caching
+          # across releases. The install layer itself is keyed on the pruned
+          # lockfile and so misses on any dependency change; what reliably
+          # survives is the base image, the apk and the global pnpm install.
+          # mode=max because the final stage only COPYs from the deps stage,
+          # and a min-mode cache keeps nothing from a stage that isn't exported.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -9,7 +9,7 @@ name: gitarpro-hub
 
 services:
   hub:
-    image: ${HUB_IMAGE:-ghcr.io/benjaminlesieux/gpt-hub}:${HUB_VERSION:-latest}
+    image: ${HUB_IMAGE:-ghcr.io/benjaminlesieux/gpt/hub}:${HUB_VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
