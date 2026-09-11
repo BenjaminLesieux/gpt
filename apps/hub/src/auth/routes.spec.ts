@@ -153,7 +153,7 @@ describe('POST /auth/signup', () => {
   });
 
   it('should refuse the attempt after too many signups from one caller', async () => {
-    // Given — signup provisions a real Forgejo user from M4 on
+    // Given — five is the hour's allowance
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await signup({ ...CREDENTIALS, email: `player${attempt}@example.com` });
     }

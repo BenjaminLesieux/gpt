@@ -6,10 +6,10 @@ const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 const ID_BYTES = 16;
 
 /**
- * Row ids are also the raw material for Forgejo usernames and repo names, and
- * both of those have a restricted charset, a length cap and a reserved-word
- * list. Base32 with a fixed prefix clears all three by construction, which is
- * what makes deriving a remote name from a local row safe to retry.
+ * Row ids are also path segments in a clone URL, so they are the one thing
+ * here that gets pasted into chat, written into a `.git/config` and read out
+ * loud. Base32 keeps an email address and a song title out of all three, and
+ * keeps the id inside the charset the git route will accept into a path.
  */
 export function newId(): string {
   return encodeBase32(randomBytes(ID_BYTES));

@@ -93,7 +93,7 @@ Tokens live in the login keychain, not there — Keychain Access, service
 
 **Sync**
 
-18. Point the score at a remote and run [`forgejo-check.md`](forgejo-check.md).
+18. Point the score at a remote and run [`https-sync-check.md`](https-sync-check.md).
     It covers push, both kinds of failure, pull, and divergence, and does not
     need repeating here — but run it against the **bundle** at least once. The
     keychain prompt behaves differently for an app that was just installed than

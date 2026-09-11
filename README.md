@@ -56,7 +56,7 @@ Tasks go through Nx, always — `pnpm nx ...`, never the underlying tool.
 - [`docs/adr/`](docs/adr) — why the diff reads AlphaTab's model rather than the
   GPIF XML, and what the fingerprint is allowed to notice.
 - [`docs/alpha-smoke-test.md`](docs/alpha-smoke-test.md) and
-  [`docs/forgejo-check.md`](docs/forgejo-check.md) — the two walkthroughs for
+  [`docs/https-sync-check.md`](docs/https-sync-check.md) — the two walkthroughs for
   what no test covers.
 
 ## Status

@@ -188,8 +188,8 @@ M1 landed against `forgejo:16.0.3`, and it moved one thing this plan asserted.
 "Nothing bootstraps the very first admin token — this stays manual forever" is
 wrong: `forgejo admin user create` and `forgejo admin user generate-access-token
 --raw` do it from the container's own CLI, and `INSTALL_LOCK` skips the web
-installer entirely, so `pnpm nx run @gpt/hub:forgejo-up` goes from nothing to a
-usable token unattended. That is not the container-exec provisioning decision 2
+installer entirely, so the `forgejo-up` target it produced (deleted in M4)
+went from nothing to a usable token unattended. That is not the container-exec provisioning decision 2
 rejects — decision 2 governs how the *hub* provisions, and the hub still does
 every user, repo and token over HTTP.
 

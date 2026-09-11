@@ -239,6 +239,6 @@ Two styling notes worth knowing before touching `styles/app.css`:
 - `Space Mono` (design-system mono face) is not vendored yet; the fallback
   stack (`Fira Code`, `Courier New`) carries it. The Bauhaus faces are local.
 - Verifying sync against a real server is a manual step — see
-  [`docs/forgejo-check.md`](../../docs/forgejo-check.md). The automated tests
+  [`docs/https-sync-check.md`](../../docs/https-sync-check.md). The automated tests
   push and fetch against a bare repo in a tempdir, which exercises the
   refspecs and the fast-forward rule but not TLS or token auth.

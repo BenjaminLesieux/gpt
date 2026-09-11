@@ -16,19 +16,24 @@ const schema = z.object({
 
   /**
    * The origin the outside world reaches this hub on. Clone URLs are built
-   * from it, so a wrong value produces a remote companion cannot resolve —
-   * and a default that works in development is exactly wrong in production.
+   * from it and then pasted into a dialog and written into a `.git/config`,
+   * so a wrong value is not a 500 anyone can see — it is a remote that
+   * silently resolves nowhere.
    */
   PUBLIC_URL: z.url().default('http://localhost:3000'),
-
-  /** Base URL of the Forgejo instance, no trailing slash. */
-  FORGEJO_URL: z.url(),
-
-  /**
-   * Site-admin PAT with the `write:admin` scope. Nothing bootstraps this —
-   * it is created by hand once, against a running instance.
-   */
-  FORGEJO_ADMIN_TOKEN: z.string().min(1),
+}).superRefine((env, ctx) => {
+  // Defaulting PUBLIC_URL is what lets someone try the hub without reading
+  // anything. Shipping that default is what would hand every one of their
+  // users a clone url pointing at their own machine.
+  if (env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/.test(env.PUBLIC_URL)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['PUBLIC_URL'],
+      message:
+        'still points at this machine, which no other machine can reach. ' +
+        'Set it to the origin your users will use.',
+    });
+  }
 });
 
 export type Env = z.infer<typeof schema>;

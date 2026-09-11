@@ -23,9 +23,11 @@ use crate::git::NAMED_REF;
 /// last said, which is what makes [`compare`] answerable without the network.
 pub const REMOTE_REF: &str = "refs/remotes/origin/main";
 
-/// Sent when a token carries no username of its own. Forgejo, Gitea and
-/// GitHub all ignore the username on a personal access token, but libgit2
-/// still has to put something in the header.
+/// Sent when a token carries no username of its own. GitHub and Gitea-family
+/// servers all ignore the username on a personal access token, but libgit2
+/// still has to put something in the header. The Gitarpro hub is the
+/// exception: it reads the username as the account id and checks that the
+/// token belongs to it, so a score's own credentials always carry one.
 const DEFAULT_USERNAME: &str = "git";
 
 /// How this score stands against its remote, counted in named versions.
