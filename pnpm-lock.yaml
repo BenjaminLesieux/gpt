@@ -234,18 +234,12 @@ importers:
 
   apps/hub:
     dependencies:
-      '@fastify/autoload':
-        specifier: ~6.0.3
-        version: 6.0.3
       '@fastify/cookie':
         specifier: ^11.1.2
         version: 11.1.2
       '@fastify/rate-limit':
         specifier: ^11.2.0
         version: 11.2.0
-      '@fastify/sensible':
-        specifier: ~6.0.2
-        version: 6.0.5
       '@node-rs/argon2':
         specifier: ^2.2.0
         version: 2.2.0
