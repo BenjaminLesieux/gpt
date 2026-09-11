@@ -20,7 +20,8 @@ async function buildApp(cookieSecure = false) {
   migrateToLatest(handle.db, MIGRATIONS);
 
   server = Fastify();
-  await server.register(app, { db: handle.db, cookieSecure });
+  // Nothing here reaches the git routes, so the root only has to be a path.
+  await server.register(app, { db: handle.db, cookieSecure, gitRoot: '/tmp/gpt-unused' });
   await server.ready();
 
   return server;

@@ -69,6 +69,9 @@ opencode.json
 .env.*
 !.env.example
 
+# the hub's bare repositories in development
+git-repos/
+
 # the hub's SQLite file, plus WAL's two sidecars
 *.sqlite
 *.sqlite-wal

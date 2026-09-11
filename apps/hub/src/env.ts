@@ -11,6 +11,16 @@ const schema = z.object({
   /** Where the SQLite file lives. Metadata only — git holds the scores. */
   DATABASE_PATH: z.string().min(1).default('./hub.sqlite'),
 
+  /** Directory holding the bare repositories, one per score. */
+  GIT_ROOT: z.string().min(1).default('./git-repos'),
+
+  /**
+   * The origin the outside world reaches this hub on. Clone URLs are built
+   * from it, so a wrong value produces a remote companion cannot resolve —
+   * and a default that works in development is exactly wrong in production.
+   */
+  PUBLIC_URL: z.url().default('http://localhost:3000'),
+
   /** Base URL of the Forgejo instance, no trailing slash. */
   FORGEJO_URL: z.url(),
 
