@@ -10,31 +10,47 @@ permissions:
   actions: read
   contents: read
 
+env:
+  # This workspace is not connected to Nx Cloud: nx.json still carries an
+  # nxCloudId, so every task otherwise ends with a 401 telling us to claim the
+  # workspace. Disabling the cloud from the environment keeps CI self-contained
+  # without editing nx.json.
+  NX_NO_CLOUD: 'true'
+  # GitHub Actions sets this already; declaring it is what keeps `nx run-many -t
+  # test` from hanging, because the `test` target is a bare `vitest` and vitest
+  # only drops out of watch mode when CI is set.
+  CI: 'true'
+
 jobs:
   main:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # pnpm must exist before setup-node, otherwise `cache: 'pnpm'` has no
+      # store path to resolve.
+      - uses: pnpm/action-setup@v4
         with:
-          filter: tree:0
-          fetch-depth: 0
+          version: 10.5.2
 
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      - run: npx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="e2e-ci"
-
-      # Cache node_modules
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          # Lowest version satisfying both vite 8 (^20.19.0 || >=22.12.0) and
+          # vitest 4 (^20.0.0 || ^22.0.0 || >=24.0.0) on the LTS line. Note that
+          # the node 23 used for local development is outside vitest's range.
+          node-version: 22.12.0
+          cache: 'pnpm'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      # Prepend any command with "nx record --" to record its logs to Nx Cloud
-      - run: npx nx record -- npx nx format:check  --base="remotes/origin/main"
-      - run: npx nx run-many -t lint test build typecheck e2e-ci
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
-      - run: npx nx fix-ci
-        if: always()
+      # Linting is root-only. There is no `lint` target on any project, so
+      # `nx run-many -t lint` would be a silent no-op.
+      - run: pnpm lint
+
+      - run: pnpm nx run-many -t typecheck
+
+      # `test`, not `test-ci`: the atomized `test-ci` targets refuse to run
+      # without Nx Cloud.
+      - run: pnpm nx run-many -t test
+
+      - run: pnpm nx run-many -t build
