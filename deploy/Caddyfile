@@ -1,0 +1,32 @@
+{
+	# Where Let's Encrypt sends expiry warnings. Without it Caddy issues
+	# under its own default CA account and you hear nothing when renewal
+	# starts failing.
+	email {$HUB_ACME_EMAIL}
+}
+
+{$HUB_DOMAIN} {
+	log
+
+	# No `encode`. Almost every byte through here is a git packfile, which
+	# git has already deflated — compressing it again spends CPU to make it
+	# very slightly larger. The JSON API's responses are a few hundred bytes.
+	reverse_proxy hub:3000 {
+		# Git's smart protocol streams: the client sends its wants, waits for
+		# the server to negotiate, and only then sends the pack. Buffering
+		# either direction turns that conversation into a deadlock, so this
+		# block deliberately sets no *_buffer directive.
+
+		# A clone of a long history is one slow response, not a stuck one.
+		transport http {
+			response_header_timeout 5m
+		}
+	}
+
+	# A guard against filling the disk, not against a real score: a hundred
+	# versions of a full-band arrangement measure in the low megabytes,
+	# because git stores them as deltas over an uncompressed zip.
+	request_body {
+		max_size 256MB
+	}
+}

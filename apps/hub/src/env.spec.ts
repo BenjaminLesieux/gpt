@@ -14,6 +14,7 @@ describe('loadEnv', () => {
     expect(env.DATABASE_PATH).toBe('./hub.sqlite');
     expect(env.GIT_ROOT).toBe('./git-repos');
     expect(env.PUBLIC_URL).toBe('http://localhost:3000');
+    expect(env.TRUST_PROXY).toBe(false);
   });
 
   it('should coerce PORT to a number when it arrives as a string', () => {
@@ -45,10 +46,32 @@ describe('loadEnv', () => {
 
   it('should accept a real origin in production', () => {
     // Given / When
-    const env = loadEnv({ NODE_ENV: 'production', PUBLIC_URL: 'https://hub.example.com' });
+    const env = loadEnv({
+      NODE_ENV: 'production',
+      PUBLIC_URL: 'https://hub.example.com',
+      TRUST_PROXY: 'true',
+    });
 
     // Then
     expect(env.PUBLIC_URL).toBe('https://hub.example.com');
+    expect(env.TRUST_PROXY).toBe(true);
+  });
+
+  it('should refuse an https origin while the proxy is not trusted', () => {
+    // Given the hub serves plain http, so an https origin means a proxy
+    // When / Then — left off, request.ip is the proxy's and every caller
+    // draws from one rate-limit bucket.
+    expect(() =>
+      loadEnv({ NODE_ENV: 'production', PUBLIC_URL: 'https://hub.example.com' })
+    ).toThrow(/TRUST_PROXY/);
+  });
+
+  it('should read TRUST_PROXY as a word and not as a non-empty string', () => {
+    // Given / When / Then — the danger is 'false' arriving as truthy, which
+    // would hand callers their own rate-limit bucket by header.
+    expect(loadEnv({ TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ TRUST_PROXY: '0' }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ TRUST_PROXY: '1' }).TRUST_PROXY).toBe(true);
   });
 
   it('should leave a localhost public url alone in development', () => {

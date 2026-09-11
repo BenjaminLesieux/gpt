@@ -1,0 +1,76 @@
+# A hub a stranger can run: `cp .env.example .env`, edit two values,
+# `docker compose up -d`. Caddy gets the certificate on its own.
+#
+# Only Caddy publishes ports. The hub listens on 3000 inside the compose
+# network and is unreachable from outside it, which is what lets it speak
+# plain http without the token travelling in the clear.
+
+name: gitarpro-hub
+
+services:
+  hub:
+    image: ${HUB_IMAGE:-ghcr.io/benjaminlesieux/gpt-hub}:${HUB_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # The image already defaults HOST to 0.0.0.0; env.ts defaults it to
+      # localhost, which would bind an interface Caddy cannot reach.
+      HOST: 0.0.0.0
+      PORT: 3000
+      # Both under one volume on purpose. A score row whose repository is
+      # missing is broken in a way no migration repairs, so the database and
+      # the repositories have to be backed up and restored as one thing.
+      DATABASE_PATH: /data/hub.sqlite
+      GIT_ROOT: /data/git-repos
+      # What clone urls are built from, so it is Caddy's address and not the
+      # hub's. The hub refuses to start if this still says localhost.
+      PUBLIC_URL: https://${HUB_DOMAIN}
+      # Every rate limit is keyed on request.ip, and behind Caddy that is
+      # Caddy unless the forwarded header is believed. Safe here precisely
+      # because the hub publishes no port of its own: nothing can reach it
+      # except through the proxy that sets the header.
+      TRUST_PROXY: 'true'
+    volumes:
+      - hub-data:/data
+    healthcheck:
+      # node rather than curl or wget: the image installs neither, and the
+      # runtime is the one thing guaranteed to be in it.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r => { if (!r.ok) throw 0 }).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      # The database migrates before the server listens, so the first check
+      # can arrive before anything is answering.
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    image: docker.io/caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and the ACME account key. Losing this volume means
+      # re-issuing on the next boot, and Let's Encrypt rate-limits that per
+      # domain per week — so it is a volume, not a bind mount into /tmp.
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      HUB_DOMAIN: ${HUB_DOMAIN}
+      HUB_ACME_EMAIL: ${HUB_ACME_EMAIL}
+    depends_on:
+      hub:
+        # Waiting for healthy, not just started: Caddy asks for the
+        # certificate as soon as the first request arrives, and a failed
+        # challenge counts against the same weekly limit.
+        condition: service_healthy
+
+volumes:
+  hub-data:
+  caddy-data:
+  caddy-config:
