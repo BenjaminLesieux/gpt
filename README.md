@@ -58,6 +58,9 @@ Tasks go through Nx, always — `pnpm nx ...`, never the underlying tool.
 - [`docs/alpha-smoke-test.md`](docs/alpha-smoke-test.md) and
   [`docs/https-sync-check.md`](docs/https-sync-check.md) — the two walkthroughs for
   what no test covers.
+- [`docs/hub-deploy.md`](docs/hub-deploy.md) — running your own server, for
+  people who are not me. Install, upgrade, backup, restore, and what this
+  deployment deliberately does not do.
 
 ## Status
 
