@@ -38,6 +38,7 @@ const server = Fastify({
 server.register(app, {
   db: database.db,
   gitRoot: path.resolve(env.GIT_ROOT),
+  publicUrl: env.PUBLIC_URL,
   // Setting Secure over plain http would make the browser drop the cookie,
   // and dev is http://localhost by design.
   cookieSecure: env.NODE_ENV === 'production',

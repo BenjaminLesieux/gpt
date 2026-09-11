@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
+import { scoreRoutes } from '../scores/routes';
 import errorHandler from './plugins/error-handler';
 import health from './routes/health';
 
@@ -12,6 +13,8 @@ export interface AppOptions {
   cookieSecure: boolean;
   /** Directory holding the bare repositories, one per score. */
   gitRoot: string;
+  /** The origin clone URLs are built from. */
+  publicUrl: string;
 }
 
 /**
@@ -26,6 +29,7 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
 
   await fastify.register(health);
   await fastify.register(authRoutes, { ...opts, prefix: '/auth' });
+  await fastify.register(scoreRoutes, { ...opts, prefix: '/scores' });
 
   // Its own scope: the raw-stream content-type parser git needs must not
   // apply to the JSON API.
