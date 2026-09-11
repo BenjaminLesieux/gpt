@@ -1,0 +1,7 @@
+# The image is built entirely out of dist/. Everything else in this directory
+# is either the input Nx already consumed or the output of a different target,
+# and including it means a `typecheck` writing out-tsc/ changes the build
+# context and misses a layer cache the image never reads.
+*
+!dist
+dist/**/*.map
