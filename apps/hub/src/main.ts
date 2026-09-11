@@ -33,6 +33,9 @@ purgeExpiredSessions(database.db);
 
 const server = Fastify({
   logger: true,
+  // Off unless told otherwise: trusting X-Forwarded-For on a hub that is
+  // reachable directly lets a caller choose their own rate-limit bucket.
+  trustProxy: env.TRUST_PROXY,
 });
 
 server.register(app, {
