@@ -6,17 +6,18 @@ describe('newId', () => {
     // Given / When
     const id = newId();
 
-    // Then — Forgejo usernames are AlphaDashDot with a reserved-word list;
-    // this charset stays inside it whatever prefix gets bolted on.
+    // Then — this is the charset the git route will accept into a
+    // filesystem path, and nothing outside it can reach one.
     expect(id).toMatch(/^[a-z2-7]+$/);
   });
 
-  it('should stay well under the Forgejo username cap when prefixed', () => {
+  it('should be short enough to read back over the phone', () => {
     // Given / When
-    const username = `gp${newId()}`;
+    const id = newId();
 
-    // Then — MaxSize(40) on the Forgejo side.
-    expect(username.length).toBeLessThanOrEqual(40);
+    // Then — two of these plus a host make up the clone url a musician
+    // pastes, so length is a usability constraint rather than a limit.
+    expect(id.length).toBeLessThanOrEqual(32);
   });
 
   it('should not collide across a run of ids', () => {

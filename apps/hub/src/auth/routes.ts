@@ -18,9 +18,8 @@ export interface AuthRoutesOptions {
 }
 
 /**
- * Signup provisions a Forgejo user from M4 on, so an unthrottled signup is an
- * abuse amplifier against a remote system rather than just noise in a table.
- * That is why the tighter of the two limits is the one on signup.
+ * An account is cheap, but it is the thing that can go on to make
+ * repositories, so the tighter of the two limits is the one on signup.
  */
 const SIGNUP_LIMIT = { max: 5, timeWindow: '1 hour' };
 const LOGIN_LIMIT = { max: 10, timeWindow: '15 minutes' };

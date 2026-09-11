@@ -152,7 +152,7 @@ Nx plugin for Tauri, so its `project.json` targets shell out to `tauri` and
 - Do NOT write tests for placeholder or skeleton components.
 - Two things no suite covers, both manual walkthroughs:
   `docs/alpha-smoke-test.md` (the whole loop, against the bundle) and
-  `docs/forgejo-check.md` (TLS and token auth against a real server).
+  `docs/https-sync-check.md` (TLS and token auth against a real server).
 
 ## Frontend code style
 
