@@ -65,7 +65,13 @@ beforeEach(async () => {
   await createRepository(gitRoot, ACCOUNT, SCORE_B);
 
   server = Fastify();
-  await server.register(app, { db: handle.db, cookieSecure: false, gitRoot });
+  await server.register(app, {
+    db: handle.db,
+    cookieSecure: false,
+    gitRoot,
+    // Clone urls are not what this spec exercises; git is pointed at `origin`.
+    publicUrl: 'http://localhost',
+  });
   origin = await server.listen({ port: 0, host: '127.0.0.1' });
 });
 
