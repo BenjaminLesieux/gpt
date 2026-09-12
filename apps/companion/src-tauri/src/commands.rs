@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::adopt;
 use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTENSIONS};
 use crate::error::{Error, Result};
 use crate::events;
@@ -319,6 +320,70 @@ pub async fn pull_remote(app: AppHandle, id: String) -> Result<Pulled> {
     tauri::async_runtime::spawn_blocking(move || pull::pull(&app.state::<AppState>(), &id))
         .await
         .map_err(|err| Error::BackgroundTask(err.to_string()))?
+}
+
+/// Writes a score this machine has never seen to `path` and tracks it.
+///
+/// The inverse of [`track_file`]: the file does not exist yet, so `path` is
+/// where the remote's newest named version will land. Same triple as
+/// [`set_remote`], because it is the same paste.
+#[tauri::command]
+pub async fn adopt_remote(
+    app: AppHandle,
+    path: PathBuf,
+    url: String,
+    auth: Option<RemoteAuth>,
+    token: Option<String>,
+) -> Result<TrackedFile> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let descriptor = Remote {
+            url,
+            auth: auth.unwrap_or_default(),
+        };
+
+        let file = adopt::adopt(&state, &path, descriptor, token.as_deref())?;
+        events::tracked_files_changed(&app, state.config().tracked_files.clone());
+        Ok(file)
+    })
+    .await
+    .map_err(|err| Error::BackgroundTask(err.to_string()))?
+}
+
+/// Asks where the score should land, then adopts into it. A *save* dialog, not
+/// an open one: the file is what this is about to create.
+#[tauri::command]
+pub async fn pick_and_adopt_remote(
+    app: AppHandle,
+    url: String,
+    auth: Option<RemoteAuth>,
+    token: Option<String>,
+) -> Result<Option<TrackedFile>> {
+    let picked = {
+        // As in `pick_and_track_file`: a native dialog takes focus and the
+        // panel dismisses itself when it loses it. Focus is not handed back
+        // afterwards, because this dialog belongs to the extended window.
+        let _hold = crate::panel::hold();
+        let (sender, mut receiver) = tauri::async_runtime::channel(1);
+        app.dialog()
+            .file()
+            .add_filter("Guitar Pro", &GP_EXTENSIONS)
+            .set_file_name(adopt::suggested_file_name(&url))
+            .save_file(move |picked| {
+                // Capacity 1 and a single send: this can never be full.
+                let _ = sender.try_send(picked);
+            });
+        receiver.recv().await.flatten()
+    };
+
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let path = picked
+        .into_path()
+        .map_err(|err| Error::NotAFile(err.to_string()))?;
+
+    adopt_remote(app, path, url, auth, token).await.map(Some)
 }
 
 /// What the active file is anchored to. Read from the host's cache — the

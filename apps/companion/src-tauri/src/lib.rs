@@ -4,6 +4,7 @@
 //! storage and file watching. Every bit of Guitar Pro domain logic lives in
 //! TypeScript (`packages/gpt-core`).
 
+mod adopt;
 mod commands;
 mod config;
 mod error;
@@ -61,6 +62,8 @@ pub fn run() {
             commands::sync_state,
             commands::fetch_remote,
             commands::pull_remote,
+            commands::adopt_remote,
+            commands::pick_and_adopt_remote,
         ])
         .setup(|app| {
             // Menu-bar resident: no dock icon, no app menu bar of its own.

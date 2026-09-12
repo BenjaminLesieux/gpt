@@ -14,6 +14,11 @@ pub enum Error {
     #[error("not a file: {0}")]
     NotAFile(String),
 
+    /// Adoption writes the score it fetched; whatever is already at that path
+    /// is someone's work, and overwriting it is never the answer.
+    #[error("a file already exists at {0}")]
+    FileExists(String),
+
     #[error("unsupported extension (expected .gp/.gpx/.gp5/.gp4/.gp3): {0}")]
     UnsupportedExtension(String),
 
@@ -31,6 +36,11 @@ pub enum Error {
 
     #[error("no remote is set for {0}")]
     NoRemote(String),
+
+    /// A reachable remote with nothing on `main`: an empty repo is a fine
+    /// thing to push to and nothing to adopt from.
+    #[error("the remote at {0} holds no version yet")]
+    RemoteEmpty(String),
 
     /// v1 has no merge, so this is where the app stops and a person takes over.
     #[error("{0} changed here and on the remote ({1} version(s) here, {2} there)")]
