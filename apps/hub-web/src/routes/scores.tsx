@@ -15,9 +15,16 @@ import {
   TableRow,
 } from '@gpt/ui/table';
 import { CreateScoreDialog } from '@/components/create-score-dialog';
+import { ImportScoreDialog } from '@/components/import-score-dialog';
 import { HubError, type Score } from '@/lib/api';
 import { handOff } from '@/lib/credentials-handoff';
-import { scoresQuery, useCreateScore, useFinishSetup } from '@/lib/queries';
+import {
+  scoresQuery,
+  useCreateScore,
+  useFinishSetup,
+  useImportScore,
+  useRetryImport,
+} from '@/lib/queries';
 import { authedRoute } from './authed';
 
 const CELL_META = 'truncate text-sm text-muted-foreground';
@@ -112,6 +119,7 @@ function ScoreRow({
 function ScoresPage() {
   const scores = useQuery(scoresQuery);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const navigate = scoresRoute.useNavigate();
 
   async function showCredentials(created: Parameters<typeof handOff>[0]) {
@@ -120,14 +128,23 @@ function ScoresPage() {
     await navigate({ to: '/credentials' });
   }
 
+  async function showImportedCredentials(created: Parameters<typeof handOff>[0]) {
+    handOff(created);
+    setImportOpen(false);
+    await navigate({ to: '/credentials' });
+  }
+
   const create = useCreateScore(showCredentials);
   const finish = useFinishSetup(showCredentials);
+  const importScore = useImportScore(showImportedCredentials);
+  const retryImport = useRetryImport(showImportedCredentials);
 
   // The one thing that needs the git side to answer. Everything already
   // stored still reads fine, so the page degrades rather than failing.
   const upstreamDown =
     (create.error instanceof HubError && create.error.isUpstreamDown) ||
-    (finish.error instanceof HubError && finish.error.isUpstreamDown);
+    (finish.error instanceof HubError && finish.error.isUpstreamDown) ||
+    (importScore.error instanceof HubError && importScore.error.isUpstreamDown);
 
   const rows = scores.data ?? [];
   const empty = scores.isSuccess && rows.length === 0;
@@ -148,6 +165,7 @@ function ScoresPage() {
             onClick={() => {
               create.reset();
               finish.reset();
+              importScore.reset();
               void scores.refetch();
             }}
           >
@@ -170,6 +188,14 @@ function ScoresPage() {
                 Unavailable while the server is down
               </span>
             )}
+            <Button
+              variant="secondary"
+              className="rounded-sm"
+              disabled={upstreamDown}
+              onClick={() => setImportOpen(true)}
+            >
+              Import a score
+            </Button>
             <Button
               className="rounded-sm"
               disabled={upstreamDown}
@@ -217,14 +243,24 @@ function ScoresPage() {
                 A score is one song, versioned. Create one and every save in Guitar Pro
                 lands here.
               </EmptyDescription>
-              <Button
-                variant="secondary"
-                className="rounded-sm border-border"
-                disabled={upstreamDown}
-                onClick={() => setDialogOpen(true)}
-              >
-                Create score
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <Button
+                  variant="secondary"
+                  className="rounded-sm border-border"
+                  disabled={upstreamDown}
+                  onClick={() => setDialogOpen(true)}
+                >
+                  Create score
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="rounded-sm"
+                  disabled={upstreamDown}
+                  onClick={() => setImportOpen(true)}
+                >
+                  Import a file you already have
+                </Button>
+              </div>
             </EmptyContent>
           </Empty>
         )}
@@ -275,6 +311,21 @@ function ScoresPage() {
         submitting={create.isPending}
         error={create.error}
         onCreate={(name) => create.mutateAsync(name)}
+      />
+
+      <ImportScoreDialog
+        open={importOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            importScore.reset();
+            retryImport.reset();
+          }
+          setImportOpen(next);
+        }}
+        submitting={importScore.isPending || retryImport.isPending}
+        error={retryImport.error ?? importScore.error}
+        onImport={(name, file) => importScore.mutateAsync({ name, file })}
+        onRetry={(score, file) => retryImport.mutateAsync({ score, file })}
       />
     </>
   );
