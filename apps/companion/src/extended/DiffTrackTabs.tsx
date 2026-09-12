@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@gpt/ui/toggle-group';
+import { cn } from '@gpt/ui/lib/utils';
 
 export interface DiffTrackTab {
   name: string;

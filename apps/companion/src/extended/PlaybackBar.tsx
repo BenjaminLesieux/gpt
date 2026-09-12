@@ -7,11 +7,11 @@ import {
   usePlayerControls,
   usePlayerPosition,
 } from '@gpt/alphatab-react';
-import { Button } from '@/components/ui/button';
-import { ButtonGroup } from '@/components/ui/button-group';
-import { Slider } from '@/components/ui/slider';
-import { Spinner } from '@/components/ui/spinner';
-import { cn } from '@/lib/utils';
+import { Button } from '@gpt/ui/button';
+import { ButtonGroup } from '@gpt/ui/button-group';
+import { Slider } from '@gpt/ui/slider';
+import { Spinner } from '@gpt/ui/spinner';
+import { cn } from '@gpt/ui/lib/utils';
 
 const SPEEDS = [0.5, 0.75, 1] as const;
 

@@ -5,36 +5,6 @@
    ============================================================ */
 
 /* ── Brand fonts ─────────────────────────────────────────── */
-@font-face {
-  font-family: "Bauhaus";
-  src: url("./fonts/BauhausRegular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Bauhaus";
-  src: url("./fonts/BauhausItalic.ttf") format("truetype");
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Bauhaus";
-  src: url("./fonts/BauhausBold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Bauhaus";
-  src: url("./fonts/BauhausBoldItalic.ttf") format("truetype");
-  font-weight: 700;
-  font-style: italic;
-  font-display: swap;
-}
-
-
 /* ── Base palette ─────────────────────────────────────────── */
 :root {
   --color-bg:             #0c0c0c;

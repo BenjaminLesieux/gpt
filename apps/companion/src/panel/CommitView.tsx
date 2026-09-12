@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronsUpDown, CloudOff, CornerDownLeft, EyeOff, FileQuestion } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Kbd } from '@/components/ui/kbd';
-import { Spinner } from '@/components/ui/spinner';
+import { Button } from '@gpt/ui/button';
+import { Input } from '@gpt/ui/input';
+import { Kbd } from '@gpt/ui/kbd';
+import { Spinner } from '@gpt/ui/spinner';
 import {
   hidePanel,
   requestAccessibility,
@@ -14,7 +14,7 @@ import {
   type Version,
 } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
-import { cn } from '@/lib/utils';
+import { cn } from '@gpt/ui/lib/utils';
 import { PanelBody } from './PanelShell';
 import { VersionLedger } from './VersionLedger';
 import type { PanelSession } from './usePanelSession';

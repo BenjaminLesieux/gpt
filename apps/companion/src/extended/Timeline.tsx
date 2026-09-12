@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, GitCompareArrows, History as HistoryIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@gpt/ui/button';
+import { ScrollArea } from '@gpt/ui/scroll-area';
+import { Skeleton } from '@gpt/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
-import { cn } from '@/lib/utils';
+import { cn } from '@gpt/ui/lib/utils';
 import type { History } from './useHistory';
 
 interface TimelineProps {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Maximize2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@gpt/ui/button';
 import { hidePanel, openExtendedWindow } from '@/lib/ipc';
 import { CommitView } from './CommitView';
 import { FileSwitcher } from './FileSwitcher';

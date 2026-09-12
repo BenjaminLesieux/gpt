@@ -8,7 +8,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/ui/command';
+} from '@gpt/ui/command';
 import type { TrackedFile } from '@/lib/ipc';
 import { PanelBody } from './PanelShell';
 

@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeftRight, ChevronDown, FilePlus2, RotateCcw, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@gpt/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { TooltipProvider } from '@/components/ui/tooltip';
+} from '@gpt/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
+import { TooltipProvider } from '@gpt/ui/tooltip';
 import type { TrackedFile, Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
-import { cn } from '@/lib/utils';
+import { cn } from '@gpt/ui/lib/utils';
 import { DiffStage } from './DiffStage';
 import { RemoteDialog } from './RemoteDialog';
 import { RestoreDialog } from './RestoreDialog';
