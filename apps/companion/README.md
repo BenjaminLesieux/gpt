@@ -228,10 +228,18 @@ Two styling notes worth knowing before touching `styles/app.css`:
 
 ## Notes
 
-- The app runs as a macOS *accessory* (no dock icon); the tray is the only
-  entrypoint. `LSUIElement` in [`src-tauri/Info.plist`](src-tauri/Info.plist)
-  says so before AppKit launches — `set_activation_policy` in `lib.rs` runs from
-  `setup`, by which point the dock icon has already appeared and gone.
+- The dock icon follows the extended window, not the process. At rest the app
+  is a macOS *accessory* — tray only, out of the dock and out of ⌘-Tab;
+  `show_in_dock` in [`src-tauri/src/window.rs`](src-tauri/src/window.rs)
+  promotes it to `Regular` while the extended window is up and demotes it when
+  the window closes. `LSUIElement` in
+  [`src-tauri/Info.plist`](src-tauri/Info.plist) sets the launch state before
+  AppKit looks — `set_activation_policy` in `lib.rs` runs from `setup`, by which
+  point an icon would already have appeared and gone.
+- Opening the bundle opens the extended window: from `setup` on a cold launch,
+  and from `RunEvent::Reopen` when the app is already resident and the user
+  clicks it in the dock, Spotlight or Finder. Without that second path, opening
+  a running Gitarpro would appear to do nothing.
 - The tray draws [`icons/tray.png`](src-tauri/icons/tray.png), a black-on-alpha
   plectrum flagged as a template so macOS recolours it for the menu bar it lands
   in. The brand has only a logotype and `gpt` is unreadable at 16pt, so the tray

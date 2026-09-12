@@ -3,10 +3,12 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  lib.rs already asks for ActivationPolicy::Accessory, but it does so from
-	  `setup`, which runs after AppKit has decided whether to show a dock icon.
-	  The bounce is brief and harmless and looks like a bug. Declaring it here
-	  means the app is never a dock app in the first place.
+	  The state the app launches in, not the state it stays in. lib.rs also asks
+	  for ActivationPolicy::Accessory, but it does so from `setup`, which runs
+	  after AppKit has decided whether to show a dock icon; the bounce is brief
+	  and harmless and looks like a bug. Declaring it here means the icon only
+	  ever appears when `window::show_in_dock` promotes the app to Regular for
+	  the extended window.
 	-->
 	<key>LSUIElement</key>
 	<true/>

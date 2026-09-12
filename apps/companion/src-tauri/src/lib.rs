@@ -66,7 +66,8 @@ pub fn run() {
             commands::pick_and_adopt_remote,
         ])
         .setup(|app| {
-            // Menu-bar resident: no dock icon, no app menu bar of its own.
+            // The resting state: menu-bar resident, no dock icon of its own.
+            // `window::open_extended` promotes it and back (see `show_in_dock`).
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -81,6 +82,12 @@ pub fn run() {
 
             tray::init(app.handle())?;
             shortcut::init(app.handle())?;
+
+            // Launching the bundle has to put something on screen. Someone who
+            // double-clicks the app is asking for the app, not for a menu-bar
+            // icon they then have to find.
+            window::open_extended(app.handle())?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -98,10 +105,24 @@ pub fn run() {
             if window.label() == EXTENDED_LABEL {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
+                    window::hide_extended(window.app_handle());
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the Gitarpro companion");
+        .build(tauri::generate_context!())
+        .expect("error while building the Gitarpro companion")
+        .run(|app, event| {
+            // Opening an app that is already running does not start a second
+            // copy — AppKit sends this instead. Without it, clicking Gitarpro
+            // in the dock or Spotlight would do nothing at all.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Err(err) = window::open_extended(app) {
+                    eprintln!("[gitarpro] could not reopen the window: {err}");
+                }
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

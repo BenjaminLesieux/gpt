@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 /// reads as a stuck window.
 pub fn open_extended(app: &AppHandle) -> tauri::Result<()> {
     crate::panel::hide(app);
+    show_in_dock(app, true);
 
     if let Some(window) = app.get_webview_window(crate::EXTENDED_LABEL) {
         window.show()?;
@@ -37,3 +38,33 @@ pub fn open_extended(app: &AppHandle) -> tauri::Result<()> {
 
     Ok(())
 }
+
+/// Closing the window keeps the process alive behind the tray, so the dock
+/// icon has to leave with the window rather than with the app.
+pub fn hide_extended(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(crate::EXTENDED_LABEL) {
+        let _ = window.hide();
+    }
+    show_in_dock(app, false);
+}
+
+/// The dock icon tracks the extended window, not the process. A menu-bar
+/// resident with nothing on screen has no business in the dock; while its
+/// window is up it should ⌘-Tab, own a menu bar and be reachable like any
+/// other app. `LSUIElement` makes accessory the state the app launches in,
+/// and this promotes it from there.
+#[cfg(target_os = "macos")]
+fn show_in_dock(app: &AppHandle, visible: bool) {
+    let policy = if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    };
+
+    if let Err(err) = app.set_activation_policy(policy) {
+        eprintln!("[gitarpro] could not change the activation policy: {err}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn show_in_dock(_app: &AppHandle, _visible: bool) {}
