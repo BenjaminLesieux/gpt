@@ -1,110 +1,146 @@
-# Hub, next slice: adopting a score and importing a file
+# Adopting a score, and importing a file
 
-Two capabilities the v1 surface does not have, written down while the reasons
-are still fresh. Neither is built. This is the survey a future implementer
-would otherwise have to redo, plus the one finding that would have bitten late.
+v1 was one-directional in practice: a musician created a score in the browser,
+pasted the triple into companion, and pushed. Everything flowed local → hub.
 
-## Where v1 leaves us
+Both halves of the return path are now built. A score can start its life on
+either side.
 
-v1 is one-directional in practice, though not on the wire. A musician creates a
-score in the browser, finishes setup, pastes the triple into companion, and
-pushes. Everything flows local → hub.
+- **Import** — `POST /scores/:id/import` takes a `.gp` and writes it as the
+  score's first version, server-side.
+- **Adoption** — the companion's `adopt_remote` materialises a `.gp` on disk
+  from a remote it has never seen, and registers it as tracked.
 
-What already works, and needs nothing new:
+Together: import a file on the site → the hub makes a real first version →
+companion adopts it by triple and pulls it down.
 
-- **The hub serves fetch.** `git/routes.ts` proxies every verb to
-  `git-http-backend`, and `createRepository` only had to opt *into* receive-pack
-  — upload-pack is on by default. A `git clone` of a score works today, given
-  the triple.
-- **Companion can pull.** `src-tauri/src/pull.rs` fetches, refuses to merge
-  (locked decision 8), snapshots the disk file before overwriting it, and
-  fast-forwards. `fetch_remote` and `pull_remote` are both exposed as commands.
+## What was already there
 
-So "pull" is not missing transport. It is missing two things either side of it.
+Neither half needed new transport. `git/routes.ts` proxies every verb to
+`git-http-backend`, and `createRepository` only ever had to opt *into*
+receive-pack — upload-pack is on by default, so a `git clone` always worked
+given the triple. `pull.rs` already fetched, refused to merge (locked decision
+8), snapshotted the disk file before overwriting it, and fast-forwarded.
 
-## 1. Adopting a score companion has never seen
+What was missing sat on either side of that.
 
-`pull()` opens with `state.tracked(id)?` — it pulls *into* a tracked file that
-already carries a remote descriptor. There is no path that materialises a `.gp`
-on disk from a remote alone. Today the only way a score becomes tracked is
-`track_file` / `pick_and_track_file`: the user points at a file that already
-exists.
+## 1. Adoption
 
-Adoption is the inverse and needs its own command — clone the bare repo into
-the score's git dir, read `score.gp` out of `refs/heads/main`, write it to a
-path the user chooses, and register it as tracked with the remote already set.
-Note the ordering constraint: the file lands on disk *from* the repo, where
-every existing flow puts a file on disk first and the repo second.
+`pull()` opens with `state.tracked(id)?` — it pulls *into* a file that already
+carries a remote descriptor. Nothing could materialise a `.gp` from a remote
+alone, because `track_file` / `pick_and_track_file` both start from a file the
+user points at.
 
-The open question is discovery, and it is a real fork:
+`adopt.rs` inverts that: fetch the remote into the score's bare repo, make its
+tip `main`, read `score.gp` out of it, write that to a path the user chooses,
+and register it as tracked with the remote and keychain token already set. The
+file lands on disk *from* the repo, where every other flow puts the file down
+first and the repo second.
 
-- **Paste a triple, as setup already does.** No hub change at all. Adoption
-  becomes "paste this the way you pasted the last one", which is honest and
-  costs nothing.
-- **List the account's scores in companion.** `GET /scores` is
-  session-authenticated, and a session cookie is a browser thing — deliberately
-  so: "a browser session must not be a push credential". A score token cannot
-  ask this question either, because `readScoreToken` resolves to exactly one
-  score and that one-to-one mapping *is* the isolation guarantee. Listing from
-  companion therefore means a new account-scoped credential, which is a new
-  thing to leak. It should not be added casually.
+Three things it has to get right, all of which have tests:
 
-Start with the paste. The second only earns its keep once someone has more
-scores than they care to paste.
+- **The id.** `TrackedFile::new` derives the id from the canonicalized path,
+  but at adoption time the file does not exist yet, so `canonicalize` would
+  fall back to the raw path and yield a *different* id from the one tracking
+  the same file later would produce (macOS hands out both `/var/…` and
+  `/private/var/…`). The parent directory is canonicalized and the filename
+  joined onto it.
+- **Not losing history.** `repos/<id>/` may already hold versions — `untrack_file`
+  deliberately leaves repos behind so re-tracking finds its history again — so
+  the ref update goes through `git::fast_forward_named`, which already refuses
+  to drop versions, rather than forcing the ref.
+- **Nothing left behind on failure.** `remote::fetch` takes the token as an
+  argument, so adoption authenticates without storing first and writes to the
+  keychain only once it has succeeded.
 
-## 2. Importing a file on the website
+Refused: a remote with no `main`, a path that already exists, a path already
+tracked, an extension that is not Guitar Pro's.
 
-Today `POST /scores` inits an empty bare repo and the hub never writes a git
-object again — every object arrives through receive-pack. Import breaks that:
-the hub must author the initial commit itself, and the commit has to be
-indistinguishable from one companion would have pushed.
+### Discovery: the paste, and why not a list
 
-The shape companion expects, from `git.rs`:
+Adoption takes the same pasted triple `RemoteDialog` already takes. This was a
+real fork and it stays decided this way:
 
-- a single blob at tree root named **`score.gp`** (`SCORE_ENTRY`), mode
-  `100644`, whatever the file was called when the user picked it
-- the tip on **`refs/heads/main`** (`NAMED_REF`) — matching the
-  `--initial-branch=main` that `createRepository` already sets
-- `refs/snapshots` is local-only; push is `NAMED_REF:NAMED_REF` and never
-  carries it, so an import must not invent one
+`GET /scores` is session-authenticated, and a session cookie is a browser thing
+— deliberately so: *a browser session must not be a push credential*. A score
+token cannot ask the question either, because `readScoreToken` resolves to
+exactly one score and that one-to-one mapping *is* the isolation guarantee.
+Listing an account's scores from companion therefore means a new
+account-scoped credential — a new thing to leak — and it earns its keep only
+once someone has more scores than they care to paste. Not yet.
 
-**The finding that matters: the normalizer is Rust-only.** Bytes are committed
-as `normalize_gp(bytes)` — zip entries sorted, stored uncompressed, DOS
-timestamps zeroed — so that a Guitar Pro save which changed no note produces no
-new version. `normalize.rs` calls itself a port of `normalizeGp` from
-`@gpt/gpt-core`, but that function is gone: nothing in the TypeScript tree
-mentions it any more. `docs/normalize-gp.md` still describes the algorithm.
+## 2. Import
 
-So an import endpoint has three options, in descending order of how much they
-cost later:
+`POST /scores` inits an empty bare repo and, before this, the hub never wrote a
+git object again — every object arrived through receive-pack. Import is the
+first code that writes into a repository without http-backend in front of it,
+so it validates ids through the same `repositoryPath` rather than its own.
 
-1. **Port the normalizer back to TypeScript** and share the doc as the spec,
-   with fixtures asserting the Rust and TS outputs are byte-identical. The
-   right answer, and the only one where both writers stay honest.
-2. **Skip normalization on import.** The first companion save then looks like a
-   musical change when nothing changed — precisely the failure normalization
-   exists to prevent. It would be a bug reported as "it says I changed
-   something and I didn't".
-3. Have companion normalize on first pull. Moves the lie rather than removing
-   it, and makes the hub's history depend on which client touched it first.
+`git/versions.ts` authors the commit with plumbing — `hash-object -w`, `mktree`,
+`commit-tree`, `update-ref` — no worktree. The shape is not the hub's to choose,
+because companion reads it back (`git.rs`): a single blob at the tree root named
+`score.gp`, mode `100644`, tip on `refs/heads/main`, and **no** `refs/snapshots`
+— that ref is local scratch and a push never carries one, so a repository
+holding one would not look like it came from a client.
 
-Do (1), and treat the round-trip fixture as the gate.
+Two decisions worth keeping:
 
-Mechanically the commit itself is small — `git hash-object -w`, `mktree`,
-`commit-tree`, `update-ref` against the bare repo, no worktree needed — but it
-is the first code that writes to a repository outside http-backend, so it wants
-the same id validation `repositoryPath` already does rather than its own.
+- **Emptiness is enforced by `update-ref`, not by a check.** Passing the empty
+  string as the expected old value makes git assert the ref is unborn as it
+  writes. Two racing imports produce one version and one refusal; reading the
+  ref first and writing second would produce one lost import.
+- **The first version's message is `Imported`, not the filename.** Passing a
+  filename would have put the song title into a query string and the access
+  log, which is the thing decision 9 keeps out of clone URLs. The name the
+  musician typed is already on the row.
 
-## The flow this unlocks
+The endpoint takes the raw bytes as `application/octet-stream` — no multipart,
+no base64. Every wrapper is a chance for the bytes that land to differ from the
+bytes that were picked. It is registered as its own plugin scope under the
+`/scores` prefix, for the reason `gitRoutes` is also its own: the parser that
+accepts a file must not reach the JSON API.
 
-Import a `.gp` on the site → the hub makes a real first version → companion
-adopts it by triple and pulls it down. That is the mirror of v1's flow, and it
-closes the loop: a score can start its life on either side.
+### Import targets an existing empty score
 
-## Not decided here
+This was left open for whoever built the screen. The answer: the server
+primitive adds a first version to a score that already exists, and the **UI
+composes** `createScore` then `importScore` into one user-visible step. It
+composes with `POST /scores` and `POST /scores/:id/token` rather than
+duplicating either, and it avoids a three-way rollback.
 
-Whether import creates a score or adds a first version to an existing empty
-one. `POST /scores` already exists and `POST /scores/:id/token` already covers
-the finish-setup case, so an import that targets an *existing* empty score
-composes with both rather than duplicating them — but that is a call for
-whoever builds the screen, not one to make in advance.
+The seam that creates is real and is handled rather than hidden: between the two
+calls the score can exist with no version in it. That is **not** a broken state
+— it is exactly what `Create score` produces on its own — so the recovery is to
+send the file again at the score already made, never to make another. The failed
+mutation carries the created score so the retry can target it, and so the
+credentials it minted are not lost with the error: they had been shown nowhere
+yet and the server keeps no copy.
+
+### The normalizer, which was the finding that mattered
+
+Bytes are committed as `normalize_gp(bytes)` — zip entries sorted, stored
+uncompressed, DOS timestamps zeroed — so that a Guitar Pro save which changed no
+note produces no new version. That existed only in Rust, so an import written
+naively would have stored raw bytes and made the musician's *next* save look
+like a musical change. The bug would have been reported as "it says I changed
+something and I didn't".
+
+The normalizer is therefore ported to TypeScript, and the two implementations
+are pinned to each other by checked-in goldens that both suites assert against.
+[`docs/normalize-gp.md`](./normalize-gp.md) is the spec and describes the gate,
+including why a second, deliberately unsorted fixture was needed on top of the
+real `.gp` one.
+
+It lives in `apps/hub/src/git/normalize.ts` rather than in `gpt-core`. The hub is
+its only TypeScript consumer, and `gpt-core` builds as one bundled entry, so
+importing it would have made the hub take its first workspace dependency and
+carry alphaTab into the Docker image for the sake of a zip utility.
+
+## Still not done
+
+- **Listing an account's scores in companion**, per the fork above. Wants an
+  account-scoped credential first.
+- **Whether the score list should distinguish an empty score.** It deliberately
+  does not: a score with no versions is the ordinary state of a freshly created
+  one, so there is nothing to flag. If that changes, note that `GET /scores`
+  would need to read each repository's refs — a git call per row.
