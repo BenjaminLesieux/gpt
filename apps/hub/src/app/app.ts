@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
+import { importRoutes } from '../scores/import';
 import { scoreRoutes } from '../scores/routes';
 import errorHandler from './plugins/error-handler';
 import health from './routes/health';
@@ -39,8 +40,16 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
   await fastify.register(authRoutes, { ...opts, prefix: '/auth' });
   await fastify.register(scoreRoutes, { ...opts, prefix: '/scores' });
 
+  // Same prefix, separate scope: importing a score sends a file, and the
+  // parser that accepts one must not apply to the JSON routes above.
+  await fastify.register(importRoutes, {
+    db: opts.db,
+    cookieSecure: opts.cookieSecure,
+    gitRoot: opts.gitRoot,
+    prefix: '/scores',
+  });
+
   // Its own scope: the raw-stream content-type parser git needs must not
   // apply to the JSON API.
   await fastify.register(gitRoutes, { db: opts.db, gitRoot: opts.gitRoot, prefix: '/git' });
-
 }
