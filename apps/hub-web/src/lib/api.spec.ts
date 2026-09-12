@@ -108,6 +108,34 @@ describe('request', () => {
     expect(fetchMock.mock.calls[1][1].headers).toBeUndefined();
   });
 
+  it('sends an imported file as bytes, not as json', async () => {
+    fetchMock.mockResolvedValue(respond(201, { id: 'abc', name: 'Riff', version: 'c0ffee', message: 'Imported' }));
+    const file = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])]);
+
+    await api.importScore('abc', file);
+
+    // The hub commits exactly what arrives, so the body is the file itself —
+    // no multipart envelope, no base64.
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe('/scores/abc/import');
+    expect(init.body).toBe(file);
+    expect(init.headers).toEqual({ 'content-type': 'application/octet-stream' });
+  });
+
+  it('reports a refused import with the code the hub wrote', async () => {
+    fetchMock.mockResolvedValue(
+      respond(409, {
+        error: { code: 'already_has_versions', message: 'This score already has a version.' },
+      })
+    );
+
+    const error = await api.importScore('abc', new Blob(['x'])).catch((e: HubError) => e);
+    expect(error).toBeInstanceOf(HubError);
+    expect((error as HubError).code).toBe('already_has_versions');
+    // Not an outage: the caller asked for something that cannot be done.
+    expect((error as HubError).isUpstreamDown).toBe(false);
+  });
+
   it('escapes the score id rather than pasting it into the path', async () => {
     fetchMock.mockResolvedValue(respond(200, {}));
     await api.finishSetup('../auth/me');

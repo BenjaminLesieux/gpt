@@ -19,6 +19,15 @@ export interface CreatedScore {
   tokenName: string;
 }
 
+/** What an import leaves behind: the score's first and only version. */
+export interface ImportedScore {
+  id: string;
+  name: string;
+  /** The commit the version landed on. */
+  version: string;
+  message: string;
+}
+
 export interface Score {
   id: string;
   name: string;
@@ -58,7 +67,12 @@ export class HubError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  /** For a body that is not JSON. Declared only when there is a body. */
+  contentType = 'application/json'
+): Promise<T> {
   let response: Response;
 
   try {
@@ -67,7 +81,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       // Same origin in production; the dev server proxies. Either way the
       // session cookie has to ride along or every call is a 401.
       credentials: 'same-origin',
-      headers: init?.body ? { 'content-type': 'application/json' } : undefined,
+      headers: init?.body ? { 'content-type': contentType } : undefined,
     });
   } catch {
     throw new HubError('network', 'Could not reach the hub. Check your connection.', 0);
@@ -113,6 +127,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name }),
     }),
+
+  /**
+   * Writes a score's first version from a file. The body is the bytes
+   * themselves rather than a multipart or base64 envelope: the hub commits
+   * exactly what arrives, and every wrapper is a chance for the bytes that
+   * land to differ from the bytes that were picked.
+   *
+   * Only ever starts a history — a score that already has one is refused.
+   */
+  importScore: (id: string, file: Blob) =>
+    request<ImportedScore>(
+      `/scores/${encodeURIComponent(id)}/import`,
+      { method: 'POST', body: file },
+      'application/octet-stream'
+    ),
 
   /** Mints the token for a score whose first attempt did not get one. */
   finishSetup: (id: string) =>
