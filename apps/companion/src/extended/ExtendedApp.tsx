@@ -41,7 +41,7 @@ export function ExtendedApp() {
   const [baseId, setBaseId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<Version | null>(null);
   const [remoteOpen, setRemoteOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const fileId = library.selected?.id ?? null;
@@ -51,8 +51,18 @@ export function ExtendedApp() {
   useEffect(() => {
     setHeadId(null);
     setBaseId(null);
-    setNotice(null);
   }, [fileId]);
+
+  /**
+   * A notice is about one score, and stops being shown when that score stops
+   * being the one on screen — which is why it carries the file rather than
+   * being cleared on every switch. A notice set about a score *as* it becomes
+   * the selected one would otherwise be wiped by the very switch that
+   * revealed it.
+   */
+  function announce(message: string, about: string | null = fileId) {
+    setNotice({ about, message });
+  }
 
   const entries = useMemo(
     () => [...history.versions, ...history.snapshots],
@@ -79,7 +89,7 @@ export function ExtendedApp() {
     if (!pulled?.version) return;
 
     history.reload();
-    setNotice(
+    announce(
       pulled.safety
         ? t('extended.sync.broughtInWithSafety', { version: pulled.version.message })
         : t('extended.sync.broughtIn', { version: pulled.version.message }),
@@ -147,7 +157,9 @@ export function ExtendedApp() {
           }}
         />
       )}
-      {notice && <Strip tone="notice" message={notice} onDismiss={() => setNotice(null)} />}
+      {notice?.about === fileId && (
+        <Strip tone="notice" message={notice.message} onDismiss={() => setNotice(null)} />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <aside className="flex w-76 shrink-0 flex-col border-r border-border">
@@ -191,7 +203,7 @@ export function ExtendedApp() {
           open={remoteOpen}
           onClose={() => setRemoteOpen(false)}
           onSaved={() => {
-            setNotice(t('extended.remote.saved'));
+            announce(t('extended.remote.saved'));
             sync.reload();
           }}
           onError={setFailure}
@@ -204,7 +216,7 @@ export function ExtendedApp() {
           version={restoring}
           onClose={() => setRestoring(null)}
           onRestored={(safety) => {
-            setNotice(
+            announce(
               safety
                 ? t('extended.restore.doneWithSafety')
                 : t('extended.restore.done'),
@@ -319,6 +331,12 @@ function VersionPill({ version, tone }: { version: Version; tone: 'base' | 'head
       </span>
     </span>
   );
+}
+
+/** A message about one score, shown only while that score is the one on screen. */
+interface Notice {
+  about: string | null;
+  message: string;
 }
 
 interface FileSelectorProps {
