@@ -42,6 +42,9 @@ server.register(app, {
   db: database.db,
   gitRoot: path.resolve(env.GIT_ROOT),
   publicUrl: env.PUBLIC_URL,
+  // Copied next to the server as a build asset, so it sits beside this file
+  // in dist rather than anywhere the workspace layout would suggest.
+  webRoot: path.join(__dirname, 'assets', 'web'),
   // Setting Secure over plain http would make the browser drop the cookie,
   // and dev is http://localhost by design.
   cookieSecure: env.NODE_ENV === 'production',

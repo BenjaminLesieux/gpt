@@ -6,6 +6,7 @@ import { gitRoutes } from '../git/routes';
 import { scoreRoutes } from '../scores/routes';
 import errorHandler from './plugins/error-handler';
 import health from './routes/health';
+import { webRoutes } from './plugins/web';
 
 export interface AppOptions {
   db: HubDatabase;
@@ -15,6 +16,11 @@ export interface AppOptions {
   gitRoot: string;
   /** The origin clone URLs are built from. */
   publicUrl: string;
+  /**
+   * Built hub-web bundle. Optional: the hub is a working git remote and JSON
+   * API without a UI, and every test builds it that way.
+   */
+  webRoot?: string;
 }
 
 /**
@@ -24,7 +30,9 @@ export interface AppOptions {
  * nothing checks that it assembles.
  */
 export async function app(fastify: FastifyInstance, opts: AppOptions) {
-  await fastify.register(errorHandler);
+  // Static first: the not-found handler below calls reply.sendFile.
+  if (opts.webRoot) await fastify.register(webRoutes, { webRoot: opts.webRoot });
+  await fastify.register(errorHandler, { webRoot: opts.webRoot });
   await fastify.register(cookie);
 
   await fastify.register(health);
@@ -34,4 +42,5 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
   // Its own scope: the raw-stream content-type parser git needs must not
   // apply to the JSON API.
   await fastify.register(gitRoutes, { db: opts.db, gitRoot: opts.gitRoot, prefix: '/git' });
+
 }
