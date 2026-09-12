@@ -1,0 +1,14 @@
+{
+  "name": "@gpt/hub-web",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "hub-web"
+  },
+  "dependencies": {
+    "@gpt/ui": "workspace:^",
+    "@tanstack/react-form": "^1.33.5",
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-router": "^1.170.35"
+  }
+}
