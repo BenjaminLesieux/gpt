@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+@import '@gpt/ui/theme.css';
+
+/* ============================================================
+   Hub-only overrides.
+
+   The hub does not vendor the licensed Bauhaus face — it is a
+   public web surface and that font is licensed for the desktop
+   app — so the design brief's stand-in carries the display face
+   here. Space Mono is shared with the companion.
+   ============================================================ */
+@theme inline {
+  --font-sans: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+
+  /* The canvas puts a near-white label on the primary button and it is
+     the accessible choice: #f0f0f0 on the accent measures 4.62:1 where
+     the shared #0c0c0c measures 3.71:1. Scoped to the hub rather than
+     changed in the package, because flipping it there would restyle
+     every primary button in the companion. */
+  --color-primary-foreground: #f0f0f0;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+  }
+}
+
+/* Score creation genuinely waits on the server, so it gets an honest
+   indeterminate bar. Everywhere else a skeleton stands in. */
+@keyframes hub-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
