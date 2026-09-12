@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
+import { eq } from 'drizzle-orm';
 import Fastify from 'fastify';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,6 +11,7 @@ import { app } from '../app/app';
 import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
+import { scoreTokens } from '../db/schema';
 
 const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
@@ -303,6 +305,102 @@ describe('the handoff', () => {
     expect(stdout).toContain('named version');
 
     await rm(workspace, { recursive: true, force: true });
+  });
+});
+
+describe('finishing setup on a score that has no token', () => {
+  /**
+   * Creating a score rolls itself back if minting fails, so the only way to
+   * reach this state is a crash between the two writes. Dropping the token
+   * row reproduces exactly what that leaves behind.
+   */
+  async function stripToken(scoreId: string): Promise<void> {
+    handle.db.delete(scoreTokens).where(eq(scoreTokens.scoreId, scoreId)).run();
+  }
+
+  it('lists the score with no token rather than hiding it', async () => {
+    const created = await createScore();
+    await stripToken(created.json().id);
+
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    expect(listed.json()).toHaveLength(1);
+    expect(listed.json()[0].token).toBeNull();
+  });
+
+  it('mints a token and hands back the whole triple', async () => {
+    const created = await createScore();
+    const id = created.json().id;
+    await stripToken(id);
+
+    const finished = await server.inject({
+      method: 'POST',
+      url: `/scores/${id}/token`,
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    expect(finished.statusCode).toBe(201);
+    expect(finished.json()).toMatchObject({
+      id,
+      name: 'Bridge rewrite',
+      url: `${PUBLIC_URL}/git/${finished.json().username}/${id}.git`,
+      tokenName: 'companion',
+    });
+    expect(finished.json().token).toEqual(expect.any(String));
+  });
+
+  it('refuses to mint a second token for a score that already has one', async () => {
+    const created = await createScore();
+
+    const again = await server.inject({
+      method: 'POST',
+      url: `/scores/${created.json().id}/token`,
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe('already_set_up');
+  });
+
+  it('answers the same for a score that is not yours as for one that does not exist', async () => {
+    const created = await createScore();
+    await stripToken(created.json().id);
+
+    const stranger = await server.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: 'someone@example.com', password: 'another passphrase' },
+    });
+    const theirSession = stranger.cookies.find((c) => c.name === SESSION_COOKIE)?.value ?? '';
+
+    const theirs = await server.inject({
+      method: 'POST',
+      url: `/scores/${created.json().id}/token`,
+      cookies: { [SESSION_COOKIE]: theirSession },
+    });
+    const missing = await server.inject({
+      method: 'POST',
+      url: '/scores/nosuchscoreid/token',
+      cookies: { [SESSION_COOKIE]: theirSession },
+    });
+
+    expect(theirs.statusCode).toBe(404);
+    expect(theirs.json()).toEqual(missing.json());
+  });
+
+  it('needs a session', async () => {
+    const created = await createScore();
+
+    const anonymous = await server.inject({
+      method: 'POST',
+      url: `/scores/${created.json().id}/token`,
+    });
+
+    expect(anonymous.statusCode).toBe(401);
   });
 });
 

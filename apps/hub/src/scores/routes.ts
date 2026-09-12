@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises';
 import rateLimit from '@fastify/rate-limit';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { errorBody } from '../app/errors';
@@ -83,6 +83,56 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       await rm(repository, { recursive: true, force: true });
       throw error;
     }
+  });
+
+  /**
+   * Mints the token for a score that has none. Creating a score rolls itself
+   * back if minting fails, so this is not reachable from that path — but the
+   * repository directory and the row outlive any crash between the two
+   * writes, and a score the owner can see but not sync is worse than a retry
+   * they can press. Restricted to scores that are actually missing a token so
+   * it cannot be used to silently mint a second one.
+   */
+  fastify.post('/:id/token', { config: { rateLimit: CREATE_LIMIT } }, async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id } = request.params as { id: string };
+
+    const score = db
+      .select({ id: scores.id, name: scores.name })
+      .from(scores)
+      .where(and(eq(scores.id, id), eq(scores.accountId, account.id)))
+      .get();
+
+    // Same answer for "no such score" and "not yours": which one it is is not
+    // this caller's business.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const existing = db
+      .select({ id: scoreTokens.id })
+      .from(scoreTokens)
+      .where(eq(scoreTokens.scoreId, score.id))
+      .get();
+
+    if (existing) {
+      return reply
+        .code(409)
+        .send(errorBody('already_set_up', 'This score is already set up for syncing.'));
+    }
+
+    const token = mintScoreToken(db, score.id, 'companion');
+
+    return reply.code(201).send({
+      id: score.id,
+      name: score.name,
+      url: cloneUrl(publicUrl, account.id, score.id),
+      username: account.id,
+      token: token.token,
+      tokenName: token.name,
+    });
   });
 
   fastify.get('/', async (request, reply) => {
