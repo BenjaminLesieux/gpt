@@ -113,6 +113,13 @@
       "save": "Enregistrer",
       "saved": "Dépôt distant enregistré."
     },
+    "adopt": {
+      "open": "Récupérer une partition depuis un dépôt…",
+      "title": "Récupérer une partition depuis un dépôt",
+      "description": "Colle le dépôt où la partition vit déjà. Ses versions nommées sont récupérées, et tu choisis où le fichier est enregistré.",
+      "action": "Choisir où l'enregistrer…",
+      "adopted": "« {{file}} » est sur le disque et suivie."
+    },
     "sync": {
       "upToDate": "synchronisé",
       "ahead_one": "{{count}} version à envoyer",

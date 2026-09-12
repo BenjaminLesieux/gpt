@@ -238,6 +238,36 @@ export function pullRemote(id: string): Promise<Pulled> {
   return invoke('pull_remote', { id });
 }
 
+/**
+ * Writes a score this machine has never seen to `path` and tracks it, remote
+ * already set.
+ *
+ * The inverse of {@link trackFile}: nothing is on disk yet, so `path` is where
+ * the remote's newest named version will land. Rejects when something is
+ * already there, when the path is tracked, or when the remote holds no version
+ * yet — and in none of those cases has anything been kept.
+ */
+export function adoptRemote(
+  path: string,
+  url: string,
+  auth?: RemoteAuth,
+  token?: string,
+): Promise<TrackedFile> {
+  return invoke('adopt_remote', { path, url, auth, token });
+}
+
+/**
+ * Asks where the score should land, then adopts into it. A save dialog, not an
+ * open one. Resolves with `null` when the user cancels.
+ */
+export function pickAndAdoptRemote(
+  url: string,
+  auth?: RemoteAuth,
+  token?: string,
+): Promise<TrackedFile | null> {
+  return invoke('pick_and_adopt_remote', { url, auth, token });
+}
+
 // ── Events ───────────────────────────────────────────────────────────────
 
 /** Fires after every Guitar Pro save of a tracked file, debounced. */

@@ -16,6 +16,7 @@ vi.mock('@/lib/ipc', () => ({
   syncState: vi.fn(),
   fetchRemote: vi.fn(),
   pullRemote: vi.fn(),
+  pickAndAdoptRemote: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
@@ -326,6 +327,88 @@ describe('ExtendedApp', () => {
 
     expect(ipc.fetchRemote).toHaveBeenCalledWith('a1');
     expect(await screen.findByRole('button', { name: /Bring them in/ })).toBeTruthy();
+  });
+
+  it('brings in a score that only exists on a remote', async () => {
+    ipc.pickAndAdoptRemote.mockResolvedValue({
+      id: 'b2',
+      path: '/Users/ben/Songs/Lasagna.gp',
+      name: 'Lasagna',
+      addedAt: NOW,
+      remote: { url: 'https://hub.example.com/git/lasagna.git', auth: { kind: 'token', username: 'ben' } },
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: 'Blackbird' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+
+    await user.type(
+      await screen.findByLabelText('Repository URL'),
+      'https://hub.example.com/git/lasagna.git',
+    );
+    await user.type(screen.getByLabelText('Username'), 'ben');
+    await user.type(screen.getByLabelText('Access token'), 'gp_tok_123');
+    await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
+
+    // The path is the host's to ask for: this side only sends the triple.
+    expect(ipc.pickAndAdoptRemote).toHaveBeenCalledWith(
+      'https://hub.example.com/git/lasagna.git',
+      { kind: 'token', username: 'ben' },
+      'gp_tok_123',
+    );
+    // The notice, not the a11y tree: an open dialog hides the rest of the
+    // page from `getByRole`, and this one closes as it lands.
+    expect(await screen.findByText(/is on disk and tracked/)).toBeTruthy();
+  });
+
+  it('keeps the pasted remote when the save dialog is cancelled', async () => {
+    ipc.pickAndAdoptRemote.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: 'Blackbird' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    const url = (await screen.findByLabelText('Repository URL')) as HTMLInputElement;
+    await user.type(url, 'https://hub.example.com/git/lasagna.git');
+    await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
+
+    expect(url.value).toBe('https://hub.example.com/git/lasagna.git');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('reports a refused adoption without closing the dialog', async () => {
+    ipc.pickAndAdoptRemote.mockRejectedValue(
+      new Error('a file already exists at /Users/ben/Songs/Lasagna.gp'),
+    );
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: 'Blackbird' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.type(
+      await screen.findByLabelText('Repository URL'),
+      'https://hub.example.com/git/lasagna.git',
+    );
+    await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
+
+    expect(await screen.findByText(/already exists/)).toBeTruthy();
+    // Still open, so the triple can be corrected rather than retyped.
+    expect(screen.getByLabelText('Repository URL')).toBeTruthy();
+  });
+
+  it('offers adoption as well as the file picker when nothing is tracked', async () => {
+    ipc.listTrackedFiles.mockResolvedValue([]);
+    ipc.getActiveFile.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+
+    await user.click(await screen.findByRole('button', { name: /Bring in a score/ }));
+
+    expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
   });
 
   it('sends the user to the file picker when nothing is tracked', async () => {

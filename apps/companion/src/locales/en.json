@@ -113,6 +113,13 @@
       "save": "Save",
       "saved": "Remote saved."
     },
+    "adopt": {
+      "open": "Bring in a score from a remote…",
+      "title": "Bring in a score from a remote",
+      "description": "Paste the repository a score already lives in. Its named versions come down, and you choose where the file is saved.",
+      "action": "Choose where to save…",
+      "adopted": "“{{file}}” is on disk and tracked."
+    },
     "sync": {
       "upToDate": "in sync",
       "ahead_one": "{{count}} version to send",
