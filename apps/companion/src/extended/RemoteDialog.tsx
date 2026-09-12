@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TriangleAlert } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@gpt/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/spinner';
+} from '@gpt/ui/dialog';
+import { Input } from '@gpt/ui/input';
+import { Label } from '@gpt/ui/label';
+import { Spinner } from '@gpt/ui/spinner';
 import { setRemote, type RemoteAuth, type TrackedFile } from '@/lib/ipc';
 
 interface RemoteDialogProps {

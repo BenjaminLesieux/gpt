@@ -9,8 +9,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Spinner } from '@/components/ui/spinner';
+} from '@gpt/ui/alert-dialog';
+import { Spinner } from '@gpt/ui/spinner';
 import { restoreVersion, type TrackedFile, type Version } from '@/lib/ipc';
 
 interface RestoreDialogProps {

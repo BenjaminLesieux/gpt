@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { Kbd } from '@/components/ui/kbd';
-import { cn } from '@/lib/utils';
+import { Kbd } from '@gpt/ui/kbd';
+import { cn } from '@gpt/ui/lib/utils';
 
 /**
  * The panel's chrome: a floating card in a transparent, frameless window.

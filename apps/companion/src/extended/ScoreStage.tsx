@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlphaTab, darkTheme, useScore } from '@gpt/alphatab-react';
-import { Spinner } from '@/components/ui/spinner';
+import { Spinner } from '@gpt/ui/spinner';
 import type { Version } from '@/lib/ipc';
 import { useVersionBytes } from './useVersionBytes';
 import { PlaybackBar } from './PlaybackBar';

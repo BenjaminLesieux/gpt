@@ -28,6 +28,9 @@
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/locales/*.json"],
   "references": [
     {
+      "path": "../../packages/ui/tsconfig.lib.json"
+    },
+    {
       "path": "../../packages/gpt-core/tsconfig.lib.json"
     },
     {

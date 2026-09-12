@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { Cloud, CloudOff, Download, GitBranch, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@gpt/ui/button';
+import { Spinner } from '@gpt/ui/spinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { SyncState, TrackedFile } from '@/lib/ipc';
-import { cn } from '@/lib/utils';
+import { cn } from '@gpt/ui/lib/utils';
 import type { Sync } from './useSync';
 
 interface SyncBarProps {

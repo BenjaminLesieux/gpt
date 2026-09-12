@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { FileMusic } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Button } from '@gpt/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
 import { PanelBody } from './PanelShell';
 
 /** Nothing tracked yet — the only thing the panel can usefully offer. */

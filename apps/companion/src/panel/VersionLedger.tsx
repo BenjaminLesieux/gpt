@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@gpt/ui/scroll-area';
 import type { Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
 

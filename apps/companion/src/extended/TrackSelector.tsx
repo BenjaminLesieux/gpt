@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@gpt/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+} from '@gpt/ui/dropdown-menu';
+import { cn } from '@gpt/ui/lib/utils';
 
 interface TrackSelectorProps {
   tracks: string[];
