@@ -1,10 +1,27 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { errorBody } from '../errors';
+import { servesShell } from './web';
 
-export default fp(async function errorHandler(fastify: FastifyInstance) {
+export interface ErrorHandlerOptions {
+  /**
+   * Set when a web bundle is being served. Fastify allows exactly one
+   * not-found handler per prefix, so the SPA fallback has to live in the
+   * same one that answers the API's 404s rather than in its own plugin.
+   */
+  webRoot?: string;
+}
+
+export default fp(async function errorHandler(
+  fastify: FastifyInstance,
+  opts: ErrorHandlerOptions
+) {
   fastify.setNotFoundHandler((request, reply) => {
-    reply
+    if (opts.webRoot && servesShell(request.method, request.url)) {
+      return reply.sendFile('index.html');
+    }
+
+    return reply
       .code(404)
       .send(errorBody('not_found', `No route for ${request.method} ${request.url}`));
   });
