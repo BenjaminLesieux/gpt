@@ -15,6 +15,12 @@ export interface Library {
   error: string | null;
   select(id: string): void;
   addFile(): Promise<void>;
+  /**
+   * Seats a file the host has just started tracking. The roster event says the
+   * same thing a moment later; showing it now is what keeps the window from
+   * blanking between the two.
+   */
+  adopted(file: TrackedFile): void;
   clearError(): void;
 }
 
@@ -67,6 +73,13 @@ export function useLibrary(): Library {
     }
   }, []);
 
+  const adopted = useCallback((file: TrackedFile) => {
+    setFiles((roster) =>
+      roster.some((tracked) => tracked.id === file.id) ? roster : [...roster, file],
+    );
+    setSelectedId(file.id);
+  }, []);
+
   return {
     files,
     selected: files.find((file) => file.id === selectedId) ?? null,
@@ -74,6 +87,7 @@ export function useLibrary(): Library {
     error,
     select: setSelectedId,
     addFile,
+    adopted,
     clearError: useCallback(() => setError(null), []),
   };
 }

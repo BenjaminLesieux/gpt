@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, ChevronDown, FilePlus2, RotateCcw, X } from 'lucide-react';
+import { ArrowLeftRight, ChevronDown, CloudDownload, FilePlus2, RotateCcw, X } from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { TooltipProvider } from '@gpt/ui/tooltip';
 import type { TrackedFile, Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { AdoptDialog } from './AdoptDialog';
 import { DiffStage } from './DiffStage';
 import { RemoteDialog } from './RemoteDialog';
 import { RestoreDialog } from './RestoreDialog';
@@ -41,6 +42,7 @@ export function ExtendedApp() {
   const [baseId, setBaseId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<Version | null>(null);
   const [remoteOpen, setRemoteOpen] = useState(false);
+  const [adoptOpen, setAdoptOpen] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -116,10 +118,27 @@ export function ExtendedApp() {
     }
   }
 
+  const adoptDialog = (
+    <AdoptDialog
+      open={adoptOpen}
+      onClose={() => setAdoptOpen(false)}
+      onAdopted={(file) => {
+        library.adopted(file);
+        announce(t('extended.adopt.adopted', { file: file.name }), file.id);
+      }}
+      onError={setFailure}
+    />
+  );
+
   if (!library.loading && library.files.length === 0) {
     return (
       <Shell>
-        <NoTrackedFiles onAddFile={() => void library.addFile()} />
+        {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
+        <NoTrackedFiles
+          onAddFile={() => void library.addFile()}
+          onAdopt={() => setAdoptOpen(true)}
+        />
+        {adoptDialog}
       </Shell>
     );
   }
@@ -134,6 +153,7 @@ export function ExtendedApp() {
               selected={library.selected}
               onSelect={library.select}
               onAddFile={() => void library.addFile()}
+              onAdopt={() => setAdoptOpen(true)}
             />
             <SyncBar
               file={library.selected}
@@ -196,6 +216,8 @@ export function ExtendedApp() {
           )}
         </main>
       </div>
+
+      {adoptDialog}
 
       {library.selected && (
         <RemoteDialog
@@ -344,9 +366,10 @@ interface FileSelectorProps {
   selected: TrackedFile;
   onSelect(id: string): void;
   onAddFile(): void;
+  onAdopt(): void;
 }
 
-function FileSelector({ files, selected, onSelect, onAddFile }: FileSelectorProps) {
+function FileSelector({ files, selected, onSelect, onAddFile, onAdopt }: FileSelectorProps) {
   const { t } = useTranslation();
 
   return (
@@ -372,12 +395,16 @@ function FileSelector({ files, selected, onSelect, onAddFile }: FileSelectorProp
           <FilePlus2 />
           {t('extended.trackAnotherFile')}
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={onAdopt} className="text-xs text-muted-foreground">
+          <CloudDownload />
+          {t('extended.adopt.open')}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-function NoTrackedFiles({ onAddFile }: { onAddFile(): void }) {
+function NoTrackedFiles({ onAddFile, onAdopt }: { onAddFile(): void; onAdopt(): void }) {
   const { t } = useTranslation();
 
   return (
@@ -390,9 +417,15 @@ function NoTrackedFiles({ onAddFile }: { onAddFile(): void }) {
           <EmptyTitle>{t('panel.empty.title')}</EmptyTitle>
           <EmptyDescription>{t('panel.empty.description')}</EmptyDescription>
         </EmptyHeader>
-        <Button variant="outline" size="sm" onClick={onAddFile}>
-          {t('panel.empty.action')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onAddFile}>
+            {t('panel.empty.action')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onAdopt}>
+            <CloudDownload data-icon="inline-start" />
+            {t('extended.adopt.open')}
+          </Button>
+        </div>
       </Empty>
     </div>
   );
