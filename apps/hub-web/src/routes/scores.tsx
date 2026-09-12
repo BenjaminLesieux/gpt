@@ -5,13 +5,21 @@ import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Empty, EmptyContent, EmptyDescription } from '@gpt/ui/empty';
 import { Skeleton } from '@gpt/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@gpt/ui/table';
 import { CreateScoreDialog } from '@/components/create-score-dialog';
 import { HubError, type Score } from '@/lib/api';
 import { handOff } from '@/lib/credentials-handoff';
 import { scoresQuery, useCreateScore, useFinishSetup } from '@/lib/queries';
 import { authedRoute } from './authed';
 
-const COLUMNS = 'grid grid-cols-[minmax(0,260px)_minmax(0,1fr)_150px_190px] items-center gap-4';
 const CELL_META = 'truncate text-sm text-muted-foreground';
 
 /** Dates the way someone reads them, not the way they serialise. */
@@ -34,28 +42,38 @@ function ScoreRow({
 }) {
   const unfinished = score.token === null;
 
+  // A row and, when setup was abandoned, the row explaining it. They are
+  // separate <tr>s rather than one tall cell so the explanation is reachable
+  // in the reading order right after the score it is about.
+  const explanationId = `${score.id}-unfinished`;
+
   return (
     <>
-      <div
-        className={`${COLUMNS} h-10 border-b border-border-subtle px-4 transition-colors ${
-          unfinished ? 'bg-card' : 'hover:bg-card'
-        }`}
+      <TableRow
+        className={unfinished ? 'border-border-subtle bg-card' : 'border-border-subtle'}
+        aria-describedby={unfinished ? explanationId : undefined}
       >
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="truncate text-base text-foreground">{score.name}</span>
-          {unfinished && (
-            <Badge
-              variant="outline"
-              className="shrink-0 rounded-sm border-border-strong bg-popover text-xs font-normal text-warning-bright"
-            >
-              Setup unfinished
-            </Badge>
-          )}
-        </div>
-        <div className={`${CELL_META} font-mono`}>{score.url}</div>
-        <div className={CELL_META}>{formatCreated(score.createdAt)}</div>
-        {unfinished ? (
-          <div className="flex justify-start">
+        <TableCell className="h-10 py-0">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="truncate text-base text-foreground">{score.name}</span>
+            {unfinished && (
+              <Badge
+                variant="outline"
+                className="shrink-0 rounded-sm border-border-strong bg-popover text-xs font-normal text-warning-bright"
+              >
+                Setup unfinished
+              </Badge>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className={`${CELL_META} h-10 max-w-[1px] py-0 font-mono`}>
+          {score.url}
+        </TableCell>
+        <TableCell className={`${CELL_META} h-10 py-0 whitespace-nowrap`}>
+          {formatCreated(score.createdAt)}
+        </TableCell>
+        <TableCell className="h-10 py-0">
+          {unfinished ? (
             <Button
               variant="outline"
               size="sm"
@@ -63,20 +81,29 @@ function ScoreRow({
               onClick={() => onFinishSetup(score.id)}
               className="h-6.5 rounded-sm border-border-strong bg-popover px-2.5 text-sm"
             >
+              {/* Naming the score keeps every one of these buttons distinct
+                  to anyone listing the page's controls out of context. */}
               {finishing ? 'Finishing…' : 'Finish setup'}
+              <span className="sr-only"> for {score.name}</span>
             </Button>
-          </div>
-        ) : (
-          // The value is gone; only the name it was given survives. A row
-          // that showed anything else would imply it could be recovered.
-          <div className={`${CELL_META} font-mono`}>{score.token?.name}</div>
-        )}
-      </div>
+          ) : (
+            // The value is gone; only the name it was given survives. A row
+            // that showed anything else would imply it could be recovered.
+            <span className={`${CELL_META} font-mono`}>{score.token?.name}</span>
+          )}
+        </TableCell>
+      </TableRow>
       {unfinished && (
-        <p className="border-b border-border-subtle bg-card px-4 py-3 text-sm leading-normal text-muted-foreground">
-          This score has storage but no sign-in details yet. Finish setup to get its URL,
-          username and token — nothing you've saved is lost.
-        </p>
+        <TableRow className="border-border-subtle hover:bg-transparent">
+          <TableCell
+            id={explanationId}
+            colSpan={4}
+            className="bg-card py-3 text-sm leading-normal text-muted-foreground"
+          >
+            This score has storage but no sign-in details yet. Finish setup to get its URL,
+            username and token — nothing you've saved is lost.
+          </TableCell>
+        </TableRow>
       )}
     </>
   );
@@ -154,15 +181,25 @@ function ScoresPage() {
         </div>
 
         {scores.isPending && (
-          <div className="border border-border-subtle" aria-hidden>
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="flex h-10 items-center gap-4 border-b border-border-subtle px-4 last:border-b-0">
-                <Skeleton className="h-2.5 w-[140px] rounded-none bg-popover" />
-                <Skeleton className="h-2.5 flex-1 rounded-none bg-card" />
-                <Skeleton className="h-2.5 w-20 rounded-none bg-card" />
-              </div>
-            ))}
-          </div>
+          <>
+            {/* The skeleton is shape, not information. Without this the page
+                is silent until the rows land. */}
+            <p role="status" className="sr-only">
+              Loading your scores.
+            </p>
+            <div className="border border-border-subtle" aria-hidden>
+              {[0, 1, 2].map((row) => (
+                <div
+                  key={row}
+                  className="flex h-10 items-center gap-4 border-b border-border-subtle px-4 last:border-b-0"
+                >
+                  <Skeleton className="h-2.5 w-[140px] rounded-none bg-popover" />
+                  <Skeleton className="h-2.5 flex-1 rounded-none bg-card" />
+                  <Skeleton className="h-2.5 w-20 rounded-none bg-card" />
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {scores.isError && !upstreamDown && (
@@ -194,29 +231,38 @@ function ScoresPage() {
 
         {rows.length > 0 && (
           <div className="border border-border-subtle">
-            <div
-              className={`${COLUMNS} h-8 border-b border-border-subtle bg-card px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground`}
-            >
-              <div>Name</div>
-              <div>Clone URL</div>
-              <div>Created</div>
-              <div>Token</div>
-            </div>
-            {rows.map((score) => (
-              <ScoreRow
-                key={score.id}
-                score={score}
-                finishing={finish.isPending && finish.variables === score.id}
-                onFinishSetup={(id) => finish.mutate(id)}
-              />
-            ))}
+            <Table className="table-fixed">
+              <TableCaption className="mt-0 border-t border-border-subtle px-4 py-3 text-left">
+                Token values are never shown again after a score is created.
+              </TableCaption>
+              <TableHeader>
+                <TableRow className="border-border-subtle hover:bg-transparent">
+                  <TableHead className="h-8 w-[260px] bg-card text-xs font-medium uppercase tracking-wide">
+                    Name
+                  </TableHead>
+                  <TableHead className="h-8 bg-card text-xs font-medium uppercase tracking-wide">
+                    Clone URL
+                  </TableHead>
+                  <TableHead className="h-8 w-[150px] bg-card text-xs font-medium uppercase tracking-wide">
+                    Created
+                  </TableHead>
+                  <TableHead className="h-8 w-[190px] bg-card text-xs font-medium uppercase tracking-wide">
+                    Token
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((score) => (
+                  <ScoreRow
+                    key={score.id}
+                    score={score}
+                    finishing={finish.isPending && finish.variables === score.id}
+                    onFinishSetup={(id) => finish.mutate(id)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        )}
-
-        {rows.length > 0 && (
-          <p className="text-sm leading-normal text-muted-foreground">
-            Token values are never shown again after a score is created.
-          </p>
         )}
       </main>
 
