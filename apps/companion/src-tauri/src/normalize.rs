@@ -260,21 +260,91 @@ mod tests {
         assert_eq!(normalize_gp(&[]), Vec::<u8>::new());
     }
 
+    /// Everything `sample.gp` cannot exercise: entries written out of order,
+    /// both compression methods, a directory, and two names whose order
+    /// depends on how the bytes are compared. `\u{FF21}` encodes to EF BC A1
+    /// and `\u{10000}` to F0 90 80 80, so UTF-8 sorts the first one lower —
+    /// while UTF-16 code units (0xFF21 against the surrogate 0xD800) sort it
+    /// higher. An implementation comparing decoded strings instead of raw
+    /// name bytes emits these two the other way round.
+    fn unsorted_archive() -> Vec<u8> {
+        let stored = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .last_modified_time(DateTime::from_date_and_time(2026, 3, 6, 18, 4, 12).unwrap());
+        let deflated = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .last_modified_time(DateTime::from_date_and_time(2026, 3, 2, 9, 30, 0).unwrap());
+
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer.start_file("VERSION", stored).unwrap();
+        writer.write_all(VERSION).unwrap();
+        writer.start_file("x\u{10000}", deflated).unwrap();
+        writer.write_all(b"astral").unwrap();
+        writer.add_directory("Content/", deflated).unwrap();
+        writer.start_file("Content/score.gpif", deflated).unwrap();
+        writer.write_all(SCORE).unwrap();
+        writer.start_file("x\u{FF21}", stored).unwrap();
+        writer.write_all(b"fullwidth").unwrap();
+        writer.finish().unwrap().into_inner()
+    }
+
+    fn fixture(name: &str) -> Vec<u8> {
+        let path = format!(
+            "{}/../../../packages/gpt-core/src/__fixtures__/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        std::fs::read(&path).unwrap_or_else(|err| panic!("{path}: {err}"))
+    }
+
+    /// The golden the TypeScript port asserts against too
+    /// (`apps/hub/src/git/normalize.ts`). Two implementations only stay honest
+    /// if neither can change these bytes without the other's suite noticing.
+    #[test]
+    fn the_fixture_normalizes_to_the_shared_golden() {
+        assert_eq!(
+            normalize_gp(&fixture("sample.gp")),
+            fixture("sample.normalized.gp")
+        );
+    }
+
+    /// Rewrites both `unsorted` fixtures from the builder above. Run it
+    /// (`cargo test write_unsorted_fixture -- --ignored`) after a deliberate
+    /// change to the algorithm, then expect the hub's suite to move with it —
+    /// if only one side moves, the change is a divergence, not a change.
+    #[test]
+    #[ignore = "regenerates a checked-in fixture"]
+    fn write_unsorted_fixture() {
+        let dir = format!(
+            "{}/../../../packages/gpt-core/src/__fixtures__",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let raw = unsorted_archive();
+        std::fs::write(format!("{dir}/unsorted.zip"), &raw).unwrap();
+        std::fs::write(format!("{dir}/unsorted.normalized.zip"), normalize_gp(&raw)).unwrap();
+    }
+
+    /// The second golden, and the one that pins entry *order*. `sample.gp`
+    /// arrives sorted and all-ASCII, so on its own it would let a port that
+    /// never sorts, or that sorts decoded strings, pass.
+    #[test]
+    fn the_unsorted_fixture_normalizes_to_the_shared_golden() {
+        assert_eq!(
+            normalize_gp(&fixture("unsorted.zip")),
+            fixture("unsorted.normalized.zip")
+        );
+    }
+
     #[test]
     fn the_gpt_core_fixture_round_trips() {
-        let fixture = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/gpt-core/src/__fixtures__/sample.gp"
-        ))
-        .expect("gpt-core sample fixture");
+        let sample = fixture("sample.gp");
 
-        let normalized = normalize_gp(&fixture);
+        let normalized = normalize_gp(&sample);
 
         assert_eq!(normalized, normalize_gp(&normalized), "idempotent");
         assert_eq!(
             entries_of(&normalized),
             {
-                let mut original = entries_of(&fixture);
+                let mut original = entries_of(&sample);
                 original.sort_by(|(a, _), (b, _)| a.cmp(b));
                 original
             },
