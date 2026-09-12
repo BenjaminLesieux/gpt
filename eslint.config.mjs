@@ -125,6 +125,11 @@ export default tseslint.config(
     files: ["apps/hub/src/**/*.ts"],
     extends: [...node],
   },
+  // apps/hub-web (the hub's browser UI)
+  {
+    files: ["apps/hub-web/src/**/*.{ts,tsx}"],
+    extends: [...react],
+  },
   // Test files — relax some rules
   {
     files: ["**/*.spec.{ts,tsx}", "**/*.test.{ts,tsx}"],
