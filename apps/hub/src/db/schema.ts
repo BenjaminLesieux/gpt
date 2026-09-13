@@ -57,6 +57,20 @@ export const scoreTokens = sqliteTable(
      */
     tokenHash: text('token_hash').notNull().unique(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    /**
+     * When this credential last authenticated anything at all — a fetch, a
+     * push, a probe. Null means minted and never used, which is the state a
+     * score sits in between `POST /scores` and the app first running: issuing
+     * a token says nothing about whether a machine has it.
+     */
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    /**
+     * When this credential last completed a `git-receive-pack`. Narrower than
+     * `lastUsedAt` on purpose: connecting proves the score reached a machine,
+     * pushing proves someone is working on it, and only the second one should
+     * ever be read as activity.
+     */
+    lastPushedAt: integer('last_pushed_at', { mode: 'timestamp_ms' }),
   },
   (table) => [index('score_tokens_score_id_idx').on(table.scoreId)]
 );

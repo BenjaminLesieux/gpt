@@ -207,10 +207,18 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         createdAt: row.createdAt.toISOString(),
         // Names, ids and dates only. The values do not exist any more, and a
         // row that implied otherwise would be a lie the user acts on.
+        //
+        // The two activity stamps are what let the caller tell a credential
+        // apart from a computer. `POST /scores` mints a token inline with the
+        // score, so `tokens` alone has never been able to answer "where is
+        // this score?" — it answers "what has been issued", which is a
+        // different question and was being displayed as if it were the first.
         tokens: (tokens.get(row.id) ?? []).map((token) => ({
           id: token.id,
           name: token.name,
           createdAt: token.createdAt.toISOString(),
+          lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+          lastPushedAt: token.lastPushedAt?.toISOString() ?? null,
         })),
       }))
     );

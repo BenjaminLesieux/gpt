@@ -3,13 +3,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
+import { eq } from 'drizzle-orm';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app/app';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scores } from '../db/schema';
+import { accounts, scoreTokens, scores } from '../db/schema';
 import { mintScoreToken } from '../scores/tokens';
 import { createRepository } from './repositories';
 
@@ -42,6 +43,11 @@ async function git(cwd: string, ...args: string[]) {
 function cloneUrl(token: string, account = ACCOUNT, score = SCORE_A) {
   const { host } = new URL(origin);
   return `http://token:${token}@${host}/git/${account}/${score}.git`;
+}
+
+/** The activity stamps, read straight from the row the route writes. */
+function readToken(id: string) {
+  return handle.db.select().from(scoreTokens).where(eq(scoreTokens.id, id)).get();
 }
 
 beforeEach(async () => {
@@ -156,6 +162,41 @@ describe('the git endpoint', () => {
     // object and check out nothing.
     const { stdout } = await git(path.join(workspace, 'second'), 'log', '--oneline');
     expect(stdout).toContain('named version');
+  });
+
+  it('should record the device as having pushed, having minted nothing new', async () => {
+    // Given a credential that has never been used — the state POST /scores
+    // leaves every score in, since it mints a token inline with the row.
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, "Ben's MacBook");
+    expect(readToken(id)).toMatchObject({ lastUsedAt: null, lastPushedAt: null });
+
+    // When a real push goes through the route
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+    const clone = path.join(workspace, 'score');
+    await writeFile(path.join(clone, 'score.gp'), '<?xml version="1.0"?><GPIF/>');
+    await git(clone, 'add', '-A');
+    await git(clone, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'named version');
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+
+    // Then — this is the only place the hub ever learns that a score is
+    // really on a computer, and that someone is really working on it.
+    const row = readToken(id);
+    expect(row?.lastUsedAt).toBeInstanceOf(Date);
+    expect(row?.lastPushedAt).toBeInstanceOf(Date);
+  });
+
+  it('should record a clone as a connection and not as a push', async () => {
+    // Given
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, 'Studio iMac');
+
+    // When the score is fetched onto the machine but nothing comes back
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+
+    // Then — the score is on that computer, which the list should say; but
+    // nobody has played anything into it, which it must not say.
+    const row = readToken(id);
+    expect(row?.lastUsedAt).toBeInstanceOf(Date);
+    expect(row?.lastPushedAt).toBeNull();
   });
 
   it('should refuse a valid token aimed at another score', async () => {
