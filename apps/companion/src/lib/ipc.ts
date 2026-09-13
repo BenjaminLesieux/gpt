@@ -310,3 +310,24 @@ export function onClaimArrived(
 ): Promise<UnlistenFn> {
   return listen<ClaimArrivedEvent>('claim-arrived', ({ payload }) => handler(payload));
 }
+
+/** What a claim is about, read from the hub before anything is spent. */
+export interface ClaimPeek {
+  scoreName: string;
+  /** The hub's own idea of where it lives. */
+  hubName: string;
+}
+
+export function peekClaim(hub: string, claim: string): Promise<ClaimPeek> {
+  return invoke('peek_claim', { hub, claim });
+}
+
+/**
+ * Asks where the score should land, redeems the claim and writes it.
+ *
+ * `null` means the save dialog was cancelled — nothing was spent and the same
+ * link still works, which is why the save dialog comes before the redemption.
+ */
+export function adoptClaim(hub: string, claim: string): Promise<TrackedFile | null> {
+  return invoke('adopt_claim', { hub, claim });
+}

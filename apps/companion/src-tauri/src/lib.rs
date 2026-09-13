@@ -12,6 +12,7 @@ mod error;
 mod events;
 mod git;
 mod guitar_pro;
+mod hub;
 mod normalize;
 mod panel;
 mod pull;
@@ -69,6 +70,8 @@ pub fn run() {
             commands::pull_remote,
             commands::adopt_remote,
             commands::pick_and_adopt_remote,
+            commands::peek_claim,
+            commands::adopt_claim,
         ])
         .setup(|app| {
             // The resting state: menu-bar resident, no dock icon of its own.

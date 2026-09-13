@@ -17,9 +17,12 @@ vi.mock('@/lib/ipc', () => ({
   fetchRemote: vi.fn(),
   pullRemote: vi.fn(),
   pickAndAdoptRemote: vi.fn(),
+  peekClaim: vi.fn(),
+  adoptClaim: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
+  onClaimArrived: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -409,6 +412,107 @@ describe('ExtendedApp', () => {
     await user.click(await screen.findByRole('button', { name: /Bring in a score/ }));
 
     expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
+  });
+
+  /**
+   * The clone path. A `gitarpro://` link reaches the host, which raises this
+   * window and emits what arrived; everything the dialog says about it is
+   * read back from the hub rather than taken from the link.
+   */
+  describe('a score arriving on a gitarpro:// link', () => {
+    const LINK = { hub: 'https://hub.example.com', claim: 'abc123' };
+
+    /** Fires the event the host emits when a link lands. */
+    function arrive(link = LINK) {
+      const handler = ipc.onClaimArrived.mock.calls[0][0];
+      return handler(link);
+    }
+
+    const lasagna: TrackedFile = {
+      id: 'b2',
+      path: '/Users/ben/Songs/Lasagna.gp',
+      name: 'Lasagna',
+      addedAt: NOW,
+      remote: {
+        url: 'https://hub.example.com/git/ben/k7m2x.git',
+        auth: { kind: 'token', username: 'ben' },
+      },
+    };
+
+    it('names the score from the hub and shows the origin it came from', async () => {
+      ipc.peekClaim.mockResolvedValue({ scoreName: 'Lasagna', hubName: 'hub.example.com' });
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      await arrive();
+
+      expect(await screen.findByText(/Add “Lasagna” to this computer/)).toBeTruthy();
+      // The origin as it arrived, because that is the value being trusted.
+      expect(screen.getByText('https://hub.example.com')).toBeTruthy();
+      expect(ipc.peekClaim).toHaveBeenCalledWith('https://hub.example.com', 'abc123');
+    });
+
+    it('adopts on confirmation and says the score is on disk', async () => {
+      ipc.peekClaim.mockResolvedValue({ scoreName: 'Lasagna', hubName: 'hub.example.com' });
+      ipc.adoptClaim.mockResolvedValue(lasagna);
+      const user = userEvent.setup();
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      await arrive();
+      await screen.findByText(/Add “Lasagna”/);
+
+      await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
+
+      expect(ipc.adoptClaim).toHaveBeenCalledWith('https://hub.example.com', 'abc123');
+      expect(await screen.findByText(/is on disk and tracked/)).toBeTruthy();
+    });
+
+    /**
+     * The save dialog comes before the redemption, so a cancel spends
+     * nothing — the dialog stays up and the same link still works.
+     */
+    it('stays open when the save dialog is cancelled', async () => {
+      ipc.peekClaim.mockResolvedValue({ scoreName: 'Lasagna', hubName: 'hub.example.com' });
+      ipc.adoptClaim.mockResolvedValue(null);
+      const user = userEvent.setup();
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      await arrive();
+      await screen.findByText(/Add “Lasagna”/);
+
+      await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
+
+      expect(screen.getByText(/Add “Lasagna”/)).toBeTruthy();
+    });
+
+    it('says why a link that no longer works does not, without offering to try it', async () => {
+      ipc.peekClaim.mockRejectedValue(
+        new Error('That link has already been used. Press Clone again for a new one.'),
+      );
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      await arrive();
+
+      expect(await screen.findByText(/already been used/)).toBeTruthy();
+      // Nothing to press: the claim is spent, and the retry is on the website.
+      expect(
+        screen.getByRole('button', { name: /Choose where to save/ }).hasAttribute('disabled')
+      ).toBe(true);
+    });
+
+    it('refuses a link pointing at a plain-http hub before asking it anything', async () => {
+      ipc.peekClaim.mockRejectedValue(
+        new Error('http://hub.example.com/ is not an https address'),
+      );
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      await arrive({ hub: 'http://hub.example.com', claim: 'abc123' });
+
+      expect(await screen.findByText(/not an https address/)).toBeTruthy();
+      expect(ipc.adoptClaim).not.toHaveBeenCalled();
+    });
   });
 
   it('sends the user to the file picker when nothing is tracked', async () => {

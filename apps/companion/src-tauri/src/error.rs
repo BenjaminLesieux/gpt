@@ -31,6 +31,25 @@ pub enum Error {
     #[error("the remote refused {refname}: {reason}")]
     PushRejected { refname: String, reason: String },
 
+    /// The hub answered, and said no. `code` is what the UI branches on;
+    /// `message` is what the hub already wrote for a musician to read.
+    #[error("{1}")]
+    Hub(String, String),
+
+    #[error("could not reach the hub: {0}")]
+    HubUnreachable(String),
+
+    /// A token is a git password. Over plain http it would travel in the
+    /// clear to an origin that arrived in a link nobody vouched for.
+    #[error("{0} is not an https address, so a token sent there would travel in the clear")]
+    InsecureHub(String),
+
+    #[error("{0} is not an address")]
+    InvalidHub(String),
+
+    #[error("that link does not carry a usable claim")]
+    InvalidClaim,
+
     #[error("background task failed: {0}")]
     BackgroundTask(String),
 

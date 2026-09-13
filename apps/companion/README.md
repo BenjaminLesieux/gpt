@@ -163,15 +163,26 @@ Only HTTPS is built. `git2`'s `ssh` feature would pull libssh2 into the bundle
 and nothing has asked for it; `RemoteAuth::Ssh` exists in the descriptor and is
 refused by the credential callback.
 
+[`src-tauri/src/hub.rs`](src-tauri/src/hub.rs) is the one place this process
+speaks HTTP that `git2` is not speaking for it: reading what a
+`gitarpro://` claim is about, and spending it. `reqwest` on its default
+features, which in 0.13 means rustls — no OpenSSL, and so none of the
+`/opt/homebrew` load commands the `git2` note above is about. Redemption
+happens there rather than in the webview because the CSP's `connect-src` is a
+fixed allowlist, and letting the page reach an arbitrary hub would mean
+`connect-src https:`.
+
 ## IPC
 
 Every command is wrapped and typed in [`src/lib/ipc.ts`](src/lib/ipc.ts):
 `listTrackedFiles`, `trackFile`, `pickAndTrackFile`, `untrackFile`,
 `getActiveFile`, `setActiveFile`, `commitNamed`, `listVersions`,
 `listSnapshots`, `getVersionBlob`, `restoreVersion`, `setRemote`, `pushStatus`,
-`syncState`, `fetchRemote`, `pullRemote`, plus the window controls. Three events
-go the other way: `file-saved` (after each debounced save of a tracked file),
-`tracked-files-changed`, and `push-status-changed`.
+`syncState`, `fetchRemote`, `pullRemote`, `peekClaim`, `adoptClaim`, plus the
+window controls. Four events go the other way: `file-saved` (after each
+debounced save of a tracked file), `tracked-files-changed`,
+`push-status-changed`, and `claim-arrived` (a `gitarpro://` link reached this
+machine).
 
 `fetchRemote` and `pullRemote` are `async` commands wrapped in
 `spawn_blocking`: a plain Tauri command runs on the main thread, and these wait
