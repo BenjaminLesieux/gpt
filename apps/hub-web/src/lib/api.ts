@@ -28,13 +28,24 @@ export interface ImportedScore {
   message: string;
 }
 
+/**
+ * One credential, named after the machine that holds it. A score reached from
+ * two computers has two — cloning to a second machine mints its own rather
+ * than re-sending the first, which the hub could not do if it wanted to.
+ */
+export interface ScoreToken {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Score {
   id: string;
   name: string;
   url: string;
   createdAt: string;
-  /** Null when minting failed: the score exists, its sign-in details do not. */
-  token: { id: string; name: string } | null;
+  /** Empty when minting failed: the score exists, its sign-in details do not. */
+  tokens: ScoreToken[];
 }
 
 export class HubError extends Error {
@@ -143,7 +154,14 @@ export const api = {
       'application/octet-stream'
     ),
 
-  /** Mints the token for a score whose first attempt did not get one. */
-  finishSetup: (id: string) =>
-    request<CreatedScore>(`/scores/${encodeURIComponent(id)}/token`, { method: 'POST' }),
+  /**
+   * Mints a token for a score that already exists — the retry after a
+   * half-finished setup, and the way a second machine gets its own
+   * credential. `name` is what the token is called in the score list.
+   */
+  mintToken: (id: string, name?: string) =>
+    request<CreatedScore>(`/scores/${encodeURIComponent(id)}/token`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
 };

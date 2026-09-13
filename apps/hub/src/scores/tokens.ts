@@ -1,16 +1,45 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
 import { scoreTokens, scores } from '../db/schema';
 import { newId } from '../ids';
 
 const TOKEN_BYTES = 32;
 
+/**
+ * What a token is called when nobody said. Every token names the device that
+ * holds it — one score reached from a laptop and a studio machine has two,
+ * and the name is the only thing that tells them apart in the score list or,
+ * later, in a history of who pushed what.
+ */
+export const DEFAULT_TOKEN_NAME = 'companion';
+
+const MAX_TOKEN_NAME = 80;
+
 export interface MintedScoreToken {
   id: string;
   name: string;
   /** Handed to the caller once and never recoverable, mirroring companion. */
   token: string;
+}
+
+/** A token as anyone but its holder ever sees it. */
+export interface ScoreTokenSummary {
+  id: string;
+  name: string;
+  createdAt: Date;
+}
+
+/**
+ * Trims a device name down to something that can sit in a table cell, and
+ * falls back rather than refusing: the name is a label, and a clone that
+ * failed over a bad one would be a worse trade than a clone called
+ * `companion`.
+ */
+export function deviceName(raw: unknown): string {
+  if (typeof raw !== 'string') return DEFAULT_TOKEN_NAME;
+  const trimmed = raw.trim().replace(/\s+/g, ' ').slice(0, MAX_TOKEN_NAME);
+  return trimmed.length > 0 ? trimmed : DEFAULT_TOKEN_NAME;
 }
 
 export function mintScoreToken(
@@ -54,6 +83,39 @@ export function readScoreToken(db: HubDatabase, token: string): ScoreTokenBearer
     .get();
 
   return row ?? null;
+}
+
+/**
+ * Every token of every score named, in one query rather than one per score.
+ * A score with two devices is one row with two tokens, never two rows — the
+ * list is of scores, and a join that fanned out would quietly say otherwise.
+ */
+export function listScoreTokens(
+  db: HubDatabase,
+  scoreIds: string[]
+): Map<string, ScoreTokenSummary[]> {
+  const byScore = new Map<string, ScoreTokenSummary[]>();
+  if (scoreIds.length === 0) return byScore;
+
+  const rows = db
+    .select({
+      id: scoreTokens.id,
+      scoreId: scoreTokens.scoreId,
+      name: scoreTokens.name,
+      createdAt: scoreTokens.createdAt,
+    })
+    .from(scoreTokens)
+    .where(inArray(scoreTokens.scoreId, scoreIds))
+    .orderBy(scoreTokens.createdAt)
+    .all();
+
+  for (const row of rows) {
+    const list = byScore.get(row.scoreId) ?? [];
+    list.push({ id: row.id, name: row.name, createdAt: row.createdAt });
+    byScore.set(row.scoreId, list);
+  }
+
+  return byScore;
 }
 
 export function revokeScoreToken(db: HubDatabase, tokenId: string): void {

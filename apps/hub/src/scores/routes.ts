@@ -6,10 +6,10 @@ import { z } from 'zod';
 import { errorBody } from '../app/errors';
 import { requireAccount } from '../auth/session-guard';
 import type { HubDatabase } from '../db/client';
-import { scoreTokens, scores } from '../db/schema';
+import { scores } from '../db/schema';
 import { createRepository } from '../git/repositories';
 import { newId } from '../ids';
-import { mintScoreToken } from './tokens';
+import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
 
 export interface ScoreRoutesOptions {
   db: HubDatabase;
@@ -63,7 +63,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         .values({ id, accountId: account.id, name: parsed.data.name, createdAt: new Date() })
         .run();
 
-      const token = mintScoreToken(db, id, 'companion');
+      const token = mintScoreToken(db, id, DEFAULT_TOKEN_NAME);
 
       return reply.code(201).send({
         id,
@@ -86,12 +86,18 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
   });
 
   /**
-   * Mints the token for a score that has none. Creating a score rolls itself
-   * back if minting fails, so this is not reachable from that path — but the
-   * repository directory and the row outlive any crash between the two
-   * writes, and a score the owner can see but not sync is worse than a retry
-   * they can press. Restricted to scores that are actually missing a token so
-   * it cannot be used to silently mint a second one.
+   * Mints a token for a score. Two callers, one shape:
+   *
+   * - a score whose creation crashed between the row and the token, which the
+   *   owner sees as *Setup unfinished* and fixes with a retry they can press;
+   * - a second machine, which is a second device and wants its own credential.
+   *
+   * The refusal that used to sit here — one token per score, ever — was the
+   * assumption that a score lives on exactly one computer. It does not: a
+   * token cannot be handed over twice because only its hash was kept, so
+   * reaching a score from a laptop *and* a studio machine has to mean two
+   * tokens or it means copying a secret between keychains by hand. Two also
+   * makes the studio machine revocable on its own, which one never was.
    */
   fastify.post('/:id/token', { config: { rateLimit: CREATE_LIMIT } }, async (request, reply) => {
     const account = requireAccount(db, request, reply, cookieSecure);
@@ -111,19 +117,11 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
-    const existing = db
-      .select({ id: scoreTokens.id })
-      .from(scoreTokens)
-      .where(eq(scoreTokens.scoreId, score.id))
-      .get();
-
-    if (existing) {
-      return reply
-        .code(409)
-        .send(errorBody('already_set_up', 'This score is already set up for syncing.'));
-    }
-
-    const token = mintScoreToken(db, score.id, 'companion');
+    const token = mintScoreToken(
+      db,
+      score.id,
+      deviceName((request.body as { name?: unknown } | null)?.name)
+    );
 
     return reply.code(201).send({
       id: score.id,
@@ -140,18 +138,19 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     if (!account) return reply;
 
     const rows = db
-      .select({
-        id: scores.id,
-        name: scores.name,
-        createdAt: scores.createdAt,
-        tokenId: scoreTokens.id,
-        tokenName: scoreTokens.name,
-      })
+      .select({ id: scores.id, name: scores.name, createdAt: scores.createdAt })
       .from(scores)
-      .leftJoin(scoreTokens, eq(scoreTokens.scoreId, scores.id))
       .where(eq(scores.accountId, account.id))
       .orderBy(desc(scores.createdAt))
       .all();
+
+    // Second query rather than a join: a score with two devices would come
+    // back from a join as two scores, and the caller renders one row per
+    // element of this array.
+    const tokens = listScoreTokens(
+      db,
+      rows.map((row) => row.id)
+    );
 
     return reply.send(
       rows.map((row) => ({
@@ -159,9 +158,13 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         name: row.name,
         url: cloneUrl(publicUrl, account.id, row.id),
         createdAt: row.createdAt.toISOString(),
-        // Name and id only. The value does not exist any more, and a row that
-        // implied otherwise would be a lie the user acts on.
-        token: row.tokenId ? { id: row.tokenId, name: row.tokenName } : null,
+        // Names, ids and dates only. The values do not exist any more, and a
+        // row that implied otherwise would be a lie the user acts on.
+        tokens: (tokens.get(row.id) ?? []).map((token) => ({
+          id: token.id,
+          name: token.name,
+          createdAt: token.createdAt.toISOString(),
+        })),
       }))
     );
   });

@@ -52,13 +52,13 @@ describe('HubError.isUpstreamDown', () => {
 describe('request', () => {
   it('surfaces the code and message the server wrote', async () => {
     fetchMock.mockResolvedValue(
-      respond(409, { error: { code: 'already_set_up', message: 'That score is connected.' } })
+      respond(404, { error: { code: 'no_such_score', message: 'No score with that id.' } })
     );
 
-    await expect(api.finishSetup('abc')).rejects.toMatchObject({
-      code: 'already_set_up',
-      message: 'That score is connected.',
-      status: 409,
+    await expect(api.mintToken('abc')).rejects.toMatchObject({
+      code: 'no_such_score',
+      message: 'No score with that id.',
+      status: 404,
     });
   });
 
@@ -138,7 +138,7 @@ describe('request', () => {
 
   it('escapes the score id rather than pasting it into the path', async () => {
     fetchMock.mockResolvedValue(respond(200, {}));
-    await api.finishSetup('../auth/me');
+    await api.mintToken('../auth/me');
 
     expect(fetchMock.mock.calls[0][0]).toBe('/scores/..%2Fauth%2Fme/token');
   });

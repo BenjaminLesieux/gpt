@@ -47,7 +47,7 @@ function ScoreRow({
   onFinishSetup: (id: string) => void;
   finishing: boolean;
 }) {
-  const unfinished = score.token === null;
+  const unfinished = score.tokens.length === 0;
 
   // A row and, when setup was abandoned, the row explaining it. They are
   // separate <tr>s rather than one tall cell so the explanation is reachable
@@ -94,9 +94,12 @@ function ScoreRow({
               <span className="sr-only"> for {score.name}</span>
             </Button>
           ) : (
-            // The value is gone; only the name it was given survives. A row
-            // that showed anything else would imply it could be recovered.
-            <span className={`${CELL_META} font-mono`}>{score.token?.name}</span>
+            // The values are gone; only the names they were given survive. A
+            // row that showed anything else would imply they could be
+            // recovered. One name per machine the score is set up on.
+            <span className={`${CELL_META} font-mono`} title={score.tokens.map((t) => t.name).join(', ')}>
+              {score.tokens.map((t) => t.name).join(', ')}
+            </span>
           )}
         </TableCell>
       </TableRow>
@@ -269,7 +272,8 @@ function ScoresPage() {
           <div className="border border-border-subtle">
             <Table className="table-fixed">
               <TableCaption className="mt-0 border-t border-border-subtle px-4 py-3 text-left">
-                Token values are never shown again after a score is created.
+                Token values are never shown again after a score is created. Each machine a
+                score is set up on gets its own.
               </TableCaption>
               <TableHeader>
                 <TableRow className="border-border-subtle hover:bg-transparent">
@@ -283,7 +287,7 @@ function ScoresPage() {
                     Created
                   </TableHead>
                   <TableHead className="h-8 w-[190px] bg-card text-xs font-medium uppercase tracking-wide">
-                    Token
+                    Set up on
                   </TableHead>
                 </TableRow>
               </TableHeader>
