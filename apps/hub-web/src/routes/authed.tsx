@@ -1,4 +1,5 @@
 import { Outlet, createRoute, redirect } from '@tanstack/react-router';
+import { TooltipProvider } from '@gpt/ui/tooltip';
 import { Header } from '@/components/header';
 import { accountQuery, useLogout } from '@/lib/queries';
 import { rootRoute, type RouterContext } from './root';
@@ -9,16 +10,20 @@ function AuthedLayout() {
   const navigate = authedRoute.useNavigate();
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <Header
-        email={account.email}
-        onLogOut={async () => {
-          await logout.mutateAsync();
-          await navigate({ to: '/login' });
-        }}
-      />
-      <Outlet />
-    </div>
+    // One provider for the whole signed-in shell, as the companion does in
+    // ExtendedApp — nothing below should nest another.
+    <TooltipProvider>
+      <div className="flex min-h-dvh flex-col">
+        <Header
+          email={account.email}
+          onLogOut={async () => {
+            await logout.mutateAsync();
+            await navigate({ to: '/login' });
+          }}
+        />
+        <Outlet />
+      </div>
+    </TooltipProvider>
   );
 }
 
