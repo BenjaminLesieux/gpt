@@ -116,7 +116,7 @@ export function useRetryImport(onImported: (score: CreatedScore) => void) {
 export function useFinishSetup(onFinished: (score: CreatedScore) => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.finishSetup(id),
+    mutationFn: (id: string) => api.mintToken(id),
     onSuccess: async (score) => {
       await queryClient.invalidateQueries({ queryKey: scoresQuery.queryKey });
       onFinished(score);

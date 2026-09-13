@@ -173,9 +173,10 @@ describe('GET /scores', () => {
       id: created.id,
       name: 'Bridge rewrite',
       url: created.url,
-      token: { name: 'companion' },
+      tokens: [{ name: 'companion' }],
     });
-    expect(row.token.id).toEqual(expect.any(String));
+    expect(row.tokens[0].id).toEqual(expect.any(String));
+    expect(row.tokens[0].createdAt).toEqual(expect.any(String));
   });
 
   it('should be empty for a fresh account', async () => {
@@ -308,7 +309,7 @@ describe('the handoff', () => {
   });
 });
 
-describe('finishing setup on a score that has no token', () => {
+describe('minting a token for a score that already exists', () => {
   /**
    * Creating a score rolls itself back if minting fails, so the only way to
    * reach this state is a crash between the two writes. Dropping the token
@@ -329,7 +330,7 @@ describe('finishing setup on a score that has no token', () => {
     });
 
     expect(listed.json()).toHaveLength(1);
-    expect(listed.json()[0].token).toBeNull();
+    expect(listed.json()[0].tokens).toEqual([]);
   });
 
   it('mints a token and hands back the whole triple', async () => {
@@ -353,17 +354,61 @@ describe('finishing setup on a score that has no token', () => {
     expect(finished.json().token).toEqual(expect.any(String));
   });
 
-  it('refuses to mint a second token for a score that already has one', async () => {
+  /**
+   * The refusal this replaced assumed a score lives on one computer. It does
+   * not — and the first token cannot be handed over a second time, because
+   * only its hash was kept.
+   */
+  it('mints a second token for a second machine rather than refusing', async () => {
+    const created = await createScore();
+    const id = created.json().id;
+
+    const again = await server.inject({
+      method: 'POST',
+      url: `/scores/${id}/token`,
+      payload: { name: 'Studio iMac' },
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    expect(again.statusCode).toBe(201);
+    expect(again.json().token).not.toBe(created.json().token);
+    expect(again.json().tokenName).toBe('Studio iMac');
+  });
+
+  it('keeps a score with two tokens to one row, naming both', async () => {
+    const created = await createScore();
+    await server.inject({
+      method: 'POST',
+      url: `/scores/${created.json().id}/token`,
+      payload: { name: 'Studio iMac' },
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    expect(listed.json()).toHaveLength(1);
+    expect(listed.json()[0].tokens.map((token: { name: string }) => token.name)).toEqual([
+      'companion',
+      'Studio iMac',
+    ]);
+  });
+
+  it('falls back to a default name rather than refusing an unusable one', async () => {
     const created = await createScore();
 
     const again = await server.inject({
       method: 'POST',
       url: `/scores/${created.json().id}/token`,
+      payload: { name: '   ' },
       cookies: { [SESSION_COOKIE]: session },
     });
 
-    expect(again.statusCode).toBe(409);
-    expect(again.json().error.code).toBe('already_set_up');
+    expect(again.statusCode).toBe(201);
+    expect(again.json().tokenName).toBe('companion');
   });
 
   it('answers the same for a score that is not yours as for one that does not exist', async () => {
