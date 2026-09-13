@@ -5,6 +5,7 @@ import { purgeExpiredSessions } from './auth/sessions';
 import { migrateToLatest, openDatabase } from './db/client';
 import { loadEnv } from './env';
 import type { Env } from './env';
+import { purgeExpiredClaims } from './scores/claims';
 
 /**
  * A bad .env is an operator error, not a crash. Printing the stack buries the
@@ -30,6 +31,7 @@ const database = openDatabase(env.DATABASE_PATH);
 // shim, so resolving from the dist root would miss them.
 migrateToLatest(database.db, path.join(__dirname, 'db', 'migrations'));
 purgeExpiredSessions(database.db);
+purgeExpiredClaims(database.db);
 
 const server = Fastify({
   logger: true,

@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
+import { claimRoutes } from '../scores/claims';
 import { importRoutes } from '../scores/import';
 import { scoreRoutes } from '../scores/routes';
 import errorHandler from './plugins/error-handler';
@@ -47,6 +48,14 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
     cookieSecure: opts.cookieSecure,
     gitRoot: opts.gitRoot,
     prefix: '/scores',
+  });
+
+  // No session of its own: a claim is redeemed by the machine the score is
+  // arriving at, and the code in the link is the whole authorisation.
+  await fastify.register(claimRoutes, {
+    db: opts.db,
+    publicUrl: opts.publicUrl,
+    prefix: '/claims',
   });
 
   // Its own scope: the raw-stream content-type parser git needs must not
