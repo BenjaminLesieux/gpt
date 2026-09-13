@@ -29,6 +29,13 @@
       "when": 1789319891754,
       "tag": "0003_token_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789327630776,
+      "tag": "0004_score_members",
+      "breakpoints": true
     }
   ]
 }
