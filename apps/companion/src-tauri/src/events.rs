@@ -6,12 +6,14 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::config::TrackedFile;
+use crate::deep_link::AdoptLink;
 use crate::git::Version;
 use crate::push::PushStatus;
 
 pub const FILE_SAVED: &str = "file-saved";
 pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
+pub const CLAIM_ARRIVED: &str = "claim-arrived";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +47,25 @@ pub fn push_status_changed(app: &AppHandle, id: &str, status: PushStatus) {
         PushStatusChanged {
             id: id.to_owned(),
             status,
+        },
+    );
+}
+
+/// A `gitarpro://` link reached this machine. Carries no credential: the
+/// window shows a confirmation and the redemption happens back in Rust.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimArrived {
+    pub hub: String,
+    pub claim: String,
+}
+
+pub fn claim_arrived(app: &AppHandle, link: &AdoptLink) {
+    let _ = app.emit(
+        CLAIM_ARRIVED,
+        ClaimArrived {
+            hub: link.hub.clone(),
+            claim: link.claim.clone(),
         },
     );
 }

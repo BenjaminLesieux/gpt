@@ -240,6 +240,15 @@ Two styling notes worth knowing before touching `styles/app.css`:
   and from `RunEvent::Reopen` when the app is already resident and the user
   clicks it in the dock, Spotlight or Finder. Without that second path, opening
   a running Gitarpro would appear to do nothing.
+- `gitarpro://adopt?hub=…&claim=…` is how the hub hands a score to this
+  machine — see [`src-tauri/src/deep_link.rs`](src-tauri/src/deep_link.rs).
+  macOS registers the scheme from the bundle's `Info.plist` through
+  LaunchServices, so **it cannot be exercised under `tauri dev`**: bundle the
+  app, run it once from `/Applications` so LaunchServices sees it, then
+  `open 'gitarpro://adopt?hub=https%3A%2F%2Fhub.example.com&claim=abc'`. The
+  scheme is declared in `tauri.conf.json` under `plugins.deep-link.desktop`
+  and the bundler writes `CFBundleURLTypes` from it; the checked-in
+  `Info.plist` only carries `LSUIElement` and is merged over the generated one.
 - The tray draws [`icons/tray.png`](src-tauri/icons/tray.png), a black-on-alpha
   plectrum flagged as a template so macOS recolours it for the menu bar it lands
   in. The brand has only a logotype and `gpt` is unreadable at 16pt, so the tray
