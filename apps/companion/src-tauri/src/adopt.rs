@@ -119,6 +119,39 @@ pub fn suggested_file_name(url: &str) -> String {
     format!("{segment}.gp")
 }
 
+/// What to call the file when the hub has said what the score is called.
+///
+/// Better than [`suggested_file_name`] wherever it can be used: the hub's
+/// score id is opaque, so the url gives the save dialog something like
+/// `k7m2x….gp` where the name gives it `Blackbird.gp`.
+///
+/// The name is whatever the musician typed, so it is stripped down to
+/// something that can be a filename rather than trusted as one — it reaches a
+/// `save_file` call, and a separator in it would point that call elsewhere.
+pub fn file_name_for(score_name: &str) -> String {
+    let cleaned: String = score_name
+        .chars()
+        .map(|c| {
+            if c.is_control() || matches!(c, '/' | '\\' | ':') {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+
+    // Whatever the separators left behind collapses to one space, and dots
+    // come off both ends — leading ones hide the file, trailing ones leave a
+    // filename that ends in nothing on the way to an extension.
+    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let cleaned = cleaned.trim_matches(|c: char| c == '.' || c.is_whitespace());
+
+    if cleaned.is_empty() {
+        return DEFAULT_FILE_NAME.to_owned();
+    }
+    format!("{cleaned}.gp")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +332,23 @@ mod tests {
             SyncState::UpToDate
         );
         assert_eq!(git::list(&repo, NAMED_REF, None).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_score_name_becomes_a_filename_the_save_dialog_can_offer() {
+        assert_eq!(file_name_for("Blackbird"), "Blackbird.gp");
+        assert_eq!(file_name_for("  Bridge rewrite "), "Bridge rewrite.gp");
+    }
+
+    /// The name is whatever the musician typed and it reaches a save dialog,
+    /// so a separator in it must not be able to point that dialog elsewhere.
+    #[test]
+    fn a_name_carrying_path_syntax_is_stripped_rather_than_trusted() {
+        assert_eq!(file_name_for("../../etc/passwd"), "etc passwd.gp");
+        assert_eq!(file_name_for("a/b"), "a b.gp");
+        assert_eq!(file_name_for(".hidden"), "hidden.gp");
+        assert_eq!(file_name_for("   "), "score.gp");
+        assert_eq!(file_name_for("..."), "score.gp");
     }
 
     #[test]

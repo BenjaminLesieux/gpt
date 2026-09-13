@@ -11,10 +11,11 @@ import {
 } from '@gpt/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
 import { TooltipProvider } from '@gpt/ui/tooltip';
-import type { TrackedFile, Version } from '@/lib/ipc';
+import { onClaimArrived, type ClaimArrivedEvent, type TrackedFile, type Version } from '@/lib/ipc';
 import { formatRelative } from '@/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
 import { AdoptDialog } from './AdoptDialog';
+import { ClaimDialog } from './ClaimDialog';
 import { DiffStage } from './DiffStage';
 import { RemoteDialog } from './RemoteDialog';
 import { RestoreDialog } from './RestoreDialog';
@@ -43,6 +44,9 @@ export function ExtendedApp() {
   const [restoring, setRestoring] = useState<Version | null>(null);
   const [remoteOpen, setRemoteOpen] = useState(false);
   const [adoptOpen, setAdoptOpen] = useState(false);
+  // A score the hub is offering. Set by a `gitarpro://` link, which can arrive
+  // at any moment — including the one that launched the window.
+  const [claim, setClaim] = useState<ClaimArrivedEvent | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -65,6 +69,14 @@ export function ExtendedApp() {
   function announce(message: string, about: string | null = fileId) {
     setNotice({ about, message });
   }
+
+  // The link may be what opened this window, so the listener has to be up
+  // before anything else the user could do — hence no dependency on which
+  // file is selected.
+  useEffect(() => {
+    const unlisten = onClaimArrived(setClaim);
+    return () => void unlisten.then((stop) => stop());
+  }, []);
 
   const entries = useMemo(
     () => [...history.versions, ...history.snapshots],
@@ -118,6 +130,17 @@ export function ExtendedApp() {
     }
   }
 
+  const claimDialog = (
+    <ClaimDialog
+      claim={claim}
+      onClose={() => setClaim(null)}
+      onAdopted={(file) => {
+        library.adopted(file);
+        announce(t('extended.claim.adopted', { file: file.name }), file.id);
+      }}
+    />
+  );
+
   const adoptDialog = (
     <AdoptDialog
       open={adoptOpen}
@@ -139,6 +162,7 @@ export function ExtendedApp() {
           onAdopt={() => setAdoptOpen(true)}
         />
         {adoptDialog}
+        {claimDialog}
       </Shell>
     );
   }
@@ -218,6 +242,7 @@ export function ExtendedApp() {
       </div>
 
       {adoptDialog}
+      {claimDialog}
 
       {library.selected && (
         <RemoteDialog

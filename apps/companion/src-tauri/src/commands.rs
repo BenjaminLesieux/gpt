@@ -10,6 +10,7 @@ use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTE
 use crate::error::{Error, Result};
 use crate::events;
 use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
+use crate::hub;
 use crate::normalize::normalize_gp;
 use crate::pull::{self, Pulled};
 use crate::push::PushStatus;
@@ -384,6 +385,76 @@ pub async fn pick_and_adopt_remote(
         .map_err(|err| Error::NotAFile(err.to_string()))?;
 
     adopt_remote(app, path, url, auth, token).await.map(Some)
+}
+
+/// What a `gitarpro://` link is about, before anything is spent.
+///
+/// The name comes back from the hub rather than out of the link, so a crafted
+/// link cannot say *Blackbird* and deliver something else — which is the
+/// whole reason peek and redeem are separate calls.
+#[tauri::command]
+pub async fn peek_claim(hub: String, claim: String) -> Result<hub::ClaimPeek> {
+    hub::Hub::new(&hub)?.peek(&claim).await
+}
+
+/// Redeems a claim and writes the score it buys.
+///
+/// The order matters and is not the obvious one: the save dialog comes
+/// *before* the redemption. A claim works once, so redeeming first would mean
+/// that cancelling the save dialog — an ordinary thing to do — spends it, and
+/// the only retry is a new Clone on the website. Asking where the file goes
+/// first costs a peek and makes cancelling free.
+///
+/// It cannot be made free altogether: `adopt` can still fail after the token
+/// exists, and then the hub holds a credential this machine never got. That
+/// is a stale row in the score's device list rather than a lost score, and
+/// the error says to press Clone again.
+#[tauri::command]
+pub async fn adopt_claim(
+    app: AppHandle,
+    hub: String,
+    claim: String,
+) -> Result<Option<TrackedFile>> {
+    let client = hub::Hub::new(&hub)?;
+
+    // Peeked again rather than passed down from the dialog: the filename this
+    // offers should come from the hub, and a value that made the round trip
+    // through the webview is a value the webview could have changed.
+    let peek = client.peek(&claim).await?;
+
+    let picked = {
+        // As in `pick_and_track_file`: a native dialog takes focus and the
+        // panel dismisses itself when it loses it.
+        let _hold = crate::panel::hold();
+        let (sender, mut receiver) = tauri::async_runtime::channel(1);
+        app.dialog()
+            .file()
+            .add_filter("Guitar Pro", &GP_EXTENSIONS)
+            .set_file_name(adopt::file_name_for(&peek.score_name))
+            .save_file(move |picked| {
+                // Capacity 1 and a single send: this can never be full.
+                let _ = sender.try_send(picked);
+            });
+        receiver.recv().await.flatten()
+    };
+
+    // Nothing has been spent, so this is a cancel and not a failure — the
+    // same link still works.
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let path = picked
+        .into_path()
+        .map_err(|err| Error::NotAFile(err.to_string()))?;
+
+    let redeemed = client.redeem(&claim, &hub::device_name()).await?;
+    let auth = RemoteAuth::Token {
+        username: redeemed.username,
+    };
+
+    adopt_remote(app, path, redeemed.url, Some(auth), Some(redeemed.token))
+        .await
+        .map(Some)
 }
 
 /// What the active file is anchored to. Read from the host's cache — the

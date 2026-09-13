@@ -120,6 +120,17 @@
       "action": "Choisir où l'enregistrer…",
       "adopted": "« {{file}} » est sur le disque et suivie."
     },
+    "claim": {
+      "title": "Ajouter « {{score}} » à cet ordinateur ?",
+      "description": "Gitarpro va le récupérer depuis {{hub}} et te demander où l’enregistrer. Cette machine aura ses propres identifiants.",
+      "from": "Depuis",
+      "reading": "Lecture du lien…",
+      "action": "Choisir où enregistrer…",
+      "cancel": "Annuler",
+      "adopted": "« {{file}} » est sur le disque et suivi.",
+      "expired": "Ce lien a expiré. Reclique sur Cloner depuis le site.",
+      "spent": "Ce lien a déjà servi. Reclique sur Cloner depuis le site."
+    },
     "sync": {
       "upToDate": "synchronisé",
       "ahead_one": "{{count}} version à envoyer",

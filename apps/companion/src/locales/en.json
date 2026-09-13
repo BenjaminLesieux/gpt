@@ -120,6 +120,17 @@
       "action": "Choose where to save…",
       "adopted": "“{{file}}” is on disk and tracked."
     },
+    "claim": {
+      "title": "Add “{{score}}” to this computer?",
+      "description": "Gitarpro will fetch it from {{hub}} and ask where to save it. This machine gets its own sign-in details.",
+      "from": "From",
+      "reading": "Reading the link…",
+      "action": "Choose where to save…",
+      "cancel": "Cancel",
+      "adopted": "“{{file}}” is on disk and tracked.",
+      "expired": "That link has expired. Press Clone on the website again.",
+      "spent": "That link has already been used. Press Clone on the website again."
+    },
     "sync": {
       "upToDate": "in sync",
       "ahead_one": "{{count}} version to send",

@@ -53,6 +53,13 @@ notify = "8"
 # what Guitar Pro writes; we write everything back stored.
 zip = { version = "5", default-features = false, features = ["deflate"] }
 thiserror = "2"
+# The hub's JSON API — peeking at a claim and redeeming it (see hub.rs). The
+# first HTTP this process has ever spoken that git2 did not speak for it.
+#
+# Default features rather than a hand-picked list, because in 0.13 the default
+# TLS backend is rustls: no OpenSSL, and so none of the `/opt/homebrew` load
+# commands the git2 comment below is about.
+reqwest = { version = "0.13", features = ["json"] }
 # Remote tokens (see secrets.rs). `config.json` is plain text, so nothing
 # secret may land in it. v3 rather than v4 — v4 wants rustc 1.88.
 keyring = { version = "3", default-features = false, features = ["apple-native"] }
