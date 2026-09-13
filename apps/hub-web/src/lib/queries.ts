@@ -113,13 +113,28 @@ export function useRetryImport(onImported: (score: CreatedScore) => void) {
   });
 }
 
-export function useFinishSetup(onFinished: (score: CreatedScore) => void) {
+/**
+ * Clone is a dialog rather than a bare link, so the claim is minted when the
+ * dialog opens and the link fires from the answer. Nothing is cached: a claim
+ * works once, and a second Clone has to be a second claim.
+ */
+export function useCloneClaim() {
+  return useMutation({ mutationFn: (id: string) => api.createCloneClaim(id) });
+}
+
+/**
+ * Mints a token for a score that already exists, and shows it. Two buttons
+ * call this — *Finish setup* on a score whose creation half-failed, and
+ * *Show the values instead* when the `gitarpro://` link reached nothing —
+ * which is why the page holds two instances of it: one pending spinner each.
+ */
+export function useMintToken(onMinted: (score: CreatedScore) => void) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.mintToken(id),
     onSuccess: async (score) => {
       await queryClient.invalidateQueries({ queryKey: scoresQuery.queryKey });
-      onFinished(score);
+      onMinted(score);
     },
   });
 }
