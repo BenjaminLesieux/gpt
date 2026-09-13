@@ -291,3 +291,22 @@ export function onPushStatusChanged(
 ): Promise<UnlistenFn> {
   return listen<PushStatusChangedEvent>('push-status-changed', ({ payload }) => handler(payload));
 }
+
+/**
+ * A `gitarpro://adopt` link reached this machine. Carries the claim and the
+ * origin to redeem it at, and no credential — what the claim buys is minted
+ * on redemption, which happens back in Rust.
+ *
+ * Both values came out of a URL the OS handed us, so neither is trusted: the
+ * score's name is read back from the hub, and the origin has to be https.
+ */
+export interface ClaimArrivedEvent {
+  hub: string;
+  claim: string;
+}
+
+export function onClaimArrived(
+  handler: (event: ClaimArrivedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ClaimArrivedEvent>('claim-arrived', ({ payload }) => handler(payload));
+}

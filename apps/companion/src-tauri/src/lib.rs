@@ -7,6 +7,7 @@
 mod adopt;
 mod commands;
 mod config;
+mod deep_link;
 mod error;
 mod events;
 mod git;
@@ -39,6 +40,10 @@ const HIDE_PANEL_ON_BLUR: bool = !cfg!(debug_assertions);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // The scheme itself is declared in tauri.conf.json and registered by
+        // the bundle's Info.plist, so this can only be exercised from an
+        // installed app — never under `tauri dev`.
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             commands::toggle_panel,
             commands::hide_panel,
@@ -82,6 +87,10 @@ pub fn run() {
 
             tray::init(app.handle())?;
             shortcut::init(app.handle())?;
+            // Before the run loop: a link that started the app arrives as
+            // soon as it turns, and `open_extended` below must not be what
+            // decides which window is in front.
+            deep_link::init(app.handle());
 
             // Launching the bundle has to put something on screen. Someone who
             // double-clicks the app is asking for the app, not for a menu-bar

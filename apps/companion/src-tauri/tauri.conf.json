@@ -36,10 +36,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Music",
     "shortDescription": "Versionne tes fichiers Guitar Pro",
-    "longDescription": "Gitarpro suit tes fichiers Guitar Pro, enregistre une version à chaque sauvegarde et te laisse nommer les versions qui comptent depuis un raccourci global.",
+    "longDescription": "Gitarpro suit tes fichiers Guitar Pro, enregistre une version \u00e0 chaque sauvegarde et te laisse nommer les versions qui comptent depuis un raccourci global.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -49,6 +52,15 @@
     ],
     "macOS": {
       "minimumSystemVersion": "12.0"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "gitarpro"
+        ]
+      }
     }
   }
 }
