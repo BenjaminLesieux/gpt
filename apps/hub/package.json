@@ -118,6 +118,13 @@
           }
         }
       },
+      "dev": {
+        "continuous": true,
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "nx run @gpt/hub:serve"
+        }
+      },
       "docker:build": {
         "dependsOn": [
           "build",
