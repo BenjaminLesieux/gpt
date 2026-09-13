@@ -9,6 +9,8 @@ import type { HubDatabase } from '../db/client';
 import { scores } from '../db/schema';
 import { createRepository } from '../git/repositories';
 import { newId } from '../ids';
+import { createCloneClaim } from './claims';
+import { cloneUrl } from './clone-url';
 import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
 
 export interface ScoreRoutesOptions {
@@ -25,6 +27,13 @@ export interface ScoreRoutesOptions {
  * against a stranger — a real answer is a quota, which v1 does not have.
  */
 const CREATE_LIMIT = { max: 30, timeWindow: '1 hour' };
+
+/**
+ * Looser than creating a score: a claim makes one row and no directory, and
+ * pressing Clone twice because the first link went nowhere is the expected
+ * behaviour rather than abuse.
+ */
+const CLAIM_LIMIT = { max: 60, timeWindow: '1 hour' };
 
 const newScore = z.object({
   name: z
@@ -133,6 +142,44 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     });
   });
 
+  /**
+   * Mints a claim the browser can hand to the companion, and answers nothing
+   * else. Deliberately not the credential itself: this response is on its way
+   * into a `gitarpro://` URL, which LaunchServices routes to whichever
+   * installed app registered the scheme and which a browser may or may not
+   * write to history. What travels there buys one score, once, for five
+   * minutes — see `claims.ts`.
+   */
+  fastify.post(
+    '/:id/clone-claims',
+    { config: { rateLimit: CLAIM_LIMIT } },
+    async (request, reply) => {
+      const account = requireAccount(db, request, reply, cookieSecure);
+      if (!account) return reply;
+
+      const { id } = request.params as { id: string };
+
+      const score = db
+        .select({ id: scores.id, name: scores.name })
+        .from(scores)
+        .where(and(eq(scores.id, id), eq(scores.accountId, account.id)))
+        .get();
+
+      // Same answer for "no such score" and "not yours", as everywhere else.
+      if (!score) {
+        return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+      }
+
+      const claim = createCloneClaim(db, score.id);
+
+      return reply.code(201).send({
+        code: claim.code,
+        expiresAt: claim.expiresAt.toISOString(),
+        scoreName: score.name,
+      });
+    }
+  );
+
   fastify.get('/', async (request, reply) => {
     const account = requireAccount(db, request, reply, cookieSecure);
     if (!account) return reply;
@@ -168,8 +215,4 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       }))
     );
   });
-}
-
-function cloneUrl(publicUrl: string, accountId: string, scoreId: string): string {
-  return `${publicUrl.replace(/\/+$/, '')}/git/${accountId}/${scoreId}.git`;
 }

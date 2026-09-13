@@ -15,6 +15,13 @@
       "when": 1789125234129,
       "tag": "0001_scores_and_score_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789301755525,
+      "tag": "0002_clone_claims",
+      "breakpoints": true
     }
   ]
 }
