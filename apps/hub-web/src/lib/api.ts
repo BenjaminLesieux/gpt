@@ -37,6 +37,17 @@ export interface ScoreToken {
   id: string;
   name: string;
   createdAt: string;
+  /**
+   * ISO, or null when this credential has never authenticated anything.
+   *
+   * Creating a score mints a token in the same breath as the row, so a token
+   * on its own has never meant a machine holds the score — it means one was
+   * issued. This is the field that tells those apart, and the reason the score
+   * list stopped rendering `tokens` as though it were a list of computers.
+   */
+  lastUsedAt: string | null;
+  /** ISO of the last push, or null. Connecting is not working on something. */
+  lastPushedAt: string | null;
 }
 
 /**
