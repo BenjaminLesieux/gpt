@@ -1,11 +1,10 @@
-import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { errorBody } from '../app/errors';
 import { requireAccount } from '../auth/session-guard';
 import type { HubDatabase } from '../db/client';
-import { scores } from '../db/schema';
 import { normalizeGp } from '../git/normalize';
 import { writeFirstVersion } from '../git/versions';
+import { readMemberScore } from './members';
 
 export interface ImportRoutesOptions {
   db: HubDatabase;
@@ -51,11 +50,7 @@ export async function importRoutes(fastify: FastifyInstance, opts: ImportRoutesO
 
     const { id } = request.params as { id: string };
 
-    const score = db
-      .select({ id: scores.id, name: scores.name })
-      .from(scores)
-      .where(and(eq(scores.id, id), eq(scores.accountId, account.id)))
-      .get();
+    const score = readMemberScore(db, id, account.id);
 
     // Same answer for "no such score" and "not yours", as everywhere else.
     if (!score) {
@@ -87,9 +82,11 @@ export async function importRoutes(fastify: FastifyInstance, opts: ImportRoutesO
     // save look like a musical change. See docs/normalize-gp.md.
     const normalized = normalizeGp(body);
 
+    // The owner's segment, not the caller's: this writes into the repository
+    // the score already lives in, which does not move when it is shared.
     const written = await writeFirstVersion(
       gitRoot,
-      account.id,
+      score.ownerId,
       score.id,
       normalized,
       FIRST_VERSION_MESSAGE

@@ -11,7 +11,8 @@ import { app } from '../app/app';
 import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { scoreTokens } from '../db/schema';
+import { scoreMembers, scoreTokens } from '../db/schema';
+import { addScoreMember } from './members';
 
 const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
@@ -30,6 +31,18 @@ async function createScore(name = 'Bridge rewrite'): Promise<LightMyRequestRespo
     payload: { name },
     cookies: { [SESSION_COOKIE]: session },
   });
+}
+
+/** A second person, with their account id and a session to act as them. */
+async function signUp(email: string): Promise<{ id: string; session: string }> {
+  const response = await server.inject({
+    method: 'POST',
+    url: '/auth/signup',
+    payload: { email, password: 'another decent passphrase' },
+  });
+  const cookie = response.cookies.find((c) => c.name === SESSION_COOKIE);
+  if (!cookie) throw new Error('signup issued no session cookie');
+  return { id: response.json().id, session: cookie.value };
 }
 
 beforeEach(async () => {
@@ -138,6 +151,22 @@ describe('POST /scores', () => {
     expect(response.json().error.code).toBe('no_session');
     // And nothing was provisioned on the way to refusing it.
     expect(await readdir(gitRoot)).toEqual([]);
+  });
+
+  it('should make its creator a member of what they made', async () => {
+    // Given / When
+    const created = (await createScore()).json();
+
+    // Then — without the membership row the score is invisible to everyone,
+    // its creator included: `scores.account_id` is the repository's namespace
+    // now, not permission to be there.
+    const members = handle.db.select().from(scoreMembers).all();
+    expect(members).toHaveLength(1);
+    expect(members[0]).toMatchObject({
+      scoreId: created.id,
+      accountId: created.username,
+      role: 'owner',
+    });
   });
 
   it('should give each score its own repository and its own token', async () => {
@@ -446,6 +475,145 @@ describe('minting a token for a score that already exists', () => {
     });
 
     expect(anonymous.statusCode).toBe(401);
+  });
+});
+
+/**
+ * There is no way to be added to somebody else's score from outside yet — the
+ * invite link is its own piece of work — so these write the membership row the
+ * way that endpoint eventually will, and ask what every score route does with
+ * it once it is there.
+ */
+describe('a score shared with a second person', () => {
+  let drummer: { id: string; session: string };
+  let shared: { id: string; username: string; url: string };
+
+  beforeEach(async () => {
+    drummer = await signUp('drummer@example.com');
+    shared = (await createScore()).json();
+    addScoreMember(handle.db, shared.id, drummer.id, 'member');
+  });
+
+  it('should list it for the person it was shared with', async () => {
+    // Given / When
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // Then
+    expect(listed.json()).toHaveLength(1);
+    expect(listed.json()[0]).toMatchObject({ id: shared.id, name: 'Bridge rewrite' });
+  });
+
+  it('should hand a member a clone url in the owner’s namespace', async () => {
+    // Given / When
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // Then — the repository did not move when the drummer was added to the
+    // score. A url built from their own id names a directory that is not
+    // there, which is a clone that fails on the first fetch.
+    expect(listed.json()[0].url).toBe(shared.url);
+    expect(listed.json()[0].url).not.toContain(drummer.id);
+    const repository = path.join(gitRoot, shared.username, `${shared.id}.git`);
+    expect((await stat(repository)).isDirectory()).toBe(true);
+  });
+
+  it('should mint a member their own token, against the owner’s repository', async () => {
+    // Given / When
+    const minted = await server.inject({
+      method: 'POST',
+      url: `/scores/${shared.id}/token`,
+      payload: { name: 'Sam’s ThinkPad' },
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // Then
+    expect(minted.statusCode).toBe(201);
+    expect(minted.json()).toMatchObject({
+      id: shared.id,
+      username: shared.username,
+      url: shared.url,
+      tokenName: 'Sam’s ThinkPad',
+    });
+  });
+
+  it('should mint a member a clone claim', async () => {
+    // Given / When
+    const claimed = await server.inject({
+      method: 'POST',
+      url: `/scores/${shared.id}/clone-claims`,
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // Then
+    expect(claimed.statusCode).toBe(201);
+    expect(claimed.json().scoreName).toBe('Bridge rewrite');
+  });
+
+  it('should still show the owner one row rather than two', async () => {
+    // Given / When
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    // Then — the list is of scores, and a join that fanned out over members
+    // would quietly say otherwise.
+    expect(listed.json()).toHaveLength(1);
+  });
+});
+
+describe('a score somebody is not a member of', () => {
+  /** Every route that takes a score id in its path. */
+  const routes = ['token', 'clone-claims'] as const;
+
+  it.each(routes)('should answer /scores/:id/%s as if the score did not exist', async (route) => {
+    // Given a score belonging to somebody else
+    const created = (await createScore()).json();
+    const stranger = await signUp('stranger@example.com');
+
+    // When
+    const theirs = await server.inject({
+      method: 'POST',
+      url: `/scores/${created.id}/${route}`,
+      cookies: { [SESSION_COOKIE]: stranger.session },
+    });
+    const missing = await server.inject({
+      method: 'POST',
+      url: `/scores/nosuchscoreid/${route}`,
+      cookies: { [SESSION_COOKIE]: stranger.session },
+    });
+
+    // Then — "no such score" and "not yours" stay indistinguishable, as they
+    // are everywhere else in this codebase.
+    expect(theirs.statusCode).toBe(404);
+    expect(theirs.json()).toEqual(missing.json());
+  });
+
+  it('should not list it for them', async () => {
+    // Given a score whose membership names somebody else entirely
+    const created = (await createScore()).json();
+    const stranger = await signUp('stranger@example.com');
+    handle.db.delete(scoreMembers).where(eq(scoreMembers.scoreId, created.id)).run();
+    addScoreMember(handle.db, created.id, stranger.id, 'member');
+
+    // When the owner of the *row* — who is no longer a member — asks
+    const listed = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: session },
+    });
+
+    // Then — membership decides, not `scores.account_id`. A score still in
+    // someone's namespace is not a score they may read.
+    expect(listed.json()).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises';
 import rateLimit from '@fastify/rate-limit';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { errorBody } from '../app/errors';
@@ -11,6 +11,7 @@ import { createRepository } from '../git/repositories';
 import { newId } from '../ids';
 import { createCloneClaim } from './claims';
 import { cloneUrl } from './clone-url';
+import { addScoreMember, listMemberScores, readMemberScore } from './members';
 import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
 
 export interface ScoreRoutesOptions {
@@ -68,9 +69,16 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     const repository = await createRepository(gitRoot, account.id, id);
 
     try {
+      const createdAt = new Date();
+
       db.insert(scores)
-        .values({ id, accountId: account.id, name: parsed.data.name, createdAt: new Date() })
+        .values({ id, accountId: account.id, name: parsed.data.name, createdAt })
         .run();
+
+      // Without this the creator is not a member of what they just made, and
+      // the score is invisible to everyone including them: `scores.account_id`
+      // is the repository's namespace now, not permission to be here.
+      addScoreMember(db, id, account.id, 'owner', createdAt);
 
       const token = mintScoreToken(db, id, DEFAULT_TOKEN_NAME);
 
@@ -84,10 +92,11 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         tokenName: token.name,
       });
     } catch (error) {
-      // Both writes are local and can only collide on an id, so this is very
-      // nearly unreachable — but a directory with no row is unreferenced
+      // Every write here is local and can only collide on an id, so this is
+      // very nearly unreachable — but a directory with no row is unreferenced
       // forever, and a score with no token is the half-provisioned state the
-      // whole design is meant not to have.
+      // whole design is meant not to have. Deleting the score takes its
+      // membership with it, on the cascade.
       db.delete(scores).where(eq(scores.id, id)).run();
       await rm(repository, { recursive: true, force: true });
       throw error;
@@ -114,11 +123,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
 
     const { id } = request.params as { id: string };
 
-    const score = db
-      .select({ id: scores.id, name: scores.name })
-      .from(scores)
-      .where(and(eq(scores.id, id), eq(scores.accountId, account.id)))
-      .get();
+    const score = readMemberScore(db, id, account.id);
 
     // Same answer for "no such score" and "not yours": which one it is is not
     // this caller's business.
@@ -135,8 +140,10 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     return reply.code(201).send({
       id: score.id,
       name: score.name,
-      url: cloneUrl(publicUrl, account.id, score.id),
-      username: account.id,
+      // The owner's id, not the caller's: the repository did not move when
+      // this person was added to the score.
+      url: cloneUrl(publicUrl, score.ownerId, score.id),
+      username: score.ownerId,
       token: token.token,
       tokenName: token.name,
     });
@@ -159,11 +166,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
 
       const { id } = request.params as { id: string };
 
-      const score = db
-        .select({ id: scores.id, name: scores.name })
-        .from(scores)
-        .where(and(eq(scores.id, id), eq(scores.accountId, account.id)))
-        .get();
+      const score = readMemberScore(db, id, account.id);
 
       // Same answer for "no such score" and "not yours", as everywhere else.
       if (!score) {
@@ -184,12 +187,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     const account = requireAccount(db, request, reply, cookieSecure);
     if (!account) return reply;
 
-    const rows = db
-      .select({ id: scores.id, name: scores.name, createdAt: scores.createdAt })
-      .from(scores)
-      .where(eq(scores.accountId, account.id))
-      .orderBy(desc(scores.createdAt))
-      .all();
+    const rows = listMemberScores(db, account.id);
 
     // Second query rather than a join: a score with two devices would come
     // back from a join as two scores, and the caller renders one row per
@@ -203,7 +201,8 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       rows.map((row) => ({
         id: row.id,
         name: row.name,
-        url: cloneUrl(publicUrl, account.id, row.id),
+        // Built from the owner, which for a shared score is somebody else.
+        url: cloneUrl(publicUrl, row.ownerId, row.id),
         createdAt: row.createdAt.toISOString(),
         // Names, ids and dates only. The values do not exist any more, and a
         // row that implied otherwise would be a lie the user acts on.

@@ -46,7 +46,13 @@ export interface IssuedClaim {
  * retry is a new Clone*, because there is nothing to press again.
  */
 export type ClaimLookup =
-  | { status: 'valid'; scoreId: string; scoreName: string; accountId: string }
+  /**
+   * `ownerId` is whose namespace the repository sits in — the path segment —
+   * and deliberately not called `accountId`: a score now has members, one of
+   * whom may be redeeming this claim, and the two being swapped is a clone URL
+   * pointing at a repository that is not there.
+   */
+  | { status: 'valid'; scoreId: string; scoreName: string; ownerId: string }
   | { status: 'redeemed' }
   | { status: 'expired' }
   | { status: 'unknown' };
@@ -106,7 +112,7 @@ export function peekCloneClaim(
       redeemedAt: cloneClaims.redeemedAt,
       scoreId: scores.id,
       scoreName: scores.name,
-      accountId: scores.accountId,
+      ownerId: scores.accountId,
     })
     .from(cloneClaims)
     .innerJoin(scores, eq(cloneClaims.scoreId, scores.id))
@@ -121,7 +127,7 @@ export function peekCloneClaim(
     status: 'valid',
     scoreId: row.scoreId,
     scoreName: row.scoreName,
-    accountId: row.accountId,
+    ownerId: row.ownerId,
   };
 }
 
@@ -172,7 +178,7 @@ export function redeemCloneClaim(
 /** Whose score this was, read back after the row has already been claimed. */
 function peekAfterSpending(db: HubDatabase, codeHash: string): ClaimLookup {
   const row = db
-    .select({ scoreId: scores.id, scoreName: scores.name, accountId: scores.accountId })
+    .select({ scoreId: scores.id, scoreName: scores.name, ownerId: scores.accountId })
     .from(cloneClaims)
     .innerJoin(scores, eq(cloneClaims.scoreId, scores.id))
     .where(eq(cloneClaims.codeHash, codeHash))
@@ -268,8 +274,8 @@ export async function claimRoutes(fastify: FastifyInstance, opts: ClaimRoutesOpt
 
     return reply.code(201).send({
       name: claim.scoreName,
-      url: cloneUrl(publicUrl, claim.accountId, claim.scoreId),
-      username: claim.accountId,
+      url: cloneUrl(publicUrl, claim.ownerId, claim.scoreId),
+      username: claim.ownerId,
       token: token.token,
       tokenName: token.name,
     });
