@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { errorBody } from '../app/errors';
 import type { HubDatabase } from '../db/client';
-import { readScoreToken } from '../scores/tokens';
+import { readScoreToken, touchScoreToken } from '../scores/tokens';
 import { proxyToGit } from './http-backend';
 import { repositoryPath } from './repositories';
 
@@ -52,9 +52,19 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
       return;
     }
 
+    const rest = (request.params as Record<string, string>)['*'];
+
+    // Stamped before the proxy rather than after it: `proxyToGit` hijacks the
+    // reply and streams, so there is no completion to hang this off without
+    // reaching into the CGI's exit. The cost of being early is that a push
+    // which fails inside receive-pack still counts as activity — which is
+    // true, someone tried — where the cost of being late would be dropping
+    // every stamp on a connection the client closed.
+    touchScoreToken(db, bearer, request.method === 'POST' && rest === 'git-receive-pack');
+
     proxyToGit(request, reply, {
       projectRoot: gitRoot,
-      pathInfo: `/${account}/${repo}/${(request.params as Record<string, string>)['*']}`,
+      pathInfo: `/${account}/${repo}/${rest}`,
       remoteUser: bearer.tokenId,
     });
   });
