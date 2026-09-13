@@ -14,15 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from '@gpt/ui/table';
+import { CloneScoreDialog } from '@/components/clone-score-dialog';
 import { CreateScoreDialog } from '@/components/create-score-dialog';
 import { ImportScoreDialog } from '@/components/import-score-dialog';
 import { HubError, type Score } from '@/lib/api';
 import { handOff } from '@/lib/credentials-handoff';
 import {
   scoresQuery,
+  useCloneClaim,
   useCreateScore,
-  useFinishSetup,
   useImportScore,
+  useMintToken,
   useRetryImport,
 } from '@/lib/queries';
 import { authedRoute } from './authed';
@@ -42,12 +44,15 @@ function ScoreRow({
   score,
   onFinishSetup,
   finishing,
+  onClone,
 }: {
   score: Score;
   onFinishSetup: (id: string) => void;
   finishing: boolean;
+  onClone: (score: Score) => void;
 }) {
   const unfinished = score.tokens.length === 0;
+  const deviceNames = score.tokens.map((token) => token.name).join(', ');
 
   // A row and, when setup was abandoned, the row explaining it. They are
   // separate <tr>s rather than one tall cell so the explanation is reachable
@@ -97,17 +102,30 @@ function ScoreRow({
             // The values are gone; only the names they were given survive. A
             // row that showed anything else would imply they could be
             // recovered. One name per machine the score is set up on.
-            <span className={`${CELL_META} font-mono`} title={score.tokens.map((t) => t.name).join(', ')}>
-              {score.tokens.map((t) => t.name).join(', ')}
+            <span className={`${CELL_META} font-mono`} title={deviceNames}>
+              {deviceNames}
             </span>
           )}
+        </TableCell>
+        <TableCell className="h-10 py-0 text-right">
+          {/* Works on a score with no token too: the claim mints one on
+              redemption, so cloning an unfinished score finishes it. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onClone(score)}
+            className="h-6.5 rounded-sm px-2.5 text-sm"
+          >
+            Clone
+            <span className="sr-only"> {score.name} to this computer</span>
+          </Button>
         </TableCell>
       </TableRow>
       {unfinished && (
         <TableRow className="border-border-subtle hover:bg-transparent">
           <TableCell
             id={explanationId}
-            colSpan={4}
+            colSpan={5}
             className="bg-card py-3 text-sm leading-normal text-muted-foreground"
           >
             This score has storage but no sign-in details yet. Finish setup to get its URL,
@@ -123,11 +141,15 @@ function ScoresPage() {
   const scores = useQuery(scoresQuery);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // The score being cloned, not a boolean: the dialog names it, and the claim
+  // it mints is for that one score.
+  const [cloning, setCloning] = useState<Score | null>(null);
   const navigate = scoresRoute.useNavigate();
 
   async function showCredentials(created: Parameters<typeof handOff>[0]) {
     handOff(created);
     setDialogOpen(false);
+    setCloning(null);
     await navigate({ to: '/credentials' });
   }
 
@@ -138,7 +160,11 @@ function ScoresPage() {
   }
 
   const create = useCreateScore(showCredentials);
-  const finish = useFinishSetup(showCredentials);
+  const finish = useMintToken(showCredentials);
+  // Its own instance of the same mutation: the row's spinner and the clone
+  // dialog's must not answer for each other.
+  const showValues = useMintToken(showCredentials);
+  const claim = useCloneClaim();
   const importScore = useImportScore(showImportedCredentials);
   const retryImport = useRetryImport(showImportedCredentials);
 
@@ -289,6 +315,9 @@ function ScoresPage() {
                   <TableHead className="h-8 w-[190px] bg-card text-xs font-medium uppercase tracking-wide">
                     Set up on
                   </TableHead>
+                  <TableHead className="h-8 w-[110px] bg-card text-right text-xs font-medium uppercase tracking-wide">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -298,6 +327,11 @@ function ScoresPage() {
                     score={score}
                     finishing={finish.isPending && finish.variables === score.id}
                     onFinishSetup={(id) => finish.mutate(id)}
+                    onClone={(row) => {
+                      claim.reset();
+                      showValues.reset();
+                      setCloning(row);
+                    }}
                   />
                 ))}
               </TableBody>
@@ -305,6 +339,16 @@ function ScoresPage() {
           </div>
         )}
       </main>
+
+      <CloneScoreDialog
+        score={cloning}
+        onOpenChange={(next) => !next && setCloning(null)}
+        onClaim={claim.mutateAsync}
+        claiming={claim.isPending}
+        error={claim.error}
+        onShowValues={(id) => showValues.mutate(id)}
+        showingValues={showValues.isPending}
+      />
 
       <CreateScoreDialog
         open={dialogOpen}

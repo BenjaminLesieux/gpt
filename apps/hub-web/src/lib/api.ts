@@ -39,6 +39,18 @@ export interface ScoreToken {
   createdAt: string;
 }
 
+/**
+ * A capability to take one score onto one more machine. The code goes in a
+ * `gitarpro://` link and nothing else does — see `clone-link.ts`.
+ */
+export interface CloneClaim {
+  code: string;
+  /** ISO. Five minutes out; the dialog says so rather than letting it lapse
+   * silently. */
+  expiresAt: string;
+  scoreName: string;
+}
+
 export interface Score {
   id: string;
   name: string;
@@ -153,6 +165,14 @@ export const api = {
       { method: 'POST', body: file },
       'application/octet-stream'
     ),
+
+  /**
+   * Mints the claim behind the Clone button. The response carries no
+   * credential: what it buys is minted on redemption, on the machine the
+   * score is arriving at.
+   */
+  createCloneClaim: (id: string) =>
+    request<CloneClaim>(`/scores/${encodeURIComponent(id)}/clone-claims`, { method: 'POST' }),
 
   /**
    * Mints a token for a score that already exists — the retry after a
