@@ -6,7 +6,6 @@
 // Full hierarchy: Score → (MasterBar[] + Track[]) → Staff[] → Bar[] → Voice[] → Beat[] → Note[]
 
 import type { model } from "@coderline/alphatab";
-export type { Settings } from "@coderline/alphatab";
 
 export type Score = model.Score;
 export type Track = model.Track;

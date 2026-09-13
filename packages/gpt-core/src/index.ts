@@ -45,7 +45,6 @@ export type { ConflictSidecar, FileConflictState, SidecarConflict } from "./type
 export { CONFLICT_SIDECAR, unresolvedCount, isFullyResolved } from "./types/conflicts";
 
 // Core functions
-export { serialize, deserialize } from "./serializer";
 export { diffScores, barsForTrack, changedBars, changeCounts } from "./diff";
 export { changedContent, barContent } from "./barContent";
 export { alignedSystems, DEFAULT_BARS_PER_ROW } from "./systems";

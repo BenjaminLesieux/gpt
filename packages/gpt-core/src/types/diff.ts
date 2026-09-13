@@ -51,14 +51,14 @@ export interface TrackPairing {
 
 // ── Bar diff — the per-track projection ───────────────────────────────────────
 //
-// The view a track-thinking consumer (a side-by-side pane, the CLI) renders.
-// Never stored: barsForTrack derives it from the canonical measure alignment,
-// so the alignment exists in exactly one place.
+// One track's bars, for a consumer that thinks in tracks rather than in
+// measures. Never stored: barsForTrack derives it from the canonical
+// score-level alignment, so the alignment exists in exactly one place.
 //
-// Consumers rendering side-by-side (e.g. <TabDiff>) must address the base pane
-// with baseIndex and the head pane with headIndex; the two diverge after any
-// insertion or deletion. masterBarIndex is the display measure number — head's
-// position where head has one, otherwise base's — and is what the CLI prints.
+// Two indices, not one: address the base side with baseIndex and the head side
+// with headIndex, because they diverge after any insertion or deletion.
+// masterBarIndex is the display measure number — head's position where head has
+// one, otherwise base's.
 //
 // When type is "changed", changedFields categorizes what changed inside the bar.
 
