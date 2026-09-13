@@ -37,9 +37,17 @@ free:
 
 ```sh
 sed -i '' -e 's#from "@/lib/utils"#from "../../lib/utils"#' \
+          -e 's#from "cn"#from "../../lib/utils"#' \
           -e 's#from "@/components/ui/\([a-z-]*\)"#from "./\1"#' \
           src/components/ui/<name>.tsx
 ```
+
+The second rule is cosmetic, not a correction. Newer registry components import
+`cn` from the [`cn`](https://github.com/shadcn-ui/cn) package — shadcn's own
+compiled, zero-dependency replacement for `clsx + tailwind-merge` — and the CLI
+adds it as a dependency, which is right. `src/lib/utils.ts` re-exports it, so
+both spellings resolve to the same function; the rewrite only keeps every
+component in this directory importing from one place.
 
 ## Fonts
 
