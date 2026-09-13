@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const accounts = sqliteTable('accounts', {
   id: text('id').primaryKey(),
@@ -32,6 +32,12 @@ export const scores = sqliteTable(
   {
     /** Also the repository's directory name, which is why it is opaque. */
     id: text('id').primaryKey(),
+    /**
+     * Whose namespace the repository sits in — `<account>/<score>.git` — and
+     * nothing more. This column stopped being the answer to "may this person
+     * touch this score?" when `score_members` arrived; it stayed because the
+     * path it builds is already written into every working clone's config.
+     */
     accountId: text('account_id')
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
@@ -40,6 +46,36 @@ export const scores = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (table) => [index('scores_account_id_idx').on(table.accountId)]
+);
+
+/**
+ * Who may touch a score. A band is more than one person, and until this table
+ * existed the hub could not say so: a score had one account and every push was
+ * attributed to them forever.
+ *
+ * Roles are `owner | member`. `owner` buys removing people and deleting the
+ * score, and nothing else — resist a third until something needs one.
+ */
+export const scoreMembers = sqliteTable(
+  'score_members',
+  {
+    id: text('id').primaryKey(),
+    scoreId: text('score_id')
+      .notNull()
+      .references(() => scores.id, { onDelete: 'cascade' }),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['owner', 'member'] }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    // One membership per person per score, and the lookup every score route
+    // now makes before it answers anything.
+    uniqueIndex('score_members_score_id_account_id_idx').on(table.scoreId, table.accountId),
+    // `GET /scores` reads the same table the other way round.
+    index('score_members_account_id_idx').on(table.accountId),
+  ]
 );
 
 export const scoreTokens = sqliteTable(
@@ -109,5 +145,6 @@ export const cloneClaims = sqliteTable(
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;
+export type ScoreMember = typeof scoreMembers.$inferSelect;
 export type ScoreToken = typeof scoreTokens.$inferSelect;
 export type CloneClaim = typeof cloneClaims.$inferSelect;
