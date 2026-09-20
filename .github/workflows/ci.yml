@@ -48,32 +48,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # TEMPORARY — diagnosing why every hub spec that opens a database dies
-      # as a silent worker exit on this runner and nowhere else. Remove once
-      # the cause is known.
-      - name: probe better-sqlite3
-        continue-on-error: true
-        run: |
-          echo "--- node ---"; node -p "[process.version, process.arch, process.platform].join(' ')"
-          echo "--- direct ---"
-          node -e "const D=require('better-sqlite3');const d=new D(':memory:');d.pragma('journal_mode = WAL');d.exec('create table t(x)');console.log('direct ok')"
-          echo "direct exit: $?"
-          echo "--- inside a fork ---"
-          cat > /tmp/probe.cjs <<'JS'
-          const { fork } = require('node:child_process');
-          if (process.env.CHILD) {
-            const D = require('better-sqlite3');
-            const d = new D(':memory:'); d.pragma('journal_mode = WAL'); d.exec('create table t(x)');
-            console.log('fork child ok'); process.exit(0);
-          }
-          fork(__filename, [], { env: { ...process.env, CHILD: '1' } })
-            .on('exit', (code, sig) => console.log('fork child exited', code, sig));
-          JS
-          node /tmp/probe.cjs
-          echo "--- one spec, on its own ---"
-          pnpm exec vitest run --root apps/hub src/db/client.spec.ts 2>&1 | tail -30
-        working-directory: apps/hub
-
       # Linting is root-only. There is no `lint` target on any project, so
       # `nx run-many -t lint` would be a silent no-op.
       - run: pnpm lint
