@@ -90,7 +90,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await server.close();
-  handle.close();
+  handle?.close();
   await rm(gitRoot, { recursive: true, force: true });
 });
 

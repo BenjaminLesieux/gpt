@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  handle.close();
+  handle?.close();
   await Promise.all(temporaries.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
