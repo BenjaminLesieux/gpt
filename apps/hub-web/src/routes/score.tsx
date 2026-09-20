@@ -8,6 +8,7 @@ import { HistoryList, HistorySkeleton, LoadMore } from '@/components/history-lis
 import { VersionInspector } from '@/components/version-inspector';
 import { HubError, type Branch, type Member, type Version } from '@/lib/api';
 import { initials, since } from '@/lib/history-format';
+import { LOCALE } from '@/lib/relative-time';
 import { historyQuery, scoreQuery } from '@/lib/queries';
 import { authedRoute } from './authed';
 
@@ -89,6 +90,13 @@ function ScorePage() {
               {score.data?.name ?? ' '}
             </h1>
             <p className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              {/* The clone URL is monospace because it is read character by
+                  character and pasted, not skimmed. Same treatment as the
+                  scores list gives it. */}
+              <span className="truncate font-mono">{score.data?.url}</span>
+              <Rule />
+              <span>Created {created(score.data?.createdAt)}</span>
+              <Rule />
               <span>{state(total, versions, branches)}</span>
             </p>
           </div>
@@ -162,6 +170,21 @@ function ScorePage() {
       )}
     </div>
   );
+}
+
+/** A hairline between two facts, not a bullet: the design has no pills. */
+function Rule() {
+  return <span aria-hidden className="h-3 w-px bg-border" />;
+}
+
+/**
+ * When the score was made. Absolute rather than relative — this one never
+ * changes, and *created 3 months ago* is a worse answer than the date.
+ */
+function created(iso: string | undefined): string {
+  if (!iso) return '…';
+  const at = new Date(iso);
+  return `${at.getDate()} ${at.toLocaleDateString(LOCALE, { month: 'long' })} ${at.getFullYear()}`;
 }
 
 /** *Last version 20 minutes ago · No branches in flight* — the page's state. */
