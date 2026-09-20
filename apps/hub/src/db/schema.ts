@@ -1,4 +1,11 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const accounts = sqliteTable('accounts', {
   id: text('id').primaryKey(),
@@ -142,9 +149,89 @@ export const cloneClaims = sqliteTable(
   ]
 );
 
+/**
+ * An offer to join a score, as a link. The hub has no mailer — signup has no
+ * verification and nothing sends email — so an invite cannot arrive addressed
+ * to anybody; it is a code the inviter copies and sends however they already
+ * talk to their band.
+ *
+ * Deliberately the same shape as [`cloneClaims`]: sha256 of the code and never
+ * the code, single-use enforced by the UPDATE's own WHERE, and a spent row
+ * kept so a replay can be told apart from a code that never existed. It lives
+ * for days rather than five minutes, because a clone claim is fired at an app
+ * on the same machine and this one is sent to a drummer who may be asleep.
+ */
+export const scoreInvites = sqliteTable(
+  'score_invites',
+  {
+    id: text('id').primaryKey(),
+    /** sha256 of the code in the link, never the code. */
+    codeHash: text('code_hash').notNull().unique(),
+    scoreId: text('score_id')
+      .notNull()
+      .references(() => scores.id, { onDelete: 'cascade' }),
+    /** Which member held it out. Not who it is for: nobody is named until it
+     * is accepted, because there is no mailer to tell a named person. */
+    invitedBy: text('invited_by')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    /** Null until it is accepted. */
+    acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    index('score_invites_score_id_idx').on(table.scoreId),
+    index('score_invites_invited_by_idx').on(table.invitedBy),
+    // The sweep is a range scan over this column.
+    index('score_invites_expires_at_idx').on(table.expiresAt),
+  ]
+);
+
+/**
+ * What a version touched — tracks and bars — derived by diffing its score
+ * against its parent's.
+ *
+ * A cache, and a permanently valid one: `commit` is a sha, a sha names one
+ * tree forever, so a row here can never go stale and there is no invalidation
+ * to get wrong. What it buys is real — deriving a scope means parsing two
+ * Guitar Pro files, and a history screen asks for forty of them at once.
+ *
+ * A version whose file will not parse gets no row. Absent means "nothing to
+ * say", which is the truth; a row of zeroes would be a claim that the version
+ * changed nothing.
+ */
+export const versionScopes = sqliteTable(
+  'version_scopes',
+  {
+    scoreId: text('score_id')
+      .notNull()
+      .references(() => scores.id, { onDelete: 'cascade' }),
+    /** Full sha of the version this describes. */
+    commit: text('commit').notNull(),
+    /** JSON `{ name, bars }[]`, only the tracks whose bars changed. */
+    tracks: text('tracks').notNull(),
+    /** Sum over `tracks`. Stored rather than summed on read, so a list of
+     * forty rows is forty integers and not forty JSON parses. */
+    bars: integer('bars').notNull(),
+    /** How many tracks the score has, for the *5 tracks · 0 bars* form. */
+    trackCount: integer('track_count').notNull(),
+    /** Tempo, title or a time signature moved. */
+    meta: integer('meta', { mode: 'boolean' }).notNull(),
+    computedAt: integer('computed_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    // The history screen reads this table one page of commits at a time, and
+    // a version belongs to exactly one score.
+    primaryKey({ columns: [table.scoreId, table.commit] }),
+  ]
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;
 export type ScoreMember = typeof scoreMembers.$inferSelect;
 export type ScoreToken = typeof scoreTokens.$inferSelect;
 export type CloneClaim = typeof cloneClaims.$inferSelect;
+export type ScoreInvite = typeof scoreInvites.$inferSelect;
+export type VersionScope = typeof versionScopes.$inferSelect;

@@ -16,7 +16,7 @@
 
 import { and, desc, eq } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
-import { scoreMembers, scores } from '../db/schema';
+import { accounts, scoreMembers, scores } from '../db/schema';
 import { newId } from '../ids';
 
 export type ScoreRole = 'owner' | 'member';
@@ -89,4 +89,32 @@ export function addScoreMember(
   db.insert(scoreMembers)
     .values({ id: newId(), scoreId, accountId, role, createdAt: now })
     .run();
+}
+
+/** A member, as the score page names them. */
+export interface ScoreMemberAccount {
+  accountId: string;
+  /**
+   * Accounts have no display name yet, so this is the only thing a person is
+   * called. The screen derives initials from the local part and keeps the
+   * address itself for the tooltip — which is also how a version's author is
+   * matched to a member, since git records an email and nothing else.
+   */
+  email: string;
+  role: ScoreRole;
+}
+
+/** Everyone on a score, oldest membership first — the owner leads. */
+export function listScoreMembers(db: HubDatabase, scoreId: string): ScoreMemberAccount[] {
+  return db
+    .select({
+      accountId: scoreMembers.accountId,
+      email: accounts.email,
+      role: scoreMembers.role,
+    })
+    .from(scoreMembers)
+    .innerJoin(accounts, eq(scoreMembers.accountId, accounts.id))
+    .where(eq(scoreMembers.scoreId, scoreId))
+    .orderBy(scoreMembers.createdAt)
+    .all();
 }

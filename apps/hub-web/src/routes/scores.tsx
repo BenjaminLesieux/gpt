@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { createRoute } from '@tanstack/react-router';
+import { Link, createRoute } from '@tanstack/react-router';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Empty, EmptyContent, EmptyDescription } from '@gpt/ui/empty';
@@ -67,7 +67,16 @@ function ScoreRow({
       >
         <TableCell className="h-10 py-0">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="truncate text-base text-foreground">{score.name}</span>
+            {/* The way into the history. The score's name is the thing
+                someone reaches for, so it is the link rather than a separate
+                control competing with Clone for the row's right edge. */}
+            <Link
+              to="/scores/$scoreId"
+              params={{ scoreId: score.id }}
+              className="truncate rounded-sm text-base text-foreground transition-colors duration-100 hover:text-brand-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              {score.name}
+            </Link>
             {unfinished && (
               <Badge
                 variant="outline"
@@ -201,7 +210,7 @@ function ScoresPage() {
         </div>
       )}
 
-      <main className="flex flex-1 flex-col gap-5 px-6 py-8">
+      <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-8">
         <div className="flex items-baseline justify-between gap-4">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-medium tracking-tight">Scores</h1>

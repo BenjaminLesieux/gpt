@@ -12,6 +12,12 @@
 @theme inline {
   --font-sans: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
 
+  /* The history's own breakpoint. Below it the graph's lanes degrade to a
+     single 24px rail and the id and absolute-time columns go — 800px is
+     where three 24px lanes plus a readable message stop fitting, not a
+     device size. */
+  --breakpoint-wide: 800px;
+
   /* The canvas puts a near-white label on the primary button and it is
      the accessible choice: #f0f0f0 on the accent measures 4.62:1 where
      the shared #0c0c0c measures 3.71:1. Scoped to the hub rather than

@@ -1,0 +1,5 @@
+# Emitted by the alphaTab Vite plugin from node_modules on every build — the
+# music font and the soundfont, about 7MB of them. Generated, so not ours to
+# commit; `pnpm nx run hub-web:build` puts them back.
+font/
+soundfont/

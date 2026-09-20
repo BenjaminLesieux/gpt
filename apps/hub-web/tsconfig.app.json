@@ -36,6 +36,9 @@
   "references": [
     {
       "path": "../../packages/ui/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/alphatab-react/tsconfig.lib.json"
     }
   ]
 }

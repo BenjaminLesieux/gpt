@@ -71,6 +71,68 @@ export interface Score {
   tokens: ScoreToken[];
 }
 
+/**
+ * What a version touched, derived by the hub from the files themselves.
+ * Null when the score would not parse — the row still lists, it just has
+ * nothing to say about what changed, which is the truth rather than a zero.
+ */
+export interface VersionScope {
+  /** Only the tracks whose bars changed, in the score's own order. */
+  tracks: { name: string; bars: number }[];
+  bars: number;
+  /** How many tracks the score has, for the *5 tracks · 0 bars* form. */
+  trackCount: number;
+  /** Tempo, title or a time signature moved. */
+  meta: boolean;
+}
+
+/** One version. `id` is the full sha; the screen shows seven characters. */
+export interface Version {
+  id: string;
+  /** The musician's own words. Empty is ordinary and is never rewritten. */
+  message: string;
+  authorEmail: string;
+  /** ISO, with the author's own offset. */
+  at: string;
+  /** One normally, two for a landing, none for the first version. */
+  parents: string[];
+  scope: VersionScope | null;
+}
+
+/** A named line of work. `ahead` is 0 once it has landed. */
+export interface Branch {
+  name: string;
+  tip: string;
+  ahead: number;
+}
+
+export interface History {
+  /** The main line's tip, or null when nothing has been pushed yet. */
+  head: string | null;
+  /** Across every branch, not just the page loaded. */
+  total: number;
+  branches: Branch[];
+  /** Newest first, topologically ordered. */
+  versions: Version[];
+}
+
+/** Someone on the score. No display names yet — an email is all there is. */
+export interface Member {
+  accountId: string;
+  email: string;
+  role: 'owner' | 'member';
+}
+
+/** One score and its band, which the list route does not carry. */
+export interface ScoreDetail {
+  id: string;
+  name: string;
+  url: string;
+  createdAt: string;
+  role: 'owner' | 'member';
+  members: Member[];
+}
+
 export class HubError extends Error {
   constructor(
     readonly code: string,
@@ -178,6 +240,20 @@ export const api = {
     ),
 
   /**
+   * The score and its band. Not `GET /scores/:id` — that path is the score's
+   * own page in the browser, and the hub serves the app shell there.
+   */
+  readScore: (id: string) =>
+    request<ScoreDetail>(`/scores/${encodeURIComponent(id)}/members`),
+
+  /**
+   * A page of the history. `skip` rather than a cursor because the walk is
+   * topological and *Load 40 more* means the next forty of the same walk.
+   */
+  readHistory: (id: string, skip = 0) =>
+    request<History>(`/scores/${encodeURIComponent(id)}/history?skip=${skip}`),
+
+  /**
    * Mints the claim behind the Clone button. The response carries no
    * credential: what it buys is minted on redemption, on the machine the
    * score is arriving at.
@@ -196,3 +272,12 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
 };
+
+/**
+ * Where a version's Guitar Pro file lives. A URL rather than a fetch: alphaTab
+ * takes one and streams it itself, and the response is immutable — a sha names
+ * one tree forever — so the browser cache does the paging for free.
+ */
+export function versionScoreUrl(scoreId: string, commit: string): string {
+  return `/scores/${encodeURIComponent(scoreId)}/versions/${encodeURIComponent(commit)}/score.gp`;
+}

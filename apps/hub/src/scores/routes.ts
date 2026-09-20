@@ -7,11 +7,19 @@ import { errorBody } from '../app/errors';
 import { requireAccount } from '../auth/session-guard';
 import type { HubDatabase } from '../db/client';
 import { scores } from '../db/schema';
+import { PAGE, readHistory, readVersionScore } from '../git/history';
 import { createRepository } from '../git/repositories';
 import { newId } from '../ids';
 import { createCloneClaim } from './claims';
 import { cloneUrl } from './clone-url';
-import { addScoreMember, listMemberScores, readMemberScore } from './members';
+import { createScoreInvite } from './invites';
+import {
+  addScoreMember,
+  listMemberScores,
+  listScoreMembers,
+  readMemberScore,
+} from './members';
+import { scopesFor } from './scope';
 import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
 
 export interface ScoreRoutesOptions {
@@ -30,11 +38,23 @@ export interface ScoreRoutesOptions {
 const CREATE_LIMIT = { max: 30, timeWindow: '1 hour' };
 
 /**
- * Looser than creating a score: a claim makes one row and no directory, and
- * pressing Clone twice because the first link went nowhere is the expected
- * behaviour rather than abuse.
+ * Looser than creating a score: a claim or an invite makes one row and no
+ * directory, and pressing the button twice because the first link went
+ * nowhere is the expected behaviour rather than abuse.
  */
 const CLAIM_LIMIT = { max: 60, timeWindow: '1 hour' };
+
+/**
+ * Paging the history. `skip` rather than a cursor: the list is ordered
+ * topologically and the client's *Load 40 more* means exactly "the next forty
+ * of the same walk", which is what skip is. A cursor would buy stability
+ * against concurrent pushes, and a push lands at the top where the reader can
+ * see it arrive.
+ */
+const historyPage = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional().default(PAGE),
+  skip: z.coerce.number().int().min(0).optional().default(0),
+});
 
 const newScore = z.object({
   name: z
@@ -182,6 +202,152 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       });
     }
   );
+
+  /**
+   * Mints the link that puts a second person on this score. Any member may
+   * hold one out: `owner` buys removing people and deleting the score, and
+   * nothing else. Like a clone claim, the response is the code and not a url —
+   * the accept screen is a client route, and the client owns its own paths.
+   */
+  fastify.post('/:id/invites', { config: { rateLimit: CLAIM_LIMIT } }, async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id } = request.params as { id: string };
+
+    const score = readMemberScore(db, id, account.id);
+
+    // Same answer for "no such score" and "not yours", as everywhere else.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const invite = createScoreInvite(db, score.id, account.id);
+
+    return reply.code(201).send({
+      code: invite.code,
+      expiresAt: invite.expiresAt.toISOString(),
+      scoreName: score.name,
+    });
+  });
+
+  /**
+   * Everyone on a score. The list route cannot answer this — it returns every
+   * score and would have to join every membership to do it — and the page
+   * that needs the band is the page about one song.
+   *
+   * Deliberately not `GET /:id`: that path is the score's page in the browser
+   * and answering it with JSON serves a musician a wall of braces. See
+   * `SCORE_PAGE` in `app/plugins/web.ts`.
+   */
+  fastify.get('/:id/members', async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id } = request.params as { id: string };
+
+    const score = readMemberScore(db, id, account.id);
+
+    // Same answer for "no such score" and "not yours", as everywhere else.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    return reply.send({
+      id: score.id,
+      name: score.name,
+      url: cloneUrl(publicUrl, score.ownerId, score.id),
+      createdAt: score.createdAt.toISOString(),
+      role: score.role,
+      members: listScoreMembers(db, score.id),
+    });
+  });
+
+  /**
+   * A page of the score's history, newest first, across every branch.
+   *
+   * Deriving what each version touched means parsing Guitar Pro files, so it
+   * is the slow half by a wide margin and it is cached by commit sha. A
+   * version whose file will not parse comes back with `scope: null` rather
+   * than failing the page — the row still lists, it just has nothing to say
+   * about what changed.
+   */
+  fastify.get('/:id/history', async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id } = request.params as { id: string };
+
+    const score = readMemberScore(db, id, account.id);
+
+    // Same answer for "no such score" and "not yours", as everywhere else.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const query = historyPage.safeParse(request.query);
+    if (!query.success) {
+      const issue = query.error.issues[0];
+      return reply
+        .code(400)
+        .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
+    }
+
+    // Built from the owner: the repository did not move when the score was
+    // shared, so a member reads it out of somebody else's namespace.
+    const history = await readHistory(gitRoot, score.ownerId, score.id, query.data);
+    if (!history) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const scopes = await scopesFor(db, gitRoot, score.ownerId, score.id, history.versions);
+
+    return reply.send({
+      head: history.head,
+      total: history.total,
+      branches: history.branches,
+      versions: history.versions.map((version) => ({
+        ...version,
+        scope: scopes.get(version.id) ?? null,
+      })),
+    });
+  });
+
+  /**
+   * One version's Guitar Pro file, byte for byte as it was committed.
+   *
+   * This is what lets the browser render and play a version. It is the same
+   * bytes the companion would check out, and nothing re-encodes them on the
+   * way through — a player that parsed something we generated would be
+   * showing a different song from the one in the history.
+   */
+  fastify.get('/:id/versions/:commit/score.gp', async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id, commit } = request.params as { id: string; commit: string };
+
+    const score = readMemberScore(db, id, account.id);
+
+    // Same answer for "no such score" and "not yours", as everywhere else.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const bytes = await readVersionScore(gitRoot, score.ownerId, score.id, commit);
+    if (!bytes) {
+      return reply
+        .code(404)
+        .send(errorBody('no_such_version', 'No version of this score with that id.'));
+    }
+
+    return reply
+      .header('content-type', 'application/octet-stream')
+      // A sha names one tree forever, so this response can never change.
+      // Private because a score is not public and this is behind a session.
+      .header('cache-control', 'private, max-age=31536000, immutable')
+      .send(bytes);
+  });
 
   fastify.get('/', async (request, reply) => {
     const account = requireAccount(db, request, reply, cookieSecure);
