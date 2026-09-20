@@ -35,10 +35,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Lowest version satisfying both vite 8 (^20.19.0 || >=22.12.0) and
-          # vitest 4 (^20.0.0 || ^22.0.0 || >=24.0.0) on the LTS line. Note that
+          # The 22 LTS line, which satisfies both vite 8 (^20.19.0 ||
+          # >=22.12.0) and vitest 4 (^20.0.0 || ^22.0.0 || >=24.0.0). Note that
           # the node 23 used for local development is outside vitest's range.
-          node-version: 22.12.0
+          #
+          # Not pinned to 22.12.0 any more: better-sqlite3's prebuilt linux-x64
+          # binary segfaults on load there — `new Database(':memory:')` in a
+          # bare `node -e` takes the process down with SIGSEGV, no vitest
+          # involved — which is what every silent test-worker death was.
+          node-version: '22'
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
