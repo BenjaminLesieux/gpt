@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scoreTokens, scores } from '../db/schema';
+import { accounts, scoreMembers, scoreTokens, scores } from '../db/schema';
 import {
   listScoreTokens,
   mintScoreToken,
@@ -32,6 +32,12 @@ describe('score tokens', () => {
       { id: 'sc1', accountId: 'acc1', name: 'Bridge rewrite', createdAt: new Date() },
       { id: 'sc2', accountId: 'acc1', name: 'Untitled riff', createdAt: new Date() },
     ]).run();
+    // A token only resolves while its holder is on the score, so the fixture
+    // has to say that they are — `POST /scores` writes this row inline.
+    handle.db.insert(scoreMembers).values([
+      { id: 'm1', scoreId: 'sc1', accountId: 'acc1', role: 'owner', createdAt: new Date() },
+      { id: 'm2', scoreId: 'sc2', accountId: 'acc1', role: 'owner', createdAt: new Date() },
+    ]).run();
   });
 
   afterEach(() => {
@@ -40,7 +46,7 @@ describe('score tokens', () => {
 
   it('should store the hash of the token and not the token when minting', () => {
     // Given / When
-    const minted = mintScoreToken(handle.db, 'sc1', 'companion');
+    const minted = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // Then
     const rows = handle.db.select().from(scoreTokens).all();
@@ -51,7 +57,7 @@ describe('score tokens', () => {
 
   it('should produce a token safe to send as a git basic-auth password', () => {
     // Given / When
-    const { token } = mintScoreToken(handle.db, 'sc1', 'companion');
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // Then — a colon would split the header, and + / = would need escaping
     // in the clone URL the user pastes.
@@ -60,8 +66,8 @@ describe('score tokens', () => {
 
   it('should mint a different token each time for the same score', () => {
     // Given / When
-    const first = mintScoreToken(handle.db, 'sc1', 'companion');
-    const second = mintScoreToken(handle.db, 'sc1', 'companion');
+    const first = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
+    const second = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // Then
     expect(first.token).not.toBe(second.token);
@@ -70,7 +76,7 @@ describe('score tokens', () => {
 
   it('should resolve the score and its account when the token is current', () => {
     // Given
-    const { id, token } = mintScoreToken(handle.db, 'sc1', 'companion');
+    const { id, token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
     const bearer = readScoreToken(handle.db, token);
@@ -80,9 +86,65 @@ describe('score tokens', () => {
     expect(bearer).toEqual({
       tokenId: id,
       scoreId: 'sc1',
-      accountId: 'acc1',
+      // Two accounts under two names. Here they are the same person, which is
+      // exactly why they have to be told apart before one is shared.
+      ownerId: 'acc1',
+      holderId: 'acc1',
       lastUsedAt: null,
     });
+  });
+
+  it('should keep the owner and the holder apart once a score is shared', () => {
+    // Given a second person on the score, with their own credential
+    handle.db.insert(accounts).values({
+      id: 'acc2',
+      email: 'drummer@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    }).run();
+    handle.db.insert(scoreMembers).values({
+      id: 'm3',
+      scoreId: 'sc1',
+      accountId: 'acc2',
+      role: 'member',
+      createdAt: new Date(),
+    }).run();
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc2', "Sam's ThinkPad");
+
+    // When
+    const bearer = readScoreToken(handle.db, token);
+
+    // Then — the repository is still in the owner's namespace and the
+    // credential is somebody else's. The git route needs both, and needs them
+    // under names it cannot swap by accident.
+    expect(bearer?.ownerId).toBe('acc1');
+    expect(bearer?.holderId).toBe('acc2');
+  });
+
+  it('should resolve nothing for a token whose holder has left the score', () => {
+    // Given
+    handle.db.insert(accounts).values({
+      id: 'acc2',
+      email: 'drummer@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    }).run();
+    handle.db.insert(scoreMembers).values({
+      id: 'm3',
+      scoreId: 'sc1',
+      accountId: 'acc2',
+      role: 'member',
+      createdAt: new Date(),
+    }).run();
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc2', "Sam's ThinkPad");
+
+    // When the membership goes and the token row stays
+    handle.db.delete(scoreMembers).where(eq(scoreMembers.id, 'm3')).run();
+
+    // Then — a credential is only ever as good as the membership behind it,
+    // and this is the only place that is enforced.
+    expect(readScoreToken(handle.db, token)).toBeNull();
+    expect(handle.db.select().from(scoreTokens).all()).toHaveLength(1);
   });
 
   it('should resolve nothing when the token was never issued', () => {
@@ -92,7 +154,7 @@ describe('score tokens', () => {
 
   it('should resolve only the score it was minted for', () => {
     // Given a token for one score and a second score in the same account
-    const { token } = mintScoreToken(handle.db, 'sc1', 'companion');
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
     const bearer = readScoreToken(handle.db, token);
@@ -105,7 +167,7 @@ describe('score tokens', () => {
 
   it('should stop resolving the token once revoked', () => {
     // Given
-    const { id, token } = mintScoreToken(handle.db, 'sc1', 'companion');
+    const { id, token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
     revokeScoreToken(handle.db, id);
@@ -116,8 +178,8 @@ describe('score tokens', () => {
 
   it('should leave a sibling token alone when one is revoked', () => {
     // Given
-    const kept = mintScoreToken(handle.db, 'sc1', 'companion');
-    const dropped = mintScoreToken(handle.db, 'sc1', 'companion');
+    const kept = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
+    const dropped = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
     revokeScoreToken(handle.db, dropped.id);
@@ -128,7 +190,7 @@ describe('score tokens', () => {
 
   it('should drop the tokens when the score is deleted', () => {
     // Given
-    mintScoreToken(handle.db, 'sc1', 'companion');
+    mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
     handle.db.delete(scores).where(eq(scores.id, 'sc1')).run();
@@ -140,7 +202,7 @@ describe('score tokens', () => {
   it('should not claim a freshly minted token has ever been used', () => {
     // Given / When — this is the state every score is in the instant it is
     // created, because POST /scores mints inline with the row.
-    const { id } = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
+    const { id } = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
 
     // Then — issued is not installed, and nothing may render it as such.
     const summary = listScoreTokens(handle.db, ['sc1']).get('sc1')?.[0];
@@ -149,7 +211,7 @@ describe('score tokens', () => {
 
   it('should record a connection without claiming a push', () => {
     // Given
-    const { token } = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
     const bearer = readScoreToken(handle.db, token)!;
 
     // When — a clone or a fetch: the score reached the machine, but no
@@ -165,7 +227,7 @@ describe('score tokens', () => {
 
   it('should record both stamps when the request was a push', () => {
     // Given
-    const { token } = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
     const bearer = readScoreToken(handle.db, token)!;
 
     // When
@@ -182,7 +244,7 @@ describe('score tokens', () => {
   it('should skip the write when a connection was already recorded moments ago', () => {
     // Given a token used a few seconds back — one push is several requests,
     // and the retry queue in push.rs makes more.
-    const { token } = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
     const first = new Date('2026-09-13T10:00:00Z');
     touchScoreToken(handle.db, readScoreToken(handle.db, token)!, false, first);
 
@@ -196,7 +258,7 @@ describe('score tokens', () => {
 
   it('should record a push even when a connection was just recorded', () => {
     // Given the ref advertisement that always precedes a push
-    const { token } = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
+    const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
     const advertised = new Date('2026-09-13T10:00:00Z');
     touchScoreToken(handle.db, readScoreToken(handle.db, token)!, false, advertised);
 
@@ -213,8 +275,8 @@ describe('score tokens', () => {
 
   it('should keep each device’s activity to itself', () => {
     // Given a score on two machines, as cloning to a second one leaves it
-    const laptop = mintScoreToken(handle.db, 'sc1', "Ben's MacBook");
-    mintScoreToken(handle.db, 'sc1', 'Studio iMac');
+    const laptop = mintScoreToken(handle.db, 'sc1', 'acc1', "Ben's MacBook");
+    mintScoreToken(handle.db, 'sc1', 'acc1', 'Studio iMac');
 
     // When only one of them pushes
     const at = new Date('2026-09-13T10:00:00Z');
@@ -230,8 +292,8 @@ describe('score tokens', () => {
 
   it('should drop the scores and their tokens when the account is deleted', () => {
     // Given
-    mintScoreToken(handle.db, 'sc1', 'companion');
-    mintScoreToken(handle.db, 'sc2', 'companion');
+    mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
+    mintScoreToken(handle.db, 'sc2', 'acc1', 'companion');
 
     // When
     handle.db.delete(accounts).run();

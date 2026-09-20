@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
-import { scoreTokens, scores } from '../db/schema';
+import { scoreMembers, scoreTokens, scores } from '../db/schema';
 import { newId } from '../ids';
 
 const TOKEN_BYTES = 32;
@@ -46,9 +46,16 @@ export function deviceName(raw: unknown): string {
   return trimmed.length > 0 ? trimmed : DEFAULT_TOKEN_NAME;
 }
 
+/**
+ * `accountId` is the member the credential belongs to, and it is a required
+ * argument rather than something derived from the score: deriving it would
+ * mean reading `scores.account_id`, which is the owner, and every token on a
+ * shared score would then be attributed to the wrong person.
+ */
 export function mintScoreToken(
   db: HubDatabase,
   scoreId: string,
+  accountId: string,
   name: string,
   now: Date = new Date()
 ): MintedScoreToken {
@@ -58,37 +65,59 @@ export function mintScoreToken(
   const id = newId();
 
   db.insert(scoreTokens)
-    .values({ id, scoreId, name, tokenHash: hashToken(token), createdAt: now })
+    .values({ id, scoreId, accountId, name, tokenHash: hashToken(token), createdAt: now })
     .run();
 
   return { id, name, token };
 }
 
 /**
- * Both ids, because the git route has to decide whether this token may touch
- * the account *and* the score named in the path — one lookup rather than two.
+ * Two accounts, deliberately under names that cannot be swapped by accident.
  *
- * `lastUsedAt` rides along for the same reason: the route stamps activity on
- * every request, and carrying the current value here lets it skip the write
- * when the last one was seconds ago, without a second read.
+ * On a shared score they are different people. `ownerId` is whose namespace
+ * holds the repository — the first segment of every clone URL, fixed when the
+ * score was created and unmoved by sharing it. `holderId` is whose credential
+ * this is. Calling either of them `accountId` is how the git route ends up
+ * either refusing every shared score or serving somebody else's.
+ *
+ * `lastUsedAt` rides along because the route stamps activity on every request,
+ * and carrying the current value here lets it skip the write when the last one
+ * was seconds ago, without a second read.
  */
 export interface ScoreTokenBearer {
   tokenId: string;
   scoreId: string;
-  accountId: string;
+  /** The account the repository is stored under. */
+  ownerId: string;
+  /** The account this credential belongs to. */
+  holderId: string;
   lastUsedAt: Date | null;
 }
 
+/**
+ * The membership join is the second half of the authorisation, and it lives
+ * here rather than at the call site so that it cannot be the thing somebody
+ * forgets: a token whose holder is no longer on the score resolves to nothing
+ * and is refused as invalid, which is what it is.
+ */
 export function readScoreToken(db: HubDatabase, token: string): ScoreTokenBearer | null {
   const row = db
     .select({
       tokenId: scoreTokens.id,
       scoreId: scores.id,
-      accountId: scores.accountId,
+      ownerId: scores.accountId,
+      holderId: scoreTokens.accountId,
       lastUsedAt: scoreTokens.lastUsedAt,
     })
     .from(scoreTokens)
     .innerJoin(scores, eq(scoreTokens.scoreId, scores.id))
+    .innerJoin(
+      scoreMembers,
+      and(
+        eq(scoreMembers.scoreId, scores.id),
+        eq(scoreMembers.accountId, scoreTokens.accountId)
+      )
+    )
     .where(eq(scoreTokens.tokenHash, hashToken(token)))
     .get();
 

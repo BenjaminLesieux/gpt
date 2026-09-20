@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app/app';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scoreTokens, scores } from '../db/schema';
+import { accounts, scoreMembers, scoreTokens, scores } from '../db/schema';
 import { mintScoreToken } from '../scores/tokens';
 import { createRepository } from './repositories';
 
@@ -18,6 +18,8 @@ const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
 
 const ACCOUNT = 'aaaabbbbccccdddd';
+/** A second person, on SCORE_A only. The drummer of ADR 0007. */
+const DRUMMER = 'ddddrrrruuuummmm';
 const SCORE_A = 'sssseeeeaaaaoooo';
 const SCORE_B = 'ttttffffbbbbpppp';
 
@@ -56,15 +58,30 @@ beforeEach(async () => {
 
   handle = openDatabase(':memory:');
   migrateToLatest(handle.db, MIGRATIONS);
-  handle.db.insert(accounts).values({
-    id: ACCOUNT,
-    email: 'player@example.com',
-    passwordHash: 'not-a-real-hash',
-    createdAt: new Date(),
-  }).run();
+  handle.db.insert(accounts).values([
+    {
+      id: ACCOUNT,
+      email: 'player@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    },
+    {
+      id: DRUMMER,
+      email: 'sam@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    },
+  ]).run();
   handle.db.insert(scores).values([
     { id: SCORE_A, accountId: ACCOUNT, name: 'Bridge rewrite', createdAt: new Date() },
     { id: SCORE_B, accountId: ACCOUNT, name: 'Untitled riff', createdAt: new Date() },
+  ]).run();
+  handle.db.insert(scoreMembers).values([
+    { id: 'mem-a', scoreId: SCORE_A, accountId: ACCOUNT, role: 'owner', createdAt: new Date() },
+    { id: 'mem-b', scoreId: SCORE_B, accountId: ACCOUNT, role: 'owner', createdAt: new Date() },
+    // Shared: one score of the two, so the sibling is reachable by path and
+    // not by membership.
+    { id: 'mem-d', scoreId: SCORE_A, accountId: DRUMMER, role: 'member', createdAt: new Date() },
   ]).run();
 
   await createRepository(gitRoot, ACCOUNT, SCORE_A);
@@ -115,7 +132,7 @@ describe('the git endpoint', () => {
 
   it('should accept a push of a named version when the token matches', async () => {
     // Given
-    const { token } = mintScoreToken(handle.db, SCORE_A, 'companion');
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
     const clone = path.join(workspace, 'score');
     await writeFile(path.join(clone, 'score.gp'), '<?xml version="1.0"?><GPIF/>');
@@ -132,7 +149,7 @@ describe('the git endpoint', () => {
 
   it('should accept the snapshots ref as well as main', async () => {
     // Given — companion keeps silent snapshots on their own ref namespace
-    const { token } = mintScoreToken(handle.db, SCORE_A, 'companion');
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
     const clone = path.join(workspace, 'score');
     await git(clone, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'snap');
@@ -147,7 +164,7 @@ describe('the git endpoint', () => {
 
   it('should serve a clone back with its content', async () => {
     // Given a repository that has been pushed to
-    const { token } = mintScoreToken(handle.db, SCORE_A, 'companion');
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'first');
     const first = path.join(workspace, 'first');
     await writeFile(path.join(first, 'score.gp'), '<?xml version="1.0"?><GPIF/>');
@@ -167,7 +184,7 @@ describe('the git endpoint', () => {
   it('should record the device as having pushed, having minted nothing new', async () => {
     // Given a credential that has never been used — the state POST /scores
     // leaves every score in, since it mints a token inline with the row.
-    const { id, token } = mintScoreToken(handle.db, SCORE_A, "Ben's MacBook");
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, "Ben's MacBook");
     expect(readToken(id)).toMatchObject({ lastUsedAt: null, lastPushedAt: null });
 
     // When a real push goes through the route
@@ -187,7 +204,7 @@ describe('the git endpoint', () => {
 
   it('should record a clone as a connection and not as a push', async () => {
     // Given
-    const { id, token } = mintScoreToken(handle.db, SCORE_A, 'Studio iMac');
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'Studio iMac');
 
     // When the score is fetched onto the machine but nothing comes back
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
@@ -201,7 +218,7 @@ describe('the git endpoint', () => {
 
   it('should refuse a valid token aimed at another score', async () => {
     // Given a token minted for one score
-    const { token } = mintScoreToken(handle.db, SCORE_A, 'companion');
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
 
     // When it is pointed at a sibling in the same account
     const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, ACCOUNT, SCORE_B), 'nope')
@@ -212,9 +229,63 @@ describe('the git endpoint', () => {
     expect(String(failure)).toMatch(/403/);
   });
 
+  it("should let a member push to a score kept in the owner's namespace", async () => {
+    // Given a credential belonging to the second person on a shared score
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
+
+    // When they clone and push through the owner's path, which is the only
+    // path the repository has ever had
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+    const clone = path.join(workspace, 'score');
+    await writeFile(path.join(clone, 'score.gp'), 'drums');
+    await git(clone, 'add', '-A');
+    await git(clone, '-c', 'user.email=sam@example.com', '-c', 'user.name=Sam', 'commit', '-qm', 'drums');
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+
+    // Then — the path segment is the owner's and the token is somebody
+    // else's, and both are true at once.
+    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
+    expect(stdout).toContain('refs/heads/main');
+    expect(readToken(id)?.lastPushedAt).toBeInstanceOf(Date);
+  });
+
+  it("should refuse a member of one score at the owner's sibling score", async () => {
+    // Given the drummer's token for the score they are on
+    const { token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
+
+    // When it is pointed at the owner's other score, whose path segment is
+    // the same account
+    const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, ACCOUNT, SCORE_B), 'nope')
+      .catch((error: Error) => error);
+
+    // Then — the path check and the membership check are about two different
+    // accounts, and collapsing them back into one is either this clone
+    // succeeding or the test above failing.
+    expect(failure).toBeInstanceOf(Error);
+    expect(String(failure)).toMatch(/403/);
+  });
+
+  it('should stop honouring a token once its holder is off the score', async () => {
+    // Given a credential that worked
+    const { token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
+
+    // When the membership goes
+    handle.db.delete(scoreMembers).where(eq(scoreMembers.id, 'mem-d')).run();
+
+    // Then it is not a credential any more — the token row is still there,
+    // and it authorises nothing without the membership behind it. Asserted
+    // over fetch rather than through git, which reports a URL's rejected
+    // credentials as its own message and never shows the status.
+    const response = await fetch(
+      `${origin}/git/${ACCOUNT}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
+      { headers: { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` } }
+    );
+    expect(response.status).toBe(401);
+  });
+
   it('should refuse a traversal attempt carrying a real token', async () => {
     // Given a genuine token and a path that tries to escape the git root
-    const { token } = mintScoreToken(handle.db, SCORE_A, 'companion');
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
 
     // When
     const response = await fetch(`${origin}/git/${ACCOUNT}/..%2f..%2fetc.git/info/refs`, {

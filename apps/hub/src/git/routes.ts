@@ -39,15 +39,22 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
       return;
     }
 
-    // A token is minted per score, so it reaches exactly one repository. This
-    // comparison is the whole isolation guarantee - not a scope model
-    // borrowed from somewhere else.
-    if (account !== bearer.accountId || repo !== `${bearer.scoreId}.git`) {
+    // Two facts, not one comparison, and they are about two different
+    // accounts. The path is where the repository is *stored* — the owner's
+    // namespace, fixed at creation and unmoved when the score was shared — so
+    // it is checked against the owner. That this token's holder may be here at
+    // all is the other fact, and `readScoreToken` has already made it by
+    // joining `score_members`: a credential belonging to someone no longer on
+    // the score never resolves.
+    //
+    // Comparing the path against the *holder* instead is a 403 on every shared
+    // score; dropping the path comparison is somebody else's repository.
+    if (account !== bearer.ownerId || repo !== `${bearer.scoreId}.git`) {
       reply.code(403).send(errorBody('wrong_repository', 'That token is for another score.'));
       return;
     }
 
-    if (!repositoryPath(gitRoot, bearer.accountId, bearer.scoreId)) {
+    if (!repositoryPath(gitRoot, bearer.ownerId, bearer.scoreId)) {
       reply.code(404).send(errorBody('not_found', 'No such repository.'));
       return;
     }

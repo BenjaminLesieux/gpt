@@ -556,6 +556,52 @@ describe('a score shared with a second person', () => {
     expect(claimed.json().scoreName).toBe('Bridge rewrite');
   });
 
+  it('should put the member’s own account on the token they mint', async () => {
+    // Given / When
+    await server.inject({
+      method: 'POST',
+      url: `/scores/${shared.id}/token`,
+      payload: { name: 'Sam’s ThinkPad' },
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // Then — the repository is the owner's and the credential is not. This
+    // column is what a push can be attributed to a person by; written with
+    // the owner's id it would name the wrong person forever.
+    const row = handle.db
+      .select()
+      .from(scoreTokens)
+      .where(eq(scoreTokens.name, 'Sam’s ThinkPad'))
+      .get();
+    expect(row?.accountId).toBe(drummer.id);
+  });
+
+  it('should attribute a redeemed claim to whoever made it', async () => {
+    // Given a claim the drummer held out
+    const claimed = await server.inject({
+      method: 'POST',
+      url: `/scores/${shared.id}/clone-claims`,
+      cookies: { [SESSION_COOKIE]: drummer.session },
+    });
+
+    // When it is redeemed by an app that carries no session at all
+    const redeemed = await server.inject({
+      method: 'POST',
+      url: `/claims/${encodeURIComponent(claimed.json().code)}`,
+      payload: { device: 'Sam’s ThinkPad' },
+    });
+
+    // Then — the claim is the only thing that knew who this machine is
+    // acting for, and the owner is the wrong answer.
+    expect(redeemed.statusCode).toBe(201);
+    const row = handle.db
+      .select()
+      .from(scoreTokens)
+      .where(eq(scoreTokens.name, 'Sam’s ThinkPad'))
+      .get();
+    expect(row?.accountId).toBe(drummer.id);
+  });
+
   it('should still show the owner one row rather than two', async () => {
     // Given / When
     const listed = await server.inject({

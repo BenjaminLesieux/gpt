@@ -100,7 +100,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       // is the repository's namespace now, not permission to be here.
       addScoreMember(db, id, account.id, 'owner', createdAt);
 
-      const token = mintScoreToken(db, id, DEFAULT_TOKEN_NAME);
+      const token = mintScoreToken(db, id, account.id, DEFAULT_TOKEN_NAME);
 
       return reply.code(201).send({
         id,
@@ -151,9 +151,12 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
+    // The caller's account, not the owner's: a second person on a shared
+    // score takes it onto their own machine with their own credential.
     const token = mintScoreToken(
       db,
       score.id,
+      account.id,
       deviceName((request.body as { name?: unknown } | null)?.name)
     );
 
@@ -193,7 +196,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
       }
 
-      const claim = createCloneClaim(db, score.id);
+      const claim = createCloneClaim(db, score.id, account.id);
 
       return reply.code(201).send({
         code: claim.code,

@@ -50,6 +50,13 @@
       "when": 1789836353062,
       "tag": "0006_version_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789919509746,
+      "tag": "0007_tokens_name_a_person",
+      "breakpoints": true
     }
   ]
 }
