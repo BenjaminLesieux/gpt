@@ -1,4 +1,9 @@
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api, HubError, type CreatedScore } from './api';
 
 /**
@@ -136,5 +141,34 @@ export function useMintToken(onMinted: (score: CreatedScore) => void) {
       await queryClient.invalidateQueries({ queryKey: scoresQuery.queryKey });
       onMinted(score);
     },
+  });
+}
+
+export function scoreQuery(id: string) {
+  return queryOptions({
+    queryKey: ['score', id],
+    queryFn: () => api.readScore(id),
+    retry: (attempt, error) => !(error instanceof HubError && error.isSignedOut) && attempt < 2,
+  });
+}
+
+/**
+ * The history, a page at a time.
+ *
+ * Infinite rather than a growing `limit`: *Load 40 more* means the next forty
+ * of the same walk, and re-asking for a longer page would re-derive every
+ * scope already on screen. Pages accumulate in order, so the list is
+ * `pages.flatMap(…)` and the lane layout sees one continuous history.
+ */
+export function historyQuery(id: string) {
+  return infiniteQueryOptions({
+    queryKey: ['history', id],
+    queryFn: ({ pageParam }) => api.readHistory(id, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.versions.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
+    retry: (attempt, error) => !(error instanceof HubError && error.isSignedOut) && attempt < 2,
   });
 }

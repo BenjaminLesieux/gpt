@@ -1,5 +1,6 @@
 /// <reference types='vitest' />
 import { resolve } from 'node:path';
+import { alphaTab } from '@coderline/alphatab-vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defaultClientConditions, defineConfig } from 'vite';
@@ -9,8 +10,19 @@ import { defaultClientConditions, defineConfig } from 'vite';
  * owns has to reach Fastify in development too — otherwise the dev server
  * answers `/auth/login` with index.html and the session cookie is never set.
  */
-const API_PREFIXES = ['/auth', '/scores', '/git', '/health'];
+const API_PREFIXES = ['/auth', '/git', '/health', '/invites'];
 const API_ORIGIN = process.env.HUB_API_ORIGIN ?? 'http://localhost:3000';
+
+/**
+ * `/scores` is shared: the list and everything score-scoped are the API, but
+ * `/scores/<id>` on its own is a page this dev server has to serve itself.
+ * Proxying it sends the browser the hub's built index.html, which points at
+ * asset hashes the dev server does not have — a blank screen and a 404.
+ *
+ * The same split the hub makes in `app/plugins/web.ts`; a regex key is how
+ * Vite expresses it. Keep the two in step.
+ */
+const SCORE_API = ['^/scores$', '^/scores\\?', '^/scores/[^/]+/'];
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
@@ -28,14 +40,25 @@ export default defineConfig(() => ({
     port: 4220,
     host: 'localhost',
     proxy: Object.fromEntries(
-      API_PREFIXES.map((prefix) => [prefix, { target: API_ORIGIN, changeOrigin: false }])
+      [...API_PREFIXES, ...SCORE_API].map((prefix) => [
+        prefix,
+        { target: API_ORIGIN, changeOrigin: false },
+      ])
     ),
   },
   preview: {
     port: 4220,
     host: 'localhost',
   },
-  plugins: [react(), tailwindcss()],
+  // alphaTab ships its own worker, worklet, music font and soundfont; the
+  // plugin emits them and rewrites the paths. The same one the companion
+  // uses, so the web player and the desktop one render from identical assets.
+  plugins: [react(), tailwindcss(), alphaTab()],
+  // esbuild pre-bundling would rewrite alphaTab's import.meta.url references
+  // before the plugin gets to see its worker and worklet entry points.
+  optimizeDeps: {
+    exclude: ['@coderline/alphatab'],
+  },
   build: {
     outDir: './dist',
     emptyOutDir: true,

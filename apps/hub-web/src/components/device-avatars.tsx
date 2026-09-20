@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@gpt/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { ScoreToken } from '@/lib/api';
+import { ago } from '@/lib/relative-time';
 
 /**
  * The machines a score is actually on, as one square each.
@@ -119,33 +120,4 @@ function describe(device: Device): string {
   return device.pushedAt
     ? `${device.name} — last version ${ago(device.pushedAt)}`
     : `${device.name} — has the score, no versions saved from it yet`;
-}
-
-/**
- * Pinned to English rather than the browser's locale. This value is
- * interpolated into an English sentence, and `undefined` here produced
- * "last version il y a 21 minutes" on a French machine. The Created column
- * localises its dates because a bare date survives it; a fragment inside a
- * sentence does not.
- */
-const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * 24 * 60 * 60 * 1000],
-  ['month', 30 * 24 * 60 * 60 * 1000],
-  ['day', 24 * 60 * 60 * 1000],
-  ['hour', 60 * 60 * 1000],
-  ['minute', 60 * 1000],
-];
-
-function ago(when: Date, now = Date.now()): string {
-  const elapsed = now - when.getTime();
-
-  for (const [unit, size] of UNITS) {
-    if (elapsed >= size) return RELATIVE.format(-Math.floor(elapsed / size), unit);
-  }
-
-  // Under a minute. The push queue is event-driven, so this is someone
-  // saving in Guitar Pro in the next room right now.
-  return 'just now';
 }

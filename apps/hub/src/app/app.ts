@@ -5,6 +5,7 @@ import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
 import { claimRoutes } from '../scores/claims';
 import { importRoutes } from '../scores/import';
+import { inviteRoutes } from '../scores/invites';
 import { scoreRoutes } from '../scores/routes';
 import errorHandler from './plugins/error-handler';
 import health from './routes/health';
@@ -56,6 +57,14 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
     db: opts.db,
     publicUrl: opts.publicUrl,
     prefix: '/claims',
+  });
+
+  // Accepting one needs a session, unlike a claim: an invite adds an account
+  // to a score rather than a machine.
+  await fastify.register(inviteRoutes, {
+    db: opts.db,
+    cookieSecure: opts.cookieSecure,
+    prefix: '/invites',
   });
 
   // Its own scope: the raw-stream content-type parser git needs must not

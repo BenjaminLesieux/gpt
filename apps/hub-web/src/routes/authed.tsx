@@ -13,7 +13,7 @@ function AuthedLayout() {
     // One provider for the whole signed-in shell, as the companion does in
     // ExtendedApp — nothing below should nest another.
     <TooltipProvider>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex h-dvh flex-col">
         <Header
           email={account.email}
           onLogOut={async () => {

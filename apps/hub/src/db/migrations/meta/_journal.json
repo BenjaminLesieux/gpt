@@ -36,6 +36,20 @@
       "when": 1789327630776,
       "tag": "0004_score_members",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789328607755,
+      "tag": "0005_score_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789836353062,
+      "tag": "0006_version_scopes",
+      "breakpoints": true
     }
   ]
 }

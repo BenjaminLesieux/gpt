@@ -42,7 +42,7 @@ function CredentialsPage() {
   const all = `URL: ${score.url}\nUsername: ${score.username}\nToken: ${score.token}`;
 
   return (
-    <main className="flex flex-1 justify-center px-6 py-12">
+    <main className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-12">
       <div className="flex w-full max-w-[720px] flex-col gap-6">
         <div className="flex flex-col gap-2">
           <p className="font-mono text-sm uppercase tracking-wide text-muted-foreground">
