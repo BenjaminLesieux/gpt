@@ -52,7 +52,14 @@ export type ClaimLookup =
    * whom may be redeeming this claim, and the two being swapped is a clone URL
    * pointing at a repository that is not there.
    */
-  | { status: 'valid'; scoreId: string; scoreName: string; ownerId: string }
+  | {
+      status: 'valid';
+      scoreId: string;
+      scoreName: string;
+      ownerId: string;
+      /** The member who made the claim, and so whose credential this becomes. */
+      createdBy: string;
+    }
   | { status: 'redeemed' }
   | { status: 'expired' }
   | { status: 'unknown' };
@@ -65,6 +72,7 @@ export type ClaimLookup =
 export function createCloneClaim(
   db: HubDatabase,
   scoreId: string,
+  accountId: string,
   now: Date = new Date()
 ): IssuedClaim {
   const code = randomBytes(CODE_BYTES).toString('base64url');
@@ -84,6 +92,7 @@ export function createCloneClaim(
       id: newId(),
       codeHash: hashCode(code),
       scoreId,
+      createdBy: accountId,
       createdAt: now,
       expiresAt,
       redeemedAt: null,
@@ -113,6 +122,7 @@ export function peekCloneClaim(
       scoreId: scores.id,
       scoreName: scores.name,
       ownerId: scores.accountId,
+      createdBy: cloneClaims.createdBy,
     })
     .from(cloneClaims)
     .innerJoin(scores, eq(cloneClaims.scoreId, scores.id))
@@ -128,6 +138,7 @@ export function peekCloneClaim(
     scoreId: row.scoreId,
     scoreName: row.scoreName,
     ownerId: row.ownerId,
+    createdBy: row.createdBy,
   };
 }
 
@@ -178,7 +189,12 @@ export function redeemCloneClaim(
 /** Whose score this was, read back after the row has already been claimed. */
 function peekAfterSpending(db: HubDatabase, codeHash: string): ClaimLookup {
   const row = db
-    .select({ scoreId: scores.id, scoreName: scores.name, ownerId: scores.accountId })
+    .select({
+      scoreId: scores.id,
+      scoreName: scores.name,
+      ownerId: scores.accountId,
+      createdBy: cloneClaims.createdBy,
+    })
     .from(cloneClaims)
     .innerJoin(scores, eq(cloneClaims.scoreId, scores.id))
     .where(eq(cloneClaims.codeHash, codeHash))
@@ -266,9 +282,14 @@ export async function claimRoutes(fastify: FastifyInstance, opts: ClaimRoutesOpt
       return reply.code(claimStatus(claim.status)).send(claimError(claim.status));
     }
 
+    // The credential belongs to whoever pressed Clone, not to the score's
+    // owner: this endpoint takes no session — the app on the far end of the
+    // link has no account — so the claim is the only thing that knows who
+    // this machine is acting for.
     const token = mintScoreToken(
       db,
       claim.scoreId,
+      claim.createdBy,
       deviceName((request.body as { device?: unknown } | null)?.device)
     );
 

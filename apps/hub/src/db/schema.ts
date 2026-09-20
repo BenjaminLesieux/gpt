@@ -93,6 +93,17 @@ export const scoreTokens = sqliteTable(
     scoreId: text('score_id')
       .notNull()
       .references(() => scores.id, { onDelete: 'cascade' }),
+    /**
+     * Whose credential this is — not whose namespace holds the repository.
+     * For a shared score those are two different accounts, and the git route
+     * is the place that must never confuse them.
+     *
+     * It is what makes a push attributable to a person rather than to the
+     * owner forever, which is the whole reason `score_pushes` can exist.
+     */
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /**
      * sha256 of what companion sends as its git password, never the value.
@@ -115,7 +126,12 @@ export const scoreTokens = sqliteTable(
      */
     lastPushedAt: integer('last_pushed_at', { mode: 'timestamp_ms' }),
   },
-  (table) => [index('score_tokens_score_id_idx').on(table.scoreId)]
+  (table) => [
+    index('score_tokens_score_id_idx').on(table.scoreId),
+    // Every git request joins this column against `score_members`, and the
+    // cascade behind an account delete would otherwise be a full table scan.
+    index('score_tokens_account_id_idx').on(table.accountId),
+  ]
 );
 
 /**
@@ -136,6 +152,15 @@ export const cloneClaims = sqliteTable(
     scoreId: text('score_id')
       .notNull()
       .references(() => scores.id, { onDelete: 'cascade' }),
+    /**
+     * The member who pressed Clone. Redemption carries no session — the app
+     * on the far end of the `gitarpro://` link has no account of its own — so
+     * without this the token it mints could only ever be attributed to the
+     * owner, which for a shared score is the wrong person.
+     */
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     /** Null until it is spent. A spent claim is kept so a replay can be told
@@ -144,6 +169,7 @@ export const cloneClaims = sqliteTable(
   },
   (table) => [
     index('clone_claims_score_id_idx').on(table.scoreId),
+    index('clone_claims_created_by_idx').on(table.createdBy),
     // The sweep is a range scan over this column.
     index('clone_claims_expires_at_idx').on(table.expiresAt),
   ]
