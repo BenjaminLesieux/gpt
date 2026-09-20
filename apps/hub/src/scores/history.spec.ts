@@ -136,7 +136,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  handle.close();
+  handle?.close();
   await server.close();
   await rm(gitRoot, { recursive: true, force: true });
   await rm(path.dirname(work), { recursive: true, force: true });

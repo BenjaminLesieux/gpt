@@ -46,7 +46,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await server.close();
-  handle.close();
+  handle?.close();
 });
 
 describe('POST /auth/signup', () => {

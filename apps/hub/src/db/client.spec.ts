@@ -16,7 +16,7 @@ describe('the hub database', () => {
   });
 
   afterEach(() => {
-    handle.close();
+    handle?.close();
   });
 
   it('should accept an account row when the migrations have run', () => {

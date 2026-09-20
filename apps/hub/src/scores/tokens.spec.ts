@@ -35,7 +35,7 @@ describe('score tokens', () => {
   });
 
   afterEach(() => {
-    handle.close();
+    handle?.close();
   });
 
   it('should store the hash of the token and not the token when minting', () => {
