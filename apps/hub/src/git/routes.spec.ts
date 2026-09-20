@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app/app';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scoreMembers, scoreTokens, scores } from '../db/schema';
+import { accounts, scoreMembers, scorePushes, scoreTokens, scores } from '../db/schema';
 import { mintScoreToken } from '../scores/tokens';
 import { createRepository } from './repositories';
 
@@ -50,6 +50,24 @@ function cloneUrl(token: string, account = ACCOUNT, score = SCORE_A) {
 /** The activity stamps, read straight from the row the route writes. */
 function readToken(id: string) {
   return handle.db.select().from(scoreTokens).where(eq(scoreTokens.id, id)).get();
+}
+
+/**
+ * The push history, oldest first. Polled rather than read once: the rows are
+ * written when the CGI exits, which is deliberately not ordered against the
+ * client's `git push` returning — see `pushes.ts`.
+ */
+function readPushes() {
+  return handle.db.select().from(scorePushes).orderBy(scorePushes.pushedAt).all();
+}
+
+/** A version in a clone, returning its sha. */
+async function commit(clone: string, message: string): Promise<string> {
+  await writeFile(path.join(clone, 'score.gp'), message);
+  await git(clone, 'add', '-A');
+  await git(clone, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', message);
+  const { stdout } = await git(clone, 'rev-parse', 'HEAD');
+  return stdout.trim();
 }
 
 beforeEach(async () => {
@@ -281,6 +299,92 @@ describe('the git endpoint', () => {
       { headers: { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` } }
     );
     expect(response.status).toBe(401);
+  });
+
+  it('should record what each push moved, and which credential moved it', async () => {
+    // Given a device credential and an empty repository
+    const { id, token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, "Ben's MacBook");
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+    const clone = path.join(workspace, 'score');
+    const first = await commit(clone, 'first version');
+
+    // When the first version lands on a ref that did not exist
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+
+    // Then — a null old oid, because there is no `old..new` to ask git for.
+    await expect.poll(() => readPushes().length).toBe(1);
+    expect(readPushes()[0]).toMatchObject({
+      scoreId: SCORE_A,
+      tokenId: id,
+      ref: 'refs/heads/main',
+      oldOid: null,
+      newOid: first,
+    });
+
+    // When a second version lands on top
+    const second = await commit(clone, 'second version');
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+
+    // Then both ends of the range are on the row, which is the whole point:
+    // the repository can be asked what moved, rather than told.
+    await expect.poll(() => readPushes().length).toBe(2);
+    expect(readPushes()[1]).toMatchObject({ oldOid: first, newOid: second });
+  });
+
+  it('should record a branch and leave the snapshots namespace out of it', async () => {
+    // Given
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+    const clone = path.join(workspace, 'score');
+    const tip = await commit(clone, 'solo');
+
+    // When a branch is pushed
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/solo-take-2');
+    await expect.poll(() => readPushes().length).toBe(1);
+    expect(readPushes()[0]).toMatchObject({ ref: 'refs/heads/solo-take-2', newOid: tip });
+
+    // When an autosave is parked on the ref namespace the route also accepts,
+    // and a second branch pushed behind it
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/snapshots/latest');
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/solo-take-3');
+
+    // Then the snapshot is not history and the branch behind it is. The
+    // second branch is what makes this an assertion rather than a race: the
+    // snapshot was seen and skipped, not merely still in flight.
+    await expect.poll(() => readPushes().length).toBe(2);
+    expect(readPushes().map((row) => row.ref)).toEqual([
+      'refs/heads/solo-take-2',
+      'refs/heads/solo-take-3',
+    ]);
+  });
+
+  it('should write no history for a push receive-pack refuses', async () => {
+    // Given a landed version, and a repository that will not rewind a branch
+    const bare = path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`);
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
+    await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
+    const clone = path.join(workspace, 'score');
+    const landed = await commit(clone, 'first version');
+    await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+    await expect.poll(() => readPushes().length).toBe(1);
+    await git(gitRoot, '--git-dir', bare, 'config', 'receive.denyNonFastForwards', 'true');
+
+    // When a forced rewrite is pushed at it and receive-pack says no
+    await git(clone, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--amend', '-m', 'rewritten');
+    const { stdout } = await git(clone, 'rev-parse', 'HEAD');
+    const rewritten = stdout.trim();
+    const failure = await git(clone, 'push', '--force', '--quiet', 'origin', 'HEAD:refs/heads/main')
+      .catch((error: Error) => error);
+
+    // Then the ref never moved and neither did the history. `last_pushed_at`
+    // counts this as activity and is right to; this table must not.
+    // `remote rejected`, not `rejected`: --force turns off the client's own
+    // fast-forward check, so this push really did reach receive-pack and come
+    // back refused. A client-side refusal would test nothing here.
+    expect(String(failure)).toContain('remote rejected');
+    await git(clone, 'push', '--quiet', 'origin', `${landed}:refs/heads/plan-b`);
+    await expect.poll(() => readPushes().length).toBe(2);
+    expect(readPushes().some((row) => row.newOid === rewritten)).toBe(false);
   });
 
   it('should refuse a traversal attempt carrying a real token', async () => {
