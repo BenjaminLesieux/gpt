@@ -5,16 +5,31 @@ import { accountQuery, useLogin, useSignup } from '@/lib/queries';
 import { rootRoute, type RouterContext } from './root';
 
 /** Someone already signed in has no business on these two screens. */
-async function redirectIfSignedIn({ context }: { context: RouterContext }) {
+async function redirectIfSignedIn({
+  context,
+  search,
+}: {
+  context: RouterContext;
+  search: { invite?: string };
+}) {
   try {
     await context.queryClient.ensureQueryData(accountQuery);
   } catch {
     return;
   }
-  throw redirect({ to: '/' });
+  // Still holding an invite: it is the reason they are here, and the score
+  // list has nothing to say about it.
+  throw redirect(
+    search.invite ? { to: '/join/$code', params: { code: search.invite } } : { to: '/' }
+  );
 }
 
-function AuthLayout({
+/**
+ * The centred card these two screens are. Exported because the accept screen
+ * is the third of them: it is the page somebody lands on holding a link, with
+ * one thing to read and one thing to press, and it sends them here.
+ */
+export function AuthLayout({
   title,
   blurb,
   children,
@@ -45,9 +60,21 @@ function AuthLayout({
 const linkClass =
   'border-b border-border-strong text-foreground transition-colors hover:text-brand-bright';
 
+/**
+ * The invite somebody was holding when they were sent here to sign in.
+ *
+ * A code and not a return URL: it is fed straight back into a typed route, so
+ * there is no string from the address bar that can be navigated to and no
+ * open redirect to get wrong.
+ */
+function inviteSearch(search: Record<string, unknown>): { invite?: string } {
+  return typeof search.invite === 'string' ? { invite: search.invite } : {};
+}
+
 function LoginPage() {
   const login = useLogin();
   const navigate = loginRoute.useNavigate();
+  const { invite } = loginRoute.useSearch();
 
   return (
     <AuthLayout
@@ -55,7 +82,7 @@ function LoginPage() {
       footer={
         <>
           No account yet?{' '}
-          <Link to="/signup" className={linkClass}>
+          <Link to="/signup" search={{ invite }} className={linkClass}>
             Sign up
           </Link>
         </>
@@ -67,7 +94,12 @@ function LoginPage() {
         error={login.error}
         onSubmit={async (values) => {
           await login.mutateAsync(values);
-          await navigate({ to: '/' });
+          // Back to the link they were holding. Landing on the score list
+          // instead leaves them signed in and none the wiser about the
+          // invite, which is where an invite quietly dies.
+          await (invite
+            ? navigate({ to: '/join/$code', params: { code: invite } })
+            : navigate({ to: '/' }));
         }}
       />
     </AuthLayout>
@@ -77,6 +109,7 @@ function LoginPage() {
 function SignupPage() {
   const signup = useSignup();
   const navigate = signupRoute.useNavigate();
+  const { invite } = signupRoute.useSearch();
 
   return (
     <AuthLayout
@@ -85,7 +118,7 @@ function SignupPage() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className={linkClass}>
+          <Link to="/login" search={{ invite }} className={linkClass}>
             Log in
           </Link>
         </>
@@ -97,7 +130,9 @@ function SignupPage() {
         error={signup.error}
         onSubmit={async (values) => {
           await signup.mutateAsync(values);
-          await navigate({ to: '/' });
+          await (invite
+            ? navigate({ to: '/join/$code', params: { code: invite } })
+            : navigate({ to: '/' }));
         }}
       />
     </AuthLayout>
@@ -107,6 +142,7 @@ function SignupPage() {
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
+  validateSearch: inviteSearch,
   beforeLoad: redirectIfSignedIn,
   component: LoginPage,
 });
@@ -114,6 +150,7 @@ export const loginRoute = createRoute({
 export const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
+  validateSearch: inviteSearch,
   beforeLoad: redirectIfSignedIn,
   component: SignupPage,
 });

@@ -36,3 +36,18 @@ export function ago(when: Date, now = Date.now()): string {
   // saving in Guitar Pro in the next room right now.
   return 'just now';
 }
+
+/**
+ * How long something has left — an invite's expiry, which is the only value
+ * in this app that points forwards. Same words in the other direction; a
+ * *stops working −6 days ago* is what `ago` would make of it.
+ */
+export function until(when: Date, now = Date.now()): string {
+  const left = when.getTime() - now;
+
+  for (const [unit, size] of UNITS) {
+    if (left >= size) return RELATIVE.format(Math.floor(left / size), unit);
+  }
+
+  return 'in under a minute';
+}
