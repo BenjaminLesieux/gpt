@@ -235,9 +235,10 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
   });
 
   /**
-   * Everyone on a score. The list route cannot answer this — it returns every
-   * score and would have to join every membership to do it — and the page
-   * that needs the band is the page about one song.
+   * Everyone on a score, plus the invites nobody has opened yet. The list
+   * route cannot answer this — it returns every score and would have to join
+   * every membership to do it — and the page that needs the band is the page
+   * about one song.
    *
    * Deliberately not `GET /:id`: that path is the score's page in the browser
    * and answering it with JSON serves a musician a wall of braces. See
@@ -262,7 +263,11 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       url: cloneUrl(publicUrl, score.ownerId, score.id),
       createdAt: score.createdAt.toISOString(),
       role: score.role,
-      members: listScoreMembers(db, score.id),
+      members: listScoreMembers(db, score.id).map((member) =>
+        member.status === 'invited'
+          ? { ...member, expiresAt: member.expiresAt.toISOString() }
+          : member
+      ),
     });
   });
 

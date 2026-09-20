@@ -433,6 +433,81 @@ describe('POST /invites/:code', () => {
   });
 });
 
+/**
+ * An invited person has no membership row until they accept, so a members
+ * list built from `score_members` alone draws them as absent. That is the
+ * conflation of "issued" with "in use" the token activity fix removed for
+ * machines, and it is worse for people: the inviter reads the empty square as
+ * a link that never sent.
+ */
+describe('GET /scores/:id/members, with an invite out', () => {
+  function membersFrom(scoreId: string, cookie = session) {
+    return server
+      .inject({ method: 'GET', url: `/scores/${scoreId}/members`, cookies: { [SESSION_COOKIE]: cookie } })
+      .then((response) => response.json().members as Record<string, unknown>[]);
+  }
+
+  it('should name the invite nobody has opened, with no address on it', async () => {
+    // Given
+    const score = await createScore();
+    await inviteTo(score.id);
+
+    // When
+    const members = await membersFrom(score.id);
+
+    // Then — two squares from one person: the owner, and a link out. Nobody
+    // is named on the second, because no mailer means nobody was addressed.
+    expect(members).toHaveLength(2);
+    expect(members[0]).toMatchObject({ status: 'joined', email: OWNER.email, role: 'owner' });
+    expect(members[1]).toMatchObject({ status: 'invited', invitedBy: OWNER.email });
+    expect(members[1]).not.toHaveProperty('email');
+    expect(Date.parse(members[1].expiresAt as string)).toBeGreaterThan(Date.now());
+  });
+
+  it('should turn the invite into a person when it is accepted', async () => {
+    // Given
+    const score = await createScore();
+    const code = await inviteTo(score.id);
+    const drummer = await signUp('drummer@example.com');
+
+    // When
+    await accept(code, drummer.session);
+
+    // Then — still two squares, and the second one has a name on it now.
+    const members = await membersFrom(score.id);
+    expect(members).toHaveLength(2);
+    expect(members.map((member) => member.status)).toEqual(['joined', 'joined']);
+    expect(members[1]).toMatchObject({ email: 'drummer@example.com', role: 'member' });
+  });
+
+  it('should forget an invite that ran out', async () => {
+    // Given
+    const score = await createScore();
+    await inviteTo(score.id);
+
+    // When
+    expire();
+
+    // Then — a link that stopped working is not somebody on their way. The
+    // square would stay up forever, saying wait for them.
+    expect(await membersFrom(score.id)).toHaveLength(1);
+  });
+
+  it('should show an invited member the same list', async () => {
+    // Given a score the drummer joined, with a second link still out
+    const score = await createScore();
+    const drummer = await signUp('drummer@example.com');
+    await accept(await inviteTo(score.id), drummer.session);
+    await inviteTo(score.id);
+
+    // When
+    const members = await membersFrom(score.id, drummer.session);
+
+    // Then — the band is the same band whichever member is looking at it.
+    expect(members.map((member) => member.status)).toEqual(['joined', 'joined', 'invited']);
+  });
+});
+
 describe('housekeeping', () => {
   it('should drop a score’s dead invites as the next one is made', async () => {
     // Given

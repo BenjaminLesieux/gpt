@@ -14,9 +14,9 @@
  * session they are holding.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
-import { accounts, scoreMembers, scores } from '../db/schema';
+import { accounts, scoreInvites, scoreMembers, scores } from '../db/schema';
 import { newId } from '../ids';
 
 export type ScoreRole = 'owner' | 'member';
@@ -91,24 +91,53 @@ export function addScoreMember(
     .run();
 }
 
-/** A member, as the score page names them. */
-export interface ScoreMemberAccount {
-  accountId: string;
-  /**
-   * Accounts have no display name yet, so this is the only thing a person is
-   * called. The screen derives initials from the local part and keeps the
-   * address itself for the tooltip — which is also how a version's author is
-   * matched to a member, since git records an email and nothing else.
-   */
-  email: string;
-  role: ScoreRole;
-}
+/**
+ * A member, as the score page names them — or a link held out to somebody who
+ * has not arrived yet.
+ *
+ * The second case is why this is a union rather than a row of `score_members`.
+ * An invited person has no membership at all until they accept, so a list of
+ * memberships draws them as *absent* — the same conflation of "issued" with
+ * "in use" that the token activity fix removed one layer down, reintroduced
+ * for people instead of machines.
+ *
+ * `id` is what the square is keyed by and nothing more: the account for
+ * someone who is here, the invite for someone who is not. An invited person
+ * has neither an account nor an address — there is no mailer, so nobody is
+ * named until they accept — which is exactly what the union stops a caller
+ * from forgetting.
+ */
+export type ScoreMemberEntry =
+  | {
+      status: 'joined';
+      id: string;
+      /**
+       * Accounts have no display name yet, so this is the only thing a person
+       * is called. The screen derives initials from the local part and keeps
+       * the address itself for the tooltip — which is also how a version's
+       * author is matched to a member, since git records an email and nothing
+       * else.
+       */
+      email: string;
+      role: ScoreRole;
+    }
+  | { status: 'invited'; id: string; invitedBy: string; expiresAt: Date };
 
-/** Everyone on a score, oldest membership first — the owner leads. */
-export function listScoreMembers(db: HubDatabase, scoreId: string): ScoreMemberAccount[] {
-  return db
+/**
+ * Everyone on a score, oldest first — the owner leads, and the invites nobody
+ * has opened yet come after the people who are actually here.
+ *
+ * Two queries rather than a union: the two halves carry different columns,
+ * and an invite has no account to join to.
+ */
+export function listScoreMembers(
+  db: HubDatabase,
+  scoreId: string,
+  now: Date = new Date()
+): ScoreMemberEntry[] {
+  const joined = db
     .select({
-      accountId: scoreMembers.accountId,
+      id: scoreMembers.accountId,
       email: accounts.email,
       role: scoreMembers.role,
     })
@@ -117,4 +146,29 @@ export function listScoreMembers(db: HubDatabase, scoreId: string): ScoreMemberA
     .where(eq(scoreMembers.scoreId, scoreId))
     .orderBy(scoreMembers.createdAt)
     .all();
+
+  // Unaccepted and unexpired only. An invite that has been spent is the
+  // membership row above it, and a dead one is a person who never came.
+  const invited = db
+    .select({
+      id: scoreInvites.id,
+      invitedBy: accounts.email,
+      expiresAt: scoreInvites.expiresAt,
+    })
+    .from(scoreInvites)
+    .innerJoin(accounts, eq(scoreInvites.invitedBy, accounts.id))
+    .where(
+      and(
+        eq(scoreInvites.scoreId, scoreId),
+        isNull(scoreInvites.acceptedAt),
+        gt(scoreInvites.expiresAt, now)
+      )
+    )
+    .orderBy(scoreInvites.createdAt)
+    .all();
+
+  return [
+    ...joined.map((row) => ({ status: 'joined' as const, ...row })),
+    ...invited.map((row) => ({ status: 'invited' as const, ...row })),
+  ];
 }
