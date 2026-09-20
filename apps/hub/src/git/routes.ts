@@ -3,6 +3,7 @@ import { errorBody } from '../app/errors';
 import type { HubDatabase } from '../db/client';
 import { readScoreToken, touchScoreToken } from '../scores/tokens';
 import { proxyToGit } from './http-backend';
+import { readHeads, recordPush } from './pushes';
 import { repositoryPath } from './repositories';
 
 export interface GitRoutesOptions {
@@ -20,7 +21,7 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
     done(null, payload)
   );
 
-  fastify.all('/:account/:repo/*', (request, reply) => {
+  fastify.all('/:account/:repo/*', async (request, reply) => {
     const { account, repo } = request.params as { account: string; repo: string };
 
     const password = basicAuthPassword(request.headers.authorization);
@@ -54,25 +55,41 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
       return;
     }
 
-    if (!repositoryPath(gitRoot, bearer.ownerId, bearer.scoreId)) {
+    const repository = repositoryPath(gitRoot, bearer.ownerId, bearer.scoreId);
+    if (!repository) {
       reply.code(404).send(errorBody('not_found', 'No such repository.'));
       return;
     }
 
     const rest = (request.params as Record<string, string>)['*'];
+    const receivePack = request.method === 'POST' && rest === 'git-receive-pack';
 
-    // Stamped before the proxy rather than after it: `proxyToGit` hijacks the
-    // reply and streams, so there is no completion to hang this off without
-    // reaching into the CGI's exit. The cost of being early is that a push
-    // which fails inside receive-pack still counts as activity — which is
-    // true, someone tried — where the cost of being late would be dropping
-    // every stamp on a connection the client closed.
-    touchScoreToken(db, bearer, request.method === 'POST' && rest === 'git-receive-pack');
+    // Stamped before the proxy rather than after it. The cost of being early
+    // is that a push which fails inside receive-pack still counts as activity
+    // — which is true, someone tried — where the cost of being late would be
+    // dropping every stamp on a connection the client closed. `score_pushes`
+    // below wants the opposite and is read the other side of the CGI.
+    touchScoreToken(db, bearer, receivePack);
+
+    // Read before a single byte reaches receive-pack. Awaiting here leaves the
+    // request body paused in the socket rather than lost; reading it any later
+    // would be reading the tips the push itself has already written.
+    const before = receivePack ? await readHeads(repository) : null;
 
     proxyToGit(request, reply, {
       projectRoot: gitRoot,
       pathInfo: `/${account}/${repo}/${rest}`,
       remoteUser: bearer.tokenId,
+      onFinished: before
+        ? () => {
+            // The reply has already been streamed and closed, so a failure to
+            // write the history cannot be reported to the pusher — and must
+            // not take the process down either.
+            recordPush(db, repository, bearer, before).catch((error: unknown) =>
+              request.log.error({ err: error }, 'failed to record a push')
+            );
+          }
+        : undefined,
     });
   });
 }

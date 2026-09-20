@@ -253,6 +253,51 @@ export const versionScopes = sqliteTable(
   ]
 );
 
+/**
+ * One ref that moved, and the credential it moved under. The hub knew *that* a
+ * device pushed — `score_tokens.last_pushed_at` — and never what it pushed.
+ *
+ * Oids and not messages: the repository is authoritative, and `git log
+ * old..new` at read time cannot disagree with itself the way a second copy of
+ * the history kept here eventually would.
+ */
+export const scorePushes = sqliteTable(
+  'score_pushes',
+  {
+    id: text('id').primaryKey(),
+    scoreId: text('score_id')
+      .notNull()
+      .references(() => scores.id, { onDelete: 'cascade' }),
+    /**
+     * Which credential, and through it which person. Null once that device is
+     * revoked: cascading instead would make revoking a laptop rewrite the
+     * band's history, which is the one thing a record of who pushed what must
+     * not do. A null reads as "a device that no longer exists", and if the
+     * person needs to survive revocation it is an `account_id` here, not a
+     * different `ON DELETE`.
+     */
+    tokenId: text('token_id').references(() => scoreTokens.id, { onDelete: 'set null' }),
+    /** Full ref name. Only `refs/heads/*` is recorded; see `git/pushes.ts`. */
+    ref: text('ref').notNull(),
+    /**
+     * Null for a ref that did not exist before, rather than git's forty zeroes.
+     * The zero oid is a wire-protocol convention for a value that has to be
+     * fixed-width; here it is a value someone will one day splice into
+     * `old..new` without testing it first.
+     */
+    oldOid: text('old_oid'),
+    newOid: text('new_oid').notNull(),
+    pushedAt: integer('pushed_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    // The read is one score's pushes, newest first.
+    index('score_pushes_score_id_pushed_at_idx').on(table.scoreId, table.pushedAt),
+    // Revoking a device nulls every row that names it, and that must not be a
+    // full table scan.
+    index('score_pushes_token_id_idx').on(table.tokenId),
+  ]
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;
@@ -261,3 +306,4 @@ export type ScoreToken = typeof scoreTokens.$inferSelect;
 export type CloneClaim = typeof cloneClaims.$inferSelect;
 export type ScoreInvite = typeof scoreInvites.$inferSelect;
 export type VersionScope = typeof versionScopes.$inferSelect;
+export type ScorePush = typeof scorePushes.$inferSelect;

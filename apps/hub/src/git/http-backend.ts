@@ -33,6 +33,13 @@ export interface GitBackendRequest {
   pathInfo: string;
   /** Recorded by receive-pack as the pusher. */
   remoteUser: string;
+  /**
+   * Called once the CGI has exited, which for a push is the only moment at
+   * which the refs are settled. It gets no success flag: the reply was
+   * hijacked and streamed, so the only honest account of what a push did is
+   * the repository itself.
+   */
+  onFinished?: () => void;
 }
 
 /**
@@ -75,6 +82,8 @@ export function proxyToGit(
   child.stderr.on('data', (chunk: Buffer) => {
     request.log.warn({ backend: chunk.toString().trimEnd() }, 'git-http-backend');
   });
+
+  if (options.onFinished) child.on('close', options.onFinished);
 
   child.on('error', (error) => {
     request.log.error({ err: error }, 'git-http-backend failed to run');

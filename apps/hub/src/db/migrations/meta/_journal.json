@@ -57,6 +57,13 @@
       "when": 1789919509746,
       "tag": "0007_tokens_name_a_person",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789920068949,
+      "tag": "0008_score_pushes",
+      "breakpoints": true
     }
   ]
 }
