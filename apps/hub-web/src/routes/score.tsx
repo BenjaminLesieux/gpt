@@ -2,14 +2,16 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
 import { Badge } from '@gpt/ui/badge';
+import { Button } from '@gpt/ui/button';
 import { Kbd } from '@gpt/ui/kbd';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import { HistoryList, HistorySkeleton, LoadMore } from '@/components/history-list';
+import { InviteDialog } from '@/components/invite-dialog';
+import { MemberAvatars } from '@/components/member-avatars';
 import { VersionInspector } from '@/components/version-inspector';
-import { HubError, type Branch, type Member, type Version } from '@/lib/api';
-import { initials, since } from '@/lib/history-format';
+import { HubError, type Branch, type Version } from '@/lib/api';
+import { since } from '@/lib/history-format';
 import { LOCALE } from '@/lib/relative-time';
-import { historyQuery, scoreQuery } from '@/lib/queries';
+import { historyQuery, scoreQuery, useCreateInvite } from '@/lib/queries';
 import { authedRoute } from './authed';
 
 /**
@@ -29,6 +31,11 @@ function ScorePage() {
   // Commit ids, newest first, exactly as the list holds them. One is a
   // version; more is a range and its two ends are the first and the last.
   const [selected, setSelected] = useState<string[]>([]);
+
+  // The score being invited to, not a boolean: the dialog names it, and it is
+  // what the invite is minted against.
+  const [inviting, setInviting] = useState<{ id: string; name: string } | null>(null);
+  const invite = useCreateInvite();
 
   const versions = useMemo(
     () => history.data?.pages.flatMap((page) => page.versions) ?? [],
@@ -102,7 +109,17 @@ function ScorePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Members members={score.data?.members ?? []} />
+            <MemberAvatars members={score.data?.members ?? []} />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!score.data}
+              onClick={() => score.data && setInviting({ id: scoreId, name: score.data.name })}
+              className="h-6.5 rounded-sm border-border bg-card px-2.5 text-sm"
+            >
+              Invite
+              <span className="sr-only"> someone to {score.data?.name}</span>
+            </Button>
           </div>
         </header>
 
@@ -160,6 +177,21 @@ function ScorePage() {
         </div>
       </main>
 
+      <InviteDialog
+        score={inviting}
+        onOpenChange={() => {
+          setInviting(null);
+          // The link is spent as far as this dialog is concerned: reopening
+          // mints a new one, and showing the old one meanwhile would be a
+          // code the inviter may already have pasted somewhere.
+          invite.reset();
+        }}
+        onInvite={invite.mutateAsync}
+        invite={invite.data ?? null}
+        minting={invite.isPending}
+        error={invite.error}
+      />
+
       {chosen.length > 0 && (
         <VersionInspector
           scoreId={scoreId}
@@ -207,31 +239,6 @@ function count(total: number, branches: number): string {
   const versions = `${total} ${total === 1 ? 'version' : 'versions'}`;
   if (branches === 0) return `${versions} · main`;
   return `${versions} · main + ${branches} ${branches === 1 ? 'branch' : 'branches'}`;
-}
-
-function Members({ members }: { members: Member[] }) {
-  return (
-    <ul className="flex gap-1">
-      {members.map((member) => (
-        <li key={member.accountId}>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="flex size-6 items-center justify-center rounded-sm border border-border bg-accent font-mono text-[10px] text-muted-foreground" />
-              }
-            >
-              {initials(member.email)}
-              <span className="sr-only">
-                {member.email}
-                {member.role === 'owner' ? ', owner' : ''}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="rounded-sm font-mono text-xs">{member.email}</TooltipContent>
-          </Tooltip>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 /**

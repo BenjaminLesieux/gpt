@@ -144,6 +144,50 @@ export function useMintToken(onMinted: (score: CreatedScore) => void) {
   });
 }
 
+/**
+ * Mints the invite link. Like a clone claim, nothing is cached: pressing
+ * Invite twice is two links, and re-showing the first would be showing a code
+ * the inviter may already have pasted somewhere.
+ */
+export function useCreateInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.createInvite(id),
+    // The score has one more square on it — a link out, which is the page's
+    // only evidence that the invite was made at all once the dialog is shut.
+    onSuccess: (_invite, id) => queryClient.invalidateQueries({ queryKey: ['score', id] }),
+  });
+}
+
+/**
+ * What the link names, before the person agrees to anything. A query and not
+ * a mutation because it consumes nothing — the accept screen may re-render,
+ * be reloaded and be abandoned, and the invite has to survive all three.
+ *
+ * `retry: false`: 404 and 410 are the answer, not a fault.
+ */
+export function inviteQuery(code: string) {
+  return queryOptions({
+    queryKey: ['invite', code],
+    queryFn: () => api.peekInvite(code),
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useAcceptInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => api.acceptInvite(code),
+    // The score list has one more score in it, and the invite is spent — a
+    // second visit to the link must be told so rather than shown the button.
+    onSuccess: async (_score, code) => {
+      queryClient.removeQueries({ queryKey: ['invite', code] });
+      await queryClient.invalidateQueries({ queryKey: scoresQuery.queryKey });
+    },
+  });
+}
+
 export function scoreQuery(id: string) {
   return queryOptions({
     queryKey: ['score', id],

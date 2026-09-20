@@ -116,11 +116,37 @@ export interface History {
   versions: Version[];
 }
 
-/** Someone on the score. No display names yet — an email is all there is. */
-export interface Member {
-  accountId: string;
-  email: string;
-  role: 'owner' | 'member';
+/**
+ * Someone on the score, or a link held out to someone who has not arrived.
+ *
+ * The union is the point. An invited person has no membership row at all, so
+ * a list of members alone draws them as absent — and the inviter reads the
+ * gap as a link that never sent. `id` is what the square is keyed by: the
+ * account for someone who is here, the invite for someone who is not.
+ *
+ * No display names yet — an email is all a person is called. An invite is
+ * called nothing at all, because there is no mailer and so nobody was
+ * addressed; `invitedBy` is the member who held the link out.
+ */
+export type Member =
+  | { status: 'joined'; id: string; email: string; role: 'owner' | 'member' }
+  | { status: 'invited'; id: string; invitedBy: string; expiresAt: string };
+
+/** The link that puts a second person on a score. The code is the whole of
+ * it; the URL it goes in is the client's, and `invite-link.ts` builds it. */
+export interface ScoreInvite {
+  code: string;
+  /** ISO, days out. The dialog says so: a link pasted into a chat thread
+   * outlives the conversation that explained it. */
+  expiresAt: string;
+  scoreName: string;
+}
+
+/** What the accept screen may say before anyone agrees to anything. */
+export interface InvitePeek {
+  scoreName: string;
+  /** The member who held the link out — half of what is being agreed to. */
+  invitedBy: string;
 }
 
 /** One score and its band, which the list route does not carry. */
@@ -271,6 +297,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name }),
     }),
+
+  /** Mints the link that puts a second person on a score. */
+  createInvite: (id: string) =>
+    request<ScoreInvite>(`/scores/${encodeURIComponent(id)}/invites`, { method: 'POST' }),
+
+  /**
+   * What the link names, without spending it. The one call in this client
+   * that works signed out — being asked to sign up before being told what
+   * for is how an invite gets ignored.
+   */
+  peekInvite: (code: string) => request<InvitePeek>(`/invites/${encodeURIComponent(code)}`),
+
+  /** Spends it. Needs a session: it puts an *account* on a score. */
+  acceptInvite: (code: string) =>
+    request<{ id: string; name: string; role: 'member' }>(
+      `/invites/${encodeURIComponent(code)}`,
+      { method: 'POST' }
+    ),
 };
 
 /**
