@@ -1,36 +1,26 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { Version } from '@/lib/ipc';
 import i18n from '@/lib/i18n';
 import { ScoreStage } from './ScoreStage';
 
-// alphaTab needs a real browser to render anything; what this spec is about is
-// what the stage puts on screen once the score state says the bytes failed.
-vi.mock('@gpt/alphatab-react', () => {
-  const useScore = vi.fn();
-  return {
-    AlphaTab: {
-      Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-      Stage: ({ failed }: { failed?: (error: Error) => React.ReactNode }) => {
-        const { error } = useScore();
-        return (
-          <div>
-            <div data-testid="viewport" />
-            {error && failed?.(error)}
-          </div>
-        );
-      },
-    },
-    useScore,
-    darkTheme: {},
-  };
-});
-
-vi.mock('./PlaybackBar', () => ({ PlaybackBar: () => <div data-testid="transport" /> }));
-vi.mock('./TrackSelector', () => ({ TrackSelector: () => <div data-testid="tracks" /> }));
+// What alphaTab does with the bytes is ScorePlayer's own spec; this one is
+// about getting the bytes to it.
+vi.mock('@gpt/ui/score/player', () => ({
+  ScorePlayer: (props: {
+    identity: string;
+    labels: { play: string };
+    track?: number | null;
+    onTrackChange?(track: number | null): void;
+  }) => (
+    <div data-testid="player">
+      {props.identity}:{props.labels.play}:{String(props.track)}
+      <button onClick={() => props.onTrackChange?.(1)}>bass</button>
+    </div>
+  ),
+}));
 vi.mock('./useVersionBytes', () => ({ useVersionBytes: vi.fn() }));
 
-const { useScore } = vi.mocked(await import('@gpt/alphatab-react'));
 const { useVersionBytes } = vi.mocked(await import('./useVersionBytes'));
 
 const version: Version = {
@@ -40,39 +30,42 @@ const version: Version = {
   kind: 'named',
 };
 
-const score = { tracks: [{ name: 'Distortion Guitar' }] } as never;
-
 beforeAll(() => i18n.changeLanguage('en'));
 
 beforeEach(() => {
   vi.clearAllMocks();
   useVersionBytes.mockReturnValue({ bytes: new Uint8Array([1, 2, 3]), loading: false, error: null });
-  useScore.mockReturnValue({ score, isLoading: false, error: null });
 });
 
 describe('ScoreStage', () => {
-  it('plays the version once it has parsed', () => {
+  it('plays the version once its bytes are here', () => {
     render(<ScoreStage fileId="a1" version={version} />);
 
-    expect(screen.getByTestId('transport')).toBeTruthy();
-    expect(screen.getByTestId('viewport')).toBeTruthy();
-    expect(screen.queryByText(/could not be read/)).toBeNull();
+    expect(screen.getByTestId('player').textContent).toBe('v2:Play:nullbass');
   });
 
-  it('says so, instead of a blank stage, when alphaTab cannot read the version', () => {
-    useScore.mockReturnValue({
-      score: null,
-      isLoading: false,
-      error: new Error('No compatible importer found for file'),
-    });
+  it('keeps the chosen track when moving to another version', () => {
+    // Given the bass picked on one version
+    const { rerender } = render(<ScoreStage fileId="a1" version={version} />);
+    fireEvent.click(screen.getByText('bass'));
+
+    // When the next version's bytes load, unmounting the player meanwhile
+    useVersionBytes.mockReturnValue({ bytes: null, loading: true, error: null });
+    rerender(<ScoreStage fileId="a1" version={{ ...version, id: 'v3' }} />);
+    useVersionBytes.mockReturnValue({ bytes: new Uint8Array([4]), loading: false, error: null });
+    rerender(<ScoreStage fileId="a1" version={{ ...version, id: 'v3' }} />);
+
+    // Then the bass is still what is on screen
+    expect(screen.getByTestId('player').textContent).toBe('v3:Play:1bass');
+  });
+
+  it('says so while the bytes are on their way', () => {
+    useVersionBytes.mockReturnValue({ bytes: null, loading: true, error: null });
 
     render(<ScoreStage fileId="a1" version={version} />);
 
-    expect(screen.getByText(/could not be read/)).toBeTruthy();
-    // A transport that can never start is worse than none.
-    expect(screen.queryByTestId('transport')).toBeNull();
-    // The viewport stays: unmounting it would tear alphaTab down and retry.
-    expect(screen.getByTestId('viewport')).toBeTruthy();
+    expect(screen.getByText('Loading version…')).toBeTruthy();
+    expect(screen.queryByTestId('player')).toBeNull();
   });
 
   it('says so when the version bytes cannot be fetched', () => {
@@ -81,5 +74,6 @@ describe('ScoreStage', () => {
     render(<ScoreStage fileId="a1" version={version} />);
 
     expect(screen.getByText(/io error/)).toBeTruthy();
+    expect(screen.queryByTestId('player')).toBeNull();
   });
 });

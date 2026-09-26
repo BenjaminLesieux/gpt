@@ -1,112 +1,44 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlphaTab, darkTheme, useScore } from '@gpt/alphatab-react';
+import { ScorePlayer } from '@gpt/ui/score/player';
 import { Spinner } from '@gpt/ui/spinner';
 import type { Version } from '@/lib/ipc';
 import { useVersionBytes } from './useVersionBytes';
-import { PlaybackBar } from './PlaybackBar';
-import { TrackSelector } from './TrackSelector';
-
-const SETTINGS = {
-  ...darkTheme,
-  core: { engine: 'svg' as const, logLevel: 'error' as const },
-  player: {
-    enablePlayer: true,
-    enableElementHighlighting: true,
-    soundFont: '/soundfont/sonivox.sf2',
-  },
-};
 
 interface ScoreStageProps {
   fileId: string;
   version: Version;
 }
 
-/** One version, rendered and playable. */
+/** One version, rendered and playable, once its bytes are here. */
 export function ScoreStage({ fileId, version }: ScoreStageProps) {
   const { t } = useTranslation();
   const { bytes, loading, error } = useVersionBytes(fileId, version.id);
+  // Here rather than in the player, which unmounts while each version's bytes
+  // load: the chosen track carries from one version to the next.
   const [track, setTrack] = useState<number | null>(null);
 
   if (loading) return <StageSpinner label={t('extended.stage.loadingScore')} />;
   if (error || !bytes) return <StageMessage message={error ?? t('extended.stage.noScore')} />;
 
   return (
-    <AlphaTab.Root
-      // A new version is a new score: remounting keeps the player from
-      // inheriting the previous one's position and soundfont state.
-      key={version.id}
+    <ScorePlayer
       src={bytes}
-      tracks={track === null ? undefined : [track]}
-      settings={SETTINGS}
-    >
-      <StageContent track={track} onTrackChange={setTrack} />
-    </AlphaTab.Root>
-  );
-}
-
-/**
- * Inside `<AlphaTab.Root>`: whether the bytes parsed is only known here, and
- * reading it from the score state means it resets with the remount rather
- * than outliving the version it belongs to.
- */
-function StageContent({
-  track,
-  onTrackChange,
-}: {
-  track: number | null;
-  onTrackChange(value: number | null): void;
-}) {
-  const { t } = useTranslation();
-  const { error } = useScore();
-
-  return (
-    <>
-      {!error && (
-        <>
-          <ScoreToolbar track={track} onTrackChange={onTrackChange} />
-          <PlaybackBar />
-        </>
-      )}
-
-      <AlphaTab.Stage
-        className="min-h-0 flex-1 overflow-auto bg-background"
-        cursorClassNames={{
-          bar: 'bg-accent/20',
-          beat: 'bg-brand/80',
-          selection: 'bg-brand-dim',
-          highlightColor: 'oklch(65% 0.14 60)',
-        }}
-        failed={() => (
-          <div className="flex h-full bg-background">
-            <StageMessage message={t('extended.stage.noScore')} />
-          </div>
-        )}
-      />
-    </>
-  );
-}
-
-/** Inside `<AlphaTab.Root>`: the track names only exist once the score parses. */
-function ScoreToolbar({
-  track,
-  onTrackChange,
-}: {
-  track: number | null;
-  onTrackChange(value: number | null): void;
-}) {
-  const { score } = useScore();
-  if (!score) return null;
-
-  return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2">
-      <TrackSelector
-        tracks={score.tracks.map((entry) => entry.name)}
-        value={track}
-        onChange={onTrackChange}
-        allowAll
-      />
-    </div>
+      identity={version.id}
+      track={track}
+      onTrackChange={setTrack}
+      labels={{
+        play: t('extended.playback.play'),
+        pause: t('extended.playback.pause'),
+        stop: t('extended.playback.stop'),
+        position: t('extended.playback.position'),
+        loop: t('extended.playback.loop'),
+        speed: t('extended.playback.speed'),
+        allTracks: t('extended.stage.allTracks'),
+        failed: t('extended.stage.noScore'),
+        loadingSounds: t('extended.playback.loadingSounds'),
+      }}
+    />
   );
 }
 

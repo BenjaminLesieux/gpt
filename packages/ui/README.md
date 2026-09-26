@@ -1,8 +1,10 @@
 # @gpt/ui
 
-The shadcn/ui + BaseUI primitives and the Gitarpro design tokens, shared by
-the companion (Tauri) and the hub (web) so the two halves of the product
-cannot drift apart.
+The shadcn/ui + BaseUI primitives, the Gitarpro design tokens, and the product
+components both apps render — the score player under `@gpt/ui/score/*` — shared
+by the companion (Tauri) and the hub (web) so the two halves of the product
+cannot drift apart. Product components take their copy as props; the apps
+translate it.
 
 ## Using it
 

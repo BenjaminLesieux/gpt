@@ -218,6 +218,10 @@
     "play": "Play",
     "pause": "Pause",
     "stop": "Stop",
-    "loadingSounds": "Loading the sounds"
+    "loadingSounds": "Loading the sounds",
+    "position": "Playback position",
+    "loop": "Loop",
+    "speed": "Playback speed",
+    "allTracks": "All tracks"
   }
 }
