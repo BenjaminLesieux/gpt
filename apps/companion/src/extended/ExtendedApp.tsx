@@ -12,7 +12,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
 import { TooltipProvider } from '@gpt/ui/tooltip';
 import { onClaimArrived, type ClaimArrivedEvent, type TrackedFile, type Version } from '@/lib/ipc';
-import { formatRelative } from '@/lib/time';
+import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
 import { AdoptDialog } from './AdoptDialog';
 import { ClaimDialog } from './ClaimDialog';
@@ -329,9 +329,9 @@ function StageHeader({
         <VersionPill version={head} tone="head" />
         <time
           className="shrink-0 font-mono text-[10px] text-muted-foreground"
-          dateTime={new Date(head.timestamp * 1000).toISOString()}
+          dateTime={head.at.toISOString()}
         >
-          {formatRelative(head.timestamp, i18n.language)}
+          {formatRelative(head.at, dateLocale(i18n.language))}
         </time>
       </div>
 

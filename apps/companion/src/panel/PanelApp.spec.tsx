@@ -46,7 +46,7 @@ const riff: TrackedFile = {
   addedAt: NOW - 500,
 };
 
-const intro: Version = { id: 'v1', message: 'Intro reworked', timestamp: NOW - 300, kind: 'named' };
+const intro: Version = { id: 'v1', message: 'Intro reworked', at: new Date((NOW - 300) * 1000), kind: 'named' };
 
 beforeAll(() => {
   // Base UI's scroll area and cmdk both reach for browser APIs jsdom lacks.
@@ -69,13 +69,13 @@ beforeEach(() => {
   ipc.hasPendingChange.mockResolvedValue(true);
   ipc.listVersions.mockResolvedValue([intro]);
   ipc.listSnapshots.mockResolvedValue([
-    { id: 's1', message: '', timestamp: NOW - 60, kind: 'snapshot' },
-    { id: 's2', message: '', timestamp: NOW - 400, kind: 'snapshot' },
+    { id: 's1', message: '', at: new Date((NOW - 60) * 1000), kind: 'snapshot' },
+    { id: 's2', message: '', at: new Date((NOW - 400) * 1000), kind: 'snapshot' },
   ]);
   ipc.commitNamed.mockResolvedValue({
     id: 'v2',
     message: 'Bridge take 3',
-    timestamp: NOW,
+    at: new Date(NOW * 1000),
     kind: 'named',
   });
   ipc.pushStatus.mockResolvedValue({ state: 'unconfigured', lastPushedAt: null, error: null });

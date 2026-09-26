@@ -36,7 +36,7 @@ const { useVersionBytes } = vi.mocked(await import('./useVersionBytes'));
 const version: Version = {
   id: 'v2',
   message: 'Bridge take 3',
-  timestamp: Math.round(Date.now() / 1000),
+  at: new Date(),
   kind: 'named',
 };
 

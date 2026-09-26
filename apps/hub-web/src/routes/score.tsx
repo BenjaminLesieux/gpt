@@ -6,13 +6,12 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Kbd } from '@gpt/ui/kbd';
+import { dateLocale, since } from '@gpt/ui/lib/time';
 import { HistoryList, HistorySkeleton, LoadMore } from '@/components/history-list';
 import { InviteDialog } from '@/components/invite-dialog';
 import { MemberAvatars } from '@/components/member-avatars';
 import { VersionInspector } from '@/components/version-inspector';
 import { HubError, type Branch, type Version } from '@/lib/api';
-import { since } from '@/lib/history-format';
-import { dateLocale } from '@/lib/relative-time';
 import { historyQuery, scoreQuery, useCreateInvite } from '@/lib/queries';
 import { authedRoute } from './authed';
 
@@ -26,7 +25,8 @@ import { authedRoute } from './authed';
  */
 
 function ScorePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = dateLocale(i18n.language);
   const { scoreId } = scoreRoute.useParams();
   const score = useQuery(scoreQuery(scoreId));
   const history = useInfiniteQuery(historyQuery(scoreId));
@@ -105,9 +105,9 @@ function ScorePage() {
                   scores list gives it. */}
               <span className="truncate font-mono">{score.data?.url}</span>
               <Rule />
-              <span>{t('score.created', { date: created(score.data?.createdAt) })}</span>
+              <span>{t('score.created', { date: created(score.data?.createdAt, locale) })}</span>
               <Rule />
-              <span>{state(total, versions, branches, t)}</span>
+              <span>{state(total, versions, branches, locale, t)}</span>
             </p>
           </div>
 
@@ -216,19 +216,27 @@ function Rule() {
  * When the score was made. Absolute rather than relative — this one never
  * changes, and *created 3 months ago* is a worse answer than the date.
  */
-function created(iso: string | undefined): string {
+function created(iso: string | undefined, locale: string): string {
   if (!iso) return '…';
   const at = new Date(iso);
-  const month = at.toLocaleDateString(dateLocale(), { month: 'long' });
+  const month = at.toLocaleDateString(locale, { month: 'long' });
   return `${at.getDate()} ${month} ${at.getFullYear()}`;
 }
 
 /** *Last version 20 minutes ago · No branches in flight* — the page's state. */
-function state(total: number, versions: Version[], branches: Branch[], t: TFunction): string {
+function state(
+  total: number,
+  versions: Version[],
+  branches: Branch[],
+  locale: string,
+  t: TFunction
+): string {
   if (total === 0) return t('score.nothingPushed');
 
   const flight = branches.filter((branch) => branch.ahead > 0).length;
-  const last = versions[0] ? t('score.lastVersion', { when: since(versions[0].at) }) : '';
+  const last = versions[0]
+    ? t('score.lastVersion', { when: since(new Date(versions[0].at), locale) })
+    : '';
   const lines =
     flight === 0 ? t('score.noBranchesInFlight') : t('score.branchesInFlight', { count: flight });
 

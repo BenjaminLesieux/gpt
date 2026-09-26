@@ -52,9 +52,9 @@ const blackbird: TrackedFile = {
   addedAt: NOW - 9000,
 };
 
-const bridge: Version = { id: 'v2', message: 'Bridge take 3', timestamp: NOW - 90, kind: 'named' };
-const intro: Version = { id: 'v1', message: 'Intro reworked', timestamp: NOW - 300, kind: 'named' };
-const snapshot: Version = { id: 's1', message: '', timestamp: NOW - 40, kind: 'snapshot' };
+const bridge: Version = { id: 'v2', message: 'Bridge take 3', at: new Date((NOW - 90) * 1000), kind: 'named' };
+const intro: Version = { id: 'v1', message: 'Intro reworked', at: new Date((NOW - 300) * 1000), kind: 'named' };
+const snapshot: Version = { id: 's1', message: '', at: new Date((NOW - 40) * 1000), kind: 'snapshot' };
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= class {
@@ -134,7 +134,7 @@ describe('ExtendedApp', () => {
     ipc.restoreVersion.mockResolvedValue({
       id: 's2',
       message: '',
-      timestamp: NOW,
+      at: new Date(NOW * 1000),
       kind: 'snapshot',
     });
     const user = userEvent.setup();
@@ -263,8 +263,8 @@ describe('ExtendedApp', () => {
     ipc.syncState.mockResolvedValue({ kind: 'behind', versions: 2 });
     ipc.pullRemote.mockResolvedValue({
       state: { kind: 'upToDate' },
-      version: { id: 'v3', message: 'Outro', timestamp: NOW, kind: 'named' },
-      safety: { id: 's9', message: '', timestamp: NOW, kind: 'snapshot' },
+      version: { id: 'v3', message: 'Outro', at: new Date(NOW * 1000), kind: 'named' },
+      safety: { id: 's9', message: '', at: new Date(NOW * 1000), kind: 'snapshot' },
     });
     const user = userEvent.setup();
     render(<ExtendedApp />);

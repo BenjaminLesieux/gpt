@@ -13,10 +13,6 @@
     "nameRequired": "Give the score a name."
   },
   "time": {
-    "justNow": "just now",
-    "underAMinute": "in under a minute",
-    "today": "Today",
-    "yesterday": "Yesterday",
     "dayAtTime": "{{day}} at {{time}}"
   },
   "auth": {
@@ -194,11 +190,6 @@
       "afternoon_other": "Afternoon session · {{count}} versions between {{from}} and {{to}}",
       "evening_one": "Evening session · {{count}} version between {{from}} and {{to}}",
       "evening_other": "Evening session · {{count}} versions between {{from}} and {{to}}"
-    },
-    "short": {
-      "minutes": "{{n}}m",
-      "hours": "{{n}}h",
-      "days": "{{n}}d"
     }
   },
   "inspector": {

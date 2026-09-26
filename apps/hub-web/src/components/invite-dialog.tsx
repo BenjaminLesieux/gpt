@@ -11,10 +11,10 @@ import {
   DialogTitle,
 } from '@gpt/ui/dialog';
 import { Input } from '@gpt/ui/input';
+import { dateLocale, until } from '@gpt/ui/lib/time';
 import { CopyButton } from '@/components/copy-button';
 import { HubError, type ScoreInvite } from '@/lib/api';
 import { inviteLink } from '@/lib/invite-link';
-import { until } from '@/lib/relative-time';
 
 interface InviteDialogProps {
   /** Null while closed. Carries the score so the copy can name it. */
@@ -47,7 +47,7 @@ export function InviteDialog({
   minting,
   error,
 }: InviteDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // One invite per opening. Without the guard StrictMode's double effect
   // mints two, and the first is a live link nobody will ever hold.
   const mintedForRef = useRef<string | null>(null);
@@ -117,7 +117,9 @@ export function InviteDialog({
             </div>
             <p className="text-sm text-muted-foreground">
               {invite
-                ? t('invite.expires', { when: until(new Date(invite.expiresAt)) })
+                ? t('invite.expires', {
+                    when: until(new Date(invite.expiresAt), dateLocale(i18n.language)),
+                  })
                 : t('invite.once')}
             </p>
           </div>
