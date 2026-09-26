@@ -1,4 +1,4 @@
-import { AlphaTab, darkTheme, usePlayback, useScore } from '@gpt/alphatab-react';
+import { AlphaTab, darkTheme, usePlayback } from '@gpt/alphatab-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Skeleton } from '@gpt/ui/skeleton';
@@ -48,43 +48,24 @@ export function VersionPlayer({ scoreId, commit }: { scoreId: string; commit: st
   );
 }
 
-/**
- * Inside `<AlphaTab.Root>`, because whether the file parsed is only knowable
- * here and it has to reset with the version rather than outlive it.
- *
- * The viewport stays mounted in every state, and that is load-bearing rather
- * than tidy. `<Viewport>` registers itself with a ref callback, and
- * unregistering destroys the api, which resets the loading flag — so swapping
- * the viewport out for a skeleton while it loads is an infinite loop:
- * mount, load, hide, destroy, reset, mount. The skeleton and the error go
- * *over* it.
- */
 function Stage() {
   const { t } = useTranslation();
-  const { isLoading, error } = useScore();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col border border-border-subtle bg-card">
       <Transport />
 
-      {/* `isolate` contains alphaTab's cursor wrapper, which it hardcodes to
-          z-index 1000. Without a stacking context that number lands in the
-          root one and paints the beat cursor over the header and dialogs. */}
-      <div className="relative isolate min-h-0 flex-1 overflow-auto bg-background">
-        <AlphaTab.Viewport />
-
-        {(isLoading || error) && (
-          <div className="absolute inset-0 bg-background">
-            {error ? (
-              <p className="p-3 text-sm leading-normal text-muted-foreground">
-                {t('player.unreadable')}
-              </p>
-            ) : (
-              <ScoreSkeleton />
-            )}
+      <AlphaTab.Stage
+        className="min-h-0 flex-1 overflow-auto bg-background"
+        loading={<ScoreSkeleton />}
+        failed={() => (
+          <div className="h-full bg-background">
+            <p className="p-3 text-sm leading-normal text-muted-foreground">
+              {t('player.unreadable')}
+            </p>
           </div>
         )}
-      </div>
+      />
     </div>
   );
 }
@@ -128,7 +109,7 @@ function Transport() {
  * whole motion budget. */
 function ScoreSkeleton() {
   return (
-    <div className="flex flex-col gap-4 p-4" aria-hidden>
+    <div className="flex h-full flex-col gap-4 bg-background p-4" aria-hidden>
       {[0, 1, 2].map((row) => (
         <div key={row} className="flex flex-col gap-1.5">
           {[0, 1, 2, 3, 4, 5].map((line) => (

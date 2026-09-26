@@ -6,14 +6,25 @@ import { ScoreStage } from './ScoreStage';
 
 // alphaTab needs a real browser to render anything; what this spec is about is
 // what the stage puts on screen once the score state says the bytes failed.
-vi.mock('@gpt/alphatab-react', () => ({
-  AlphaTab: {
-    Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Viewport: () => <div data-testid="viewport" />,
-  },
-  useScore: vi.fn(),
-  darkTheme: {},
-}));
+vi.mock('@gpt/alphatab-react', () => {
+  const useScore = vi.fn();
+  return {
+    AlphaTab: {
+      Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+      Stage: ({ failed }: { failed?: (error: Error) => React.ReactNode }) => {
+        const { error } = useScore();
+        return (
+          <div>
+            <div data-testid="viewport" />
+            {error && failed?.(error)}
+          </div>
+        );
+      },
+    },
+    useScore,
+    darkTheme: {},
+  };
+});
 
 vi.mock('./PlaybackBar', () => ({ PlaybackBar: () => <div data-testid="transport" /> }));
 vi.mock('./TrackSelector', () => ({ TrackSelector: () => <div data-testid="tracks" /> }));

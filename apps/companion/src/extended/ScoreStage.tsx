@@ -69,26 +69,20 @@ function StageContent({
         </>
       )}
 
-      {/* `isolate` contains alphaTab's cursor wrapper, which it hardcodes to
-          z-index 1000. Without a stacking context here that number lands in the
-          root one and paints the beat cursor over dialogs and menus. */}
-      <div className="relative isolate min-h-0 flex-1 overflow-auto bg-background">
-        <AlphaTab.Viewport
-          cursorClassNames={{
-            bar: 'bg-accent/20',
-            beat: 'bg-brand/80',
-            selection: 'bg-brand-dim',
-            highlightColor: 'oklch(65% 0.14 60)',
-          }}
-        />
-        {error && (
-          // Covered rather than replaced: unmounting the viewport destroys the
-          // alphaTab instance, and the next one would load the same bytes again.
-          <div className="absolute inset-0 flex bg-background">
+      <AlphaTab.Stage
+        className="min-h-0 flex-1 overflow-auto bg-background"
+        cursorClassNames={{
+          bar: 'bg-accent/20',
+          beat: 'bg-brand/80',
+          selection: 'bg-brand-dim',
+          highlightColor: 'oklch(65% 0.14 60)',
+        }}
+        failed={() => (
+          <div className="flex h-full bg-background">
             <StageMessage message={t('extended.stage.noScore')} />
           </div>
         )}
-      </div>
+      />
     </>
   );
 }

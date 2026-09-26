@@ -1,12 +1,6 @@
-import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pause, Play, Repeat, Square } from 'lucide-react';
-import {
-  useAlphaTabApi,
-  usePlayback,
-  usePlayerControls,
-  usePlayerPosition,
-} from '@gpt/alphatab-react';
+import { usePlayback, usePlayerControls, usePlayerPosition, useSeek } from '@gpt/alphatab-react';
 import { Button } from '@gpt/ui/button';
 import { ButtonGroup } from '@gpt/ui/button-group';
 import { Slider } from '@gpt/ui/slider';
@@ -20,10 +14,6 @@ function formatTime(ms: number): string {
   return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
 }
 
-function toScalar(value: number | readonly number[]): number {
-  return typeof value === 'number' ? value : (value[0] ?? 0);
-}
-
 /**
  * Transport for the version on screen. Must live inside an `<AlphaTab.Root>`.
  *
@@ -34,24 +24,10 @@ function toScalar(value: number | readonly number[]): number {
 export function PlaybackBar() {
   const { t } = useTranslation();
   const { state, play, pause, stop, isReadyForPlayback } = usePlayback();
-  const { currentTime, endTime, progress } = usePlayerPosition();
+  const { currentTime, endTime } = usePlayerPosition();
   const { playbackSpeed, setPlaybackSpeed, isLooping, setIsLooping } = usePlayerControls();
-  const { api } = useAlphaTabApi();
-
-  // While scrubbing, the thumb follows the pointer rather than the player —
-  // otherwise position events fight the drag.
-  const [scrub, setScrub] = useState<number | null>(null);
-  const position = scrub ?? progress * 100;
+  const seek = useSeek();
   const isPlaying = state === 'playing';
-
-  const commitScrub = useCallback(
-    (value: number | readonly number[]) => {
-      const percent = toScalar(value);
-      setScrub(null);
-      if (api && endTime > 0) api.timePosition = (percent / 100) * endTime;
-    },
-    [api, endTime],
-  );
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -92,10 +68,10 @@ export function PlaybackBar() {
         min={0}
         max={100}
         step={0.01}
-        value={[position]}
-        disabled={!isReadyForPlayback || endTime === 0}
-        onValueChange={(value) => setScrub(toScalar(value))}
-        onValueCommitted={commitScrub}
+        value={[seek.value]}
+        disabled={seek.disabled}
+        onValueChange={seek.onValueChange}
+        onValueCommitted={seek.onValueCommitted}
         aria-label={t('extended.playback.position')}
         className="min-w-0 flex-1"
       />
