@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { dateLocale, until } from '@gpt/ui/lib/time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Member } from '@/lib/api';
 import { initials } from '@/lib/history-format';
-import { until } from '@/lib/relative-time';
 
 /**
  * Who a score is shared with, as one square each.
@@ -19,12 +19,13 @@ import { until } from '@/lib/relative-time';
  * is the one wrong thing it could say.
  */
 export function MemberAvatars({ members }: { members: Member[] }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = dateLocale(i18n.language);
 
   return (
     <ul className="flex gap-1">
       {members.map((member) => {
-        const described = describe(member, t);
+        const described = describe(member, locale, t);
 
         return (
           <li key={member.id}>
@@ -63,7 +64,7 @@ export function MemberAvatars({ members }: { members: Member[] }) {
 }
 
 /** What the square means, in one line — the tooltip and the spoken name. */
-function describe(member: Member, t: TFunction): string {
+function describe(member: Member, locale: string, t: TFunction): string {
   if (member.status === 'joined') {
     return member.role === 'owner' ? t('members.owner', { email: member.email }) : member.email;
   }
@@ -72,6 +73,6 @@ function describe(member: Member, t: TFunction): string {
   // a link, so there is no address on it until somebody accepts.
   return t('members.pending', {
     invitedBy: member.invitedBy,
-    when: until(new Date(member.expiresAt)),
+    when: until(new Date(member.expiresAt), locale),
   });
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ScrollArea } from '@gpt/ui/scroll-area';
 import type { Version } from '@/lib/ipc';
-import { formatRelative } from '@/lib/time';
+import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 
 /**
  * The active file's recent named versions, newest first.
@@ -40,9 +40,9 @@ export function VersionLedger({ versions }: { versions: Version[] }) {
                   </span>
                   <time
                     className="font-mono text-[10px] whitespace-nowrap text-muted-foreground"
-                    dateTime={new Date(version.timestamp * 1000).toISOString()}
+                    dateTime={version.at.toISOString()}
                   >
-                    {formatRelative(version.timestamp, i18n.language)}
+                    {formatRelative(version.at, dateLocale(i18n.language))}
                   </time>
                 </div>
               </li>

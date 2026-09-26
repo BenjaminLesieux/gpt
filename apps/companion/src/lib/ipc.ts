@@ -11,9 +11,20 @@ export interface Version {
   id: string;
   /** Empty for auto-snapshots: only named versions carry a message. */
   message: string;
-  /** Unix seconds. */
-  timestamp: number;
+  at: Date;
   kind: VersionKind;
+}
+
+/** A version as the host sends it: `timestamp` in unix seconds. */
+type WireVersion = Omit<Version, 'at'> & { timestamp: number };
+
+/** The one place unix seconds become a `Date`. */
+function version({ timestamp, ...rest }: WireVersion): Version {
+  return { ...rest, at: new Date(timestamp * 1000) };
+}
+
+function maybeVersion(wire: WireVersion | null): Version | null {
+  return wire ? version(wire) : null;
 }
 
 export type RemoteAuth =
@@ -164,8 +175,8 @@ export function requestAccessibility(): Promise<void> {
 
 /** Rejects when the file on disk is already its newest named version — a name
  * has to be given to a save that actually happened. */
-export function commitNamed(id: string, message: string): Promise<Version> {
-  return invoke('commit_named', { id, message });
+export async function commitNamed(id: string, message: string): Promise<Version> {
+  return version(await invoke<WireVersion>('commit_named', { id, message }));
 }
 
 /** What {@link commitNamed} would decide, without committing anything. */
@@ -173,12 +184,12 @@ export function hasPendingChange(id: string): Promise<boolean> {
   return invoke('has_pending_change', { id });
 }
 
-export function listVersions(id: string, limit?: number): Promise<Version[]> {
-  return invoke('list_versions', { id, limit });
+export async function listVersions(id: string, limit?: number): Promise<Version[]> {
+  return (await invoke<WireVersion[]>('list_versions', { id, limit })).map(version);
 }
 
-export function listSnapshots(id: string, limit?: number): Promise<Version[]> {
-  return invoke('list_snapshots', { id, limit });
+export async function listSnapshots(id: string, limit?: number): Promise<Version[]> {
+  return (await invoke<WireVersion[]>('list_snapshots', { id, limit })).map(version);
 }
 
 /** `rev` is a version id from {@link listVersions} / {@link listSnapshots}. */
@@ -187,8 +198,8 @@ export async function getVersionBlob(id: string, rev: string): Promise<Uint8Arra
 }
 
 /** Resolves with the safety snapshot taken before overwriting, if any. */
-export function restoreVersion(id: string, rev: string): Promise<Version | null> {
-  return invoke('restore_version', { id, rev });
+export async function restoreVersion(id: string, rev: string): Promise<Version | null> {
+  return maybeVersion(await invoke<WireVersion | null>('restore_version', { id, rev }));
 }
 
 // ── Remote ───────────────────────────────────────────────────────────────
@@ -234,8 +245,12 @@ export function fetchRemote(id: string): Promise<SyncState> {
  * for a person to sort out. Whatever was on disk is snapshotted first, and
  * comes back as `safety` if it was worth keeping.
  */
-export function pullRemote(id: string): Promise<Pulled> {
-  return invoke('pull_remote', { id });
+export async function pullRemote(id: string): Promise<Pulled> {
+  const pulled = await invoke<Omit<Pulled, 'version' | 'safety'> & {
+    version: WireVersion | null;
+    safety: WireVersion | null;
+  }>('pull_remote', { id });
+  return { ...pulled, version: maybeVersion(pulled.version), safety: maybeVersion(pulled.safety) };
 }
 
 /**
@@ -272,7 +287,10 @@ export function pickAndAdoptRemote(
 
 /** Fires after every Guitar Pro save of a tracked file, debounced. */
 export function onFileSaved(handler: (event: FileSavedEvent) => void): Promise<UnlistenFn> {
-  return listen<FileSavedEvent>('file-saved', ({ payload }) => handler(payload));
+  return listen<Omit<FileSavedEvent, 'version'> & { version: WireVersion | null }>(
+    'file-saved',
+    ({ payload }) => handler({ ...payload, version: maybeVersion(payload.version) }),
+  );
 }
 
 export function onTrackedFilesChanged(

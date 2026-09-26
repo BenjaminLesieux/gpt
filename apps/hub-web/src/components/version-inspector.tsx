@@ -1,10 +1,11 @@
 import { Suspense, lazy } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Separator } from '@gpt/ui/separator';
 import type { Version } from '@/lib/api';
-import { initials, shortId, time, when } from '@/lib/history-format';
-import { dateLocale } from '@/lib/relative-time';
+import { clock, dateLocale, dayLabel } from '@gpt/ui/lib/time';
+import { initials, shortId } from '@/lib/history-format';
 
 /**
  * alphaTab is most of a megabyte gzipped and nothing needs it until someone
@@ -82,7 +83,7 @@ export function VersionInspector({
 }
 
 function OneVersion({ version, branch }: { version: Version; branch: string | null }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <>
@@ -100,7 +101,9 @@ function OneVersion({ version, branch }: { version: Version; branch: string | nu
         <Fact label={t('inspector.who')} mono>
           {version.authorEmail}
         </Fact>
-        <Fact label={t('inspector.when')}>{when(version.at)}</Fact>
+        <Fact label={t('inspector.when')}>
+          {when(version.at, dateLocale(i18n.language), t)}
+        </Fact>
         <Fact label={t('inspector.branch')} mono>
           {branch ?? 'main'}
         </Fact>
@@ -122,7 +125,8 @@ function OneVersion({ version, branch }: { version: Version; branch: string | nu
 }
 
 function RangeFacts({ selected }: { selected: Version[] }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = dateLocale(i18n.language);
   const newest = selected[0];
   const oldest = selected[selected.length - 1];
 
@@ -145,7 +149,7 @@ function RangeFacts({ selected }: { selected: Version[] }) {
       <p className="text-md leading-normal text-pretty text-foreground">
         {t(names.length > 0 ? 'inspector.betweenAcross' : 'inspector.between', {
           bars: t('history.bars', { count: bars }),
-          tracks: list(names),
+          tracks: list(names, locale),
           versions: t('score.versions', { count: selected.length }),
         })}
       </p>
@@ -163,7 +167,9 @@ function RangeFacts({ selected }: { selected: Version[] }) {
         <Fact label={t('inspector.whoWorked')} mono>
           {people.join(', ')}
         </Fact>
-        <Fact label={t('inspector.span')}>{`${when(oldest.at)} → ${time(newest.at)}`}</Fact>
+        <Fact label={t('inspector.span')}>
+          {`${when(oldest.at, locale, t)} → ${clock(new Date(newest.at), locale)}`}
+        </Fact>
       </dl>
     </>
   );
@@ -202,9 +208,15 @@ function Fact({
   );
 }
 
+/** *Yesterday at 9:31 pm* — the inspector's one long-form date. */
+function when(iso: string, locale: string, t: TFunction): string {
+  const at = new Date(iso);
+  return t('time.dayAtTime', { day: dayLabel(at, locale), time: clock(at, locale) });
+}
+
 /** *Guitar 1 and Bass*, *Guitar 1, Bass and Drums* — prose, not a join. */
-function list(names: string[]): string {
-  return new Intl.ListFormat(dateLocale(), { type: 'conjunction' }).format(names);
+function list(names: string[], locale: string): string {
+  return new Intl.ListFormat(locale, { type: 'conjunction' }).format(names);
 }
 
 /** The first selection of a session waits on alphaTab's chunk. Say so. */

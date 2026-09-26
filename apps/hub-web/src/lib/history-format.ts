@@ -1,7 +1,7 @@
+import { clock, dateLocale, dayLabel } from '@gpt/ui/lib/time';
 import type { Version, VersionScope } from './api';
 import { layOut, type Row } from './lanes';
 import i18n from './i18n';
-import { ago as relative, dateLocale } from './relative-time';
 
 /**
  * How the history reads.
@@ -42,7 +42,8 @@ export function entries(versions: Version[], head: string | null, now = new Date
 
     if (key !== day) {
       day = key;
-      out.push({ kind: 'day', key: `day-${key}`, label: dayLabel(at, now) });
+      const label = dayLabel(at, dateLocale(i18n.language), now);
+      out.push({ kind: 'day', key: `day-${key}`, label });
 
       const sameDay = rows.slice(index).filter((row) => dayKey(new Date(row.version.at)) === key);
       const line = session(sameDay);
@@ -60,31 +61,6 @@ function dayKey(at: Date): string {
   return `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`;
 }
 
-/**
- * Relative while it is still how someone would say it, absolute after that.
- * "Last Tuesday" and "Tuesday" are two different days and only one of them is
- * worth the ambiguity, so the weekday name stops at a week.
- */
-function dayLabel(at: Date, now: Date): string {
-  const days = Math.round((midnight(now).getTime() - midnight(at).getTime()) / 86_400_000);
-
-  if (days <= 0) return i18n.t('time.today');
-  if (days === 1) return i18n.t('time.yesterday');
-  if (days < 7) return at.toLocaleDateString(dateLocale(), { weekday: 'long' });
-
-  // Day first, assembled rather than formatted: `toLocaleDateString` would
-  // give *September 4* under a US locale and the design reads *4 September*
-  // everywhere. The month name still localizes; only the order is ours.
-  const month = at.toLocaleDateString(dateLocale(), { month: 'long' });
-  const stamp = `${at.getDate()} ${month}`;
-
-  return at.getFullYear() === now.getFullYear() ? stamp : `${stamp} ${at.getFullYear()}`;
-}
-
-function midnight(at: Date): Date {
-  return new Date(at.getFullYear(), at.getMonth(), at.getDate());
-}
-
 function session(rows: Row[]): string | null {
   if (rows.length < SESSION) return null;
 
@@ -97,47 +73,9 @@ function session(rows: Row[]): string | null {
   return i18n.t(`history.session.${part}`, { count: rows.length, from: hour(from), to: hour(to) });
 }
 
-/**
- * English reads a twelve-hour clock with a lowercase meridiem, as the design
- * sets it; every other language keeps its own clock.
- */
-function twelveHour(): boolean {
-  return i18n.language === 'en';
-}
-
 /** Just the hour, for a span: *between 9 and 11 pm*. */
 function hour(at: Date): string {
-  return at
-    .toLocaleTimeString(dateLocale(), { hour: 'numeric', hour12: twelveHour() })
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
-
-/** The clock time on a row. */
-export function time(iso: string): string {
-  return new Date(iso)
-    .toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit', hour12: twelveHour() })
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
-
-/**
- * The narrow layout's time column: *20m*, *2h*, *1d*. Absolute times are the
- * first thing to go below 800px, and a relative one still answers the only
- * question that column is asked — how long ago.
- *
- * Terse on purpose, unlike [`since`]: this one is a 44px column, not prose.
- */
-export function ago(iso: string, now = new Date()): string {
-  const minutes = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60_000));
-  if (minutes < 60) return i18n.t('history.short.minutes', { n: minutes });
-  if (minutes < 60 * 24) return i18n.t('history.short.hours', { n: Math.round(minutes / 60) });
-  return i18n.t('history.short.days', { n: Math.round(minutes / (60 * 24)) });
-}
-
-/** *Yesterday at 9:31 pm* — the inspector's one long-form date. */
-export function when(iso: string, now = new Date()): string {
-  return i18n.t('time.dayAtTime', { day: dayLabel(new Date(iso), now), time: time(iso) });
+  return clock(at, dateLocale(i18n.language), { minutes: false });
 }
 
 /**
@@ -197,13 +135,4 @@ export function shortScopeText(scope: VersionScope | null): string {
 /** A version's short id. Metadata, never the title of a row. */
 export function shortId(id: string): string {
   return id.slice(0, 7);
-}
-
-/**
- * The page header's *last version 21 minutes ago*. Prose rather than the
- * row column's `21m`, and it says *just now* under a minute instead of the
- * `0m` that column would show.
- */
-export function since(iso: string, now = Date.now()): string {
-  return relative(new Date(iso), now);
 }

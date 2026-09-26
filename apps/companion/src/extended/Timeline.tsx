@@ -6,7 +6,7 @@ import { ScrollArea } from '@gpt/ui/scroll-area';
 import { Skeleton } from '@gpt/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Version } from '@/lib/ipc';
-import { formatRelative } from '@/lib/time';
+import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
 import type { History } from './useHistory';
 
@@ -146,9 +146,9 @@ function VersionRow({ version, index, isHead, isBase, onSelect, onCompare }: Ver
         </span>
         <time
           className="font-mono text-[10px] whitespace-nowrap text-muted-foreground"
-          dateTime={new Date(version.timestamp * 1000).toISOString()}
+          dateTime={version.at.toISOString()}
         >
-          {formatRelative(version.timestamp, i18n.language)}
+          {formatRelative(version.at, dateLocale(i18n.language))}
         </time>
       </button>
 

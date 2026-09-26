@@ -13,7 +13,7 @@ import {
   type TrackedFile,
   type Version,
 } from '@/lib/ipc';
-import { formatRelative } from '@/lib/time';
+import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
 import { PanelBody } from './PanelShell';
 import { VersionLedger } from './VersionLedger';
@@ -116,7 +116,7 @@ export function CommitView({
         <p className="mt-0.5 pl-[15px] font-mono text-[10px] text-muted-foreground">
           {session.lastChangeAt
             ? t('panel.lastChange', {
-                when: formatRelative(session.lastChangeAt, i18n.language),
+                when: formatRelative(session.lastChangeAt, dateLocale(i18n.language)),
               })
             : t('panel.noChangeYet')}
           {session.unnamedSaves > 0 && (

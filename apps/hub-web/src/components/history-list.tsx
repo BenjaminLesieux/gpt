@@ -2,16 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Skeleton } from '@gpt/ui/skeleton';
+import { clock, dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import type { Version } from '@/lib/api';
-import {
-  ago,
-  entries,
-  initials,
-  scopeText,
-  shortId,
-  shortScopeText,
-  time,
-} from '@/lib/history-format';
+import { entries, initials, scopeText, shortId, shortScopeText } from '@/lib/history-format';
 import type { Row } from '@/lib/lanes';
 import { HistoryGutter } from './history-gutter';
 
@@ -95,8 +88,10 @@ function HistoryRow({
   selected: boolean;
   onSelect(commit: string, extend: boolean): void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { version, gutter } = row;
+  const at = new Date(version.at);
+  const locale = dateLocale(i18n.language);
   // Selection is a white left edge and a raised background, never the accent:
   // the accent belongs to the current version and is rationed to one meaning.
   const gut = selected ? { ...gutter, node: 'sel' as const } : gutter;
@@ -161,10 +156,10 @@ function HistoryRow({
         <Author email={version.authorEmail} />
 
         <span className="hidden w-[72px] shrink-0 text-right text-xs text-muted-foreground wide:block">
-          {time(version.at)}
+          {clock(at, locale)}
         </span>
-        <span className="w-11 shrink-0 text-right text-xs text-muted-foreground wide:hidden">
-          {ago(version.at)}
+        <span className="shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground wide:hidden">
+          {formatRelative(at, locale)}
         </span>
 
         {/* Present but subordinate: metadata, never the title of a row. First

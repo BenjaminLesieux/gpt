@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Empty, EmptyContent, EmptyDescription } from '@gpt/ui/empty';
+import { dateLocale } from '@gpt/ui/lib/time';
 import { Skeleton } from '@gpt/ui/skeleton';
 import {
   Table,
@@ -30,20 +31,19 @@ import {
   useMintToken,
   useRetryImport,
 } from '@/lib/queries';
-import { dateLocale } from '@/lib/relative-time';
 import { authedRoute } from './authed';
 
 const CELL_META = 'truncate text-sm text-muted-foreground';
 
 /** Dates the way someone reads them, not the way they serialise. */
-function formatCreated(iso: string, t: TFunction): string {
+function formatCreated(iso: string, locale: string, t: TFunction): string {
   const created = new Date(iso);
   const sameDay = new Date().toDateString() === created.toDateString();
   return sameDay
     ? t('scores.createdToday', {
-        time: created.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }),
+        time: created.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
       })
-    : created.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+    : created.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function ScoreRow({
@@ -57,7 +57,7 @@ function ScoreRow({
   finishing: boolean;
   onClone: (score: Score) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const unfinished = score.tokens.length === 0;
 
   // A row and, when setup was abandoned, the row explaining it. They are
@@ -97,7 +97,7 @@ function ScoreRow({
           {score.url}
         </TableCell>
         <TableCell className={`${CELL_META} h-10 py-0 whitespace-nowrap`}>
-          {formatCreated(score.createdAt, t)}
+          {formatCreated(score.createdAt, dateLocale(i18n.language), t)}
         </TableCell>
         <TableCell className="h-10 py-0">
           {unfinished ? (

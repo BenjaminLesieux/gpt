@@ -49,8 +49,8 @@ export interface PanelSession {
    * say, and the refusal (if any) will come from the commit itself.
    */
   pendingChange: boolean | null;
-  /** Newest recorded change of the active file, unix seconds. */
-  lastChangeAt: number | null;
+  /** Newest recorded change of the active file. */
+  lastChangeAt: Date | null;
   /** How the active file's versions are getting to its remote, if it has one. */
   push: PushStatus;
   error: string | null;
@@ -197,11 +197,13 @@ export function usePanelSession(shownAt: number): PanelSession {
   }, []);
 
   const { unnamedSaves, lastChangeAt } = useMemo(() => {
-    const newestNamed = ledger.versions[0]?.timestamp ?? 0;
-    const newestSnapshot = ledger.snapshots[0]?.timestamp ?? 0;
+    const newestNamed = ledger.versions[0]?.at.getTime() ?? 0;
+    const newestSnapshot = ledger.snapshots[0]?.at.getTime() ?? 0;
+    const newest = Math.max(newestNamed, newestSnapshot);
+    const unnamed = ledger.snapshots.filter((snapshot) => snapshot.at.getTime() > newestNamed);
     return {
-      unnamedSaves: ledger.snapshots.filter((snapshot) => snapshot.timestamp > newestNamed).length,
-      lastChangeAt: Math.max(newestNamed, newestSnapshot) || null,
+      unnamedSaves: unnamed.length,
+      lastChangeAt: newest ? new Date(newest) : null,
     };
   }, [ledger]);
 

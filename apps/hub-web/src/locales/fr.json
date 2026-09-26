@@ -13,10 +13,6 @@
     "nameRequired": "Donne un nom à la partition."
   },
   "time": {
-    "justNow": "à l'instant",
-    "underAMinute": "dans moins d'une minute",
-    "today": "Aujourd'hui",
-    "yesterday": "Hier",
     "dayAtTime": "{{day}} à {{time}}"
   },
   "auth": {
@@ -194,11 +190,6 @@
       "afternoon_other": "Session de l'après-midi · {{count}} versions entre {{from}} et {{to}}",
       "evening_one": "Session du soir · {{count}} version entre {{from}} et {{to}}",
       "evening_other": "Session du soir · {{count}} versions entre {{from}} et {{to}}"
-    },
-    "short": {
-      "minutes": "{{n}}m",
-      "hours": "{{n}}h",
-      "days": "{{n}}j"
     }
   },
   "inspector": {

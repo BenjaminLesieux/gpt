@@ -13,6 +13,12 @@
       "import": "./dist/lib/utils.js",
       "default": "./dist/lib/utils.js"
     },
+    "./lib/time": {
+      "@gpt/source": "./src/lib/time.ts",
+      "types": "./dist/lib/time.d.ts",
+      "import": "./dist/lib/time.js",
+      "default": "./dist/lib/time.js"
+    },
     "./*": {
       "@gpt/source": "./src/components/ui/*.tsx",
       "types": "./dist/components/ui/*.d.ts",
