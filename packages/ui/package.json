@@ -19,6 +19,12 @@
       "import": "./dist/lib/time.js",
       "default": "./dist/lib/time.js"
     },
+    "./score/*": {
+      "@gpt/source": "./src/components/score/*.tsx",
+      "types": "./dist/components/score/*.d.ts",
+      "import": "./dist/components/score/*.js",
+      "default": "./dist/components/score/*.js"
+    },
     "./*": {
       "@gpt/source": "./src/components/ui/*.tsx",
       "types": "./dist/components/ui/*.d.ts",
@@ -28,6 +34,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@gpt/alphatab-react": "workspace:^",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.3.0",

@@ -85,7 +85,8 @@
       "stop": "Stop",
       "loop": "Loop",
       "speed": "Playback speed",
-      "position": "Playback position"
+      "position": "Playback position",
+      "loadingSounds": "Loading the sounds"
     },
     "restore": {
       "title": "Restore this version?",

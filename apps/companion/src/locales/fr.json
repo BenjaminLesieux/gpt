@@ -85,7 +85,8 @@
       "stop": "Stop",
       "loop": "Boucle",
       "speed": "Vitesse de lecture",
-      "position": "Position de lecture"
+      "position": "Position de lecture",
+      "loadingSounds": "Chargement des sons"
     },
     "restore": {
       "title": "Restaurer cette version ?",

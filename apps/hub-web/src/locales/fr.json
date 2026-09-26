@@ -218,6 +218,10 @@
     "play": "Lecture",
     "pause": "Pause",
     "stop": "Stop",
-    "loadingSounds": "Chargement des sons"
+    "loadingSounds": "Chargement des sons",
+    "position": "Position de lecture",
+    "loop": "Boucle",
+    "speed": "Vitesse de lecture",
+    "allTracks": "Toutes les pistes"
   }
 }

@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Separator } from '@gpt/ui/separator';
-import type { Version } from '@/lib/api';
+import { versionScoreUrl, type Version } from '@/lib/api';
 import { clock, dateLocale, dayLabel } from '@gpt/ui/lib/time';
 import { initials, shortId } from '@/lib/history-format';
 
@@ -13,8 +13,8 @@ import { initials, shortId } from '@/lib/history-format';
  * critical path of the score list too, which is the page people open to
  * glance and leave.
  */
-const VersionPlayer = lazy(() =>
-  import('./version-player').then((module) => ({ default: module.VersionPlayer }))
+const ScorePlayer = lazy(() =>
+  import('@gpt/ui/score/player').then((module) => ({ default: module.ScorePlayer }))
 );
 
 /**
@@ -75,7 +75,25 @@ export function VersionInspector({
         {/* The newer end of a range, so the transport and the facts agree
             about which version is on screen. */}
         <Suspense fallback={<PlayerLoading />}>
-          <VersionPlayer scoreId={scoreId} commit={selected[0].id} />
+          <ScorePlayer
+            // A URL, not bytes. alphaTab streams it itself, and the response is
+            // immutable — a sha names one tree forever — so stepping back through a
+            // history re-reads nothing it has already seen.
+            src={versionScoreUrl(scoreId, selected[0].id)}
+            identity={selected[0].id}
+            className="border border-border-subtle bg-card"
+            labels={{
+              play: t('player.play'),
+              pause: t('player.pause'),
+              stop: t('player.stop'),
+              position: t('player.position'),
+              loop: t('player.loop'),
+              speed: t('player.speed'),
+              allTracks: t('player.allTracks'),
+              failed: t('player.unreadable'),
+              loadingSounds: t('player.loadingSounds'),
+            }}
+          />
         </Suspense>
       </div>
     </aside>
