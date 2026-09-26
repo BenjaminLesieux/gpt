@@ -1,4 +1,4 @@
-import type { Version } from './api';
+import type { HistoryVersion } from './history-format';
 
 /**
  * Turning a list of versions and their parents into the drawing beside them.
@@ -34,8 +34,8 @@ export interface Gutter {
   node: Node;
 }
 
-export interface Row {
-  version: Version;
+export interface Row<V extends HistoryVersion = HistoryVersion> {
+  version: V;
   /** 0 is the main line. Unclamped — the gutter decides what it can draw. */
   lane: number;
   gutter: Gutter;
@@ -59,7 +59,7 @@ interface Lane {
   drawn: boolean;
 }
 
-export function layOut(versions: Version[], head: string | null): Row[] {
+export function layOut<V extends HistoryVersion>(versions: V[], head: string | null): Row<V>[] {
   if (versions.length === 0) return [];
 
   // Seeded rather than allocated on first sight: a branch whose newest
@@ -146,7 +146,7 @@ function through(started: boolean, before: boolean, after: Lane | null | undefin
   return started && before && after ? 'full' : 'none';
 }
 
-function node(version: Version, lane: number, head: string | null): Node {
+function node(version: HistoryVersion, lane: number, head: string | null): Node {
   if (version.id === head) return 'head';
   // Two parents is a landing, wherever it sits. The knot is the only node
   // shape that says a branch ended rather than a version happened.

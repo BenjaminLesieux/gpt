@@ -1,4 +1,4 @@
-import type { Gutter } from '@/lib/lanes';
+import type { Gutter } from './lanes';
 
 /**
  * The graph, drawn beside the list.
@@ -36,7 +36,7 @@ export interface HistoryGutterProps extends Gutter {
   /** Matches the row it sits beside: 40 for a version, 32 for a day header. */
   height?: number;
   /**
-   * Below 800px the lanes collapse to one 24px rail. They degrade rather than
+   * Below 800px of list the lanes collapse to one 24px rail. They degrade rather than
    * shrink — three verticals in 24px is a smudge, not a graph.
    */
   narrow?: boolean;

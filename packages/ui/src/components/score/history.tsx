@@ -1,12 +1,29 @@
-import { useTranslation } from 'react-i18next';
-import { Badge } from '@gpt/ui/badge';
-import { Button } from '@gpt/ui/button';
-import { Skeleton } from '@gpt/ui/skeleton';
-import { clock, dateLocale, formatRelative } from '@gpt/ui/lib/time';
-import type { Version } from '@/lib/api';
-import { entries, initials, scopeText, shortId, shortScopeText } from '@/lib/history-format';
-import type { Row } from '@/lib/lanes';
+import type { ReactNode } from 'react';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
+import { clock, formatRelative } from '../../lib/time';
+import {
+  entries,
+  initials,
+  scopeText,
+  shortId,
+  shortScopeText,
+  type HistoryVersion,
+  type ScopeWords,
+  type Session,
+} from './history-format';
+import type { Row } from './lanes';
 import { HistoryGutter } from './history-gutter';
+
+export type {
+  HistoryVersion,
+  ScopeWords,
+  Session,
+  SessionPart,
+  VersionScope,
+} from './history-format';
+export { initials, shortId } from './history-format';
 
 /**
  * The history.
@@ -19,23 +36,59 @@ import { HistoryGutter } from './history-gutter';
  * Rows are 40px and keyboard reachable top to bottom. Clicking one selects
  * it; shift-clicking a second takes the span between them, which is the
  * question *what changed between these two* asked directly.
+ *
+ * The layout follows the list's own width, not the window's: the wide form
+ * needs 800px of list.
  */
 
-export interface HistoryListProps {
-  versions: Version[];
-  head: string | null;
-  /** Which branch each version's tip belongs to, for the chip at the tip. */
-  tips: Map<string, string>;
-  selected: string[];
-  onSelect(commit: string, extend: boolean): void;
+/** Every word the list says, in the caller's language. */
+export interface HistoryLabels {
+  /** An empty message. Shown dimmed, never as an invented title. */
+  unnamed: string;
+  /** The badge on `head`. */
+  current: string;
+  /** The badge on a version with two parents. */
+  landed: string;
+  /** Announced while the skeleton stands in. */
+  reading: string;
+  session(session: Session): string;
+  /** Needed only when versions carry a `scope`. */
+  scope?: ScopeWords;
 }
 
-export function HistoryList({ versions, head, tips, selected, onSelect }: HistoryListProps) {
+export interface HistoryListProps<V extends HistoryVersion> {
+  /** Newest first, in topological order. */
+  versions: V[];
+  head: string | null;
+  /** BCP 47, for days and hours. */
+  locale: string;
+  labels: HistoryLabels;
+  selected: string[];
+  onSelect(id: string, extend: boolean): void;
+  /** Which branch each version's tip belongs to, for the chip at the tip. */
+  tips?: Map<string, string>;
+  /** The version a comparison starts from, marked on its left edge. */
+  base?: string | null;
+  /** Beside each row's button, inside a `group/row` item. */
+  trailing?(version: V): ReactNode;
+}
+
+export function HistoryList<V extends HistoryVersion>({
+  versions,
+  head,
+  locale,
+  labels,
+  selected,
+  onSelect,
+  tips,
+  base = null,
+  trailing,
+}: HistoryListProps<V>) {
   const chosen = new Set(selected);
 
   return (
-    <ul className="flex flex-col">
-      {entries(versions, head).map((entry) => {
+    <ul className="@container flex flex-col">
+      {entries(versions, head, locale, labels.session).map((entry) => {
         if (entry.kind === 'day') {
           return (
             <li key={entry.key}>
@@ -64,10 +117,14 @@ export function HistoryList({ versions, head, tips, selected, onSelect }: Histor
           <HistoryRow
             key={entry.key}
             row={entry}
-            branch={tips.get(entry.version.id) ?? null}
+            branch={tips?.get(entry.version.id) ?? null}
             head={head}
+            locale={locale}
+            labels={labels}
             selected={chosen.has(entry.version.id)}
+            base={entry.version.id === base}
             onSelect={onSelect}
+            trailing={trailing}
           />
         );
       })}
@@ -75,37 +132,47 @@ export function HistoryList({ versions, head, tips, selected, onSelect }: Histor
   );
 }
 
-function HistoryRow({
+function HistoryRow<V extends HistoryVersion>({
   row,
   branch,
   head,
+  locale,
+  labels,
   selected,
+  base,
   onSelect,
+  trailing,
 }: {
-  row: Row;
+  row: Row<V>;
   branch: string | null;
   head: string | null;
+  locale: string;
+  labels: HistoryLabels;
   selected: boolean;
-  onSelect(commit: string, extend: boolean): void;
+  base: boolean;
+  onSelect(id: string, extend: boolean): void;
+  trailing?(version: V): ReactNode;
 }) {
-  const { t, i18n } = useTranslation();
   const { version, gutter } = row;
   const at = new Date(version.at);
-  const locale = dateLocale(i18n.language);
   // Selection is a white left edge and a raised background, never the accent:
   // the accent belongs to the current version and is rationed to one meaning.
   const gut = selected ? { ...gutter, node: 'sel' as const } : gutter;
 
   return (
-    <li>
+    <li className="group/row relative">
       <button
         type="button"
         aria-pressed={selected}
         onClick={(event) => onSelect(version.id, event.shiftKey)}
-        className={`flex h-10 w-full items-center gap-3 border-b border-l-2 border-b-border-subtle pr-4 text-left transition-colors duration-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring wide:pr-6 ${
+        className={`flex h-10 w-full items-center gap-3 border-b border-l-2 border-b-border-subtle text-left transition-colors duration-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${
+          trailing ? 'pr-10' : 'pr-4 @min-[800px]:pr-6'
+        } ${
           selected
             ? 'border-l-foreground bg-popover'
-            : 'border-l-transparent hover:bg-card'
+            : base
+              ? 'border-l-diff-removed hover:bg-card'
+              : 'border-l-transparent hover:bg-card'
         }`}
       >
         <Rail gutter={gut} />
@@ -126,7 +193,7 @@ function HistoryRow({
         >
           {/* Never rewritten, never truncated mid-word by us, never given an
               invented title when it is empty. */}
-          {version.message || t('common.unnamedVersion')}
+          {version.message || labels.unnamed}
         </span>
 
         {version.id === head && (
@@ -134,7 +201,7 @@ function HistoryRow({
             variant="outline"
             className="shrink-0 rounded-sm border-brand-border text-xs font-normal text-brand-bright"
           >
-            {t('history.current')}
+            {labels.current}
           </Badge>
         )}
         {version.parents.length > 1 && (
@@ -142,48 +209,56 @@ function HistoryRow({
             variant="outline"
             className="shrink-0 rounded-sm border-border text-xs font-normal text-muted-foreground"
           >
-            {t('history.landed')}
+            {labels.landed}
           </Badge>
         )}
 
-        <span className="hidden w-[150px] shrink-0 truncate text-right font-mono text-xs text-muted-foreground wide:block">
-          {scopeText(version.scope)}
-        </span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground wide:hidden">
-          {shortScopeText(version.scope)}
-        </span>
+        {version.scope !== undefined && labels.scope && (
+          <>
+            <span className="hidden w-[150px] shrink-0 truncate text-right font-mono text-xs text-muted-foreground @min-[800px]:block">
+              {scopeText(version.scope, labels.scope)}
+            </span>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground @min-[800px]:hidden">
+              {shortScopeText(version.scope, labels.scope)}
+            </span>
+          </>
+        )}
 
-        <Author email={version.authorEmail} />
+        {version.authorEmail && <Author email={version.authorEmail} />}
 
-        <span className="hidden w-[72px] shrink-0 text-right text-xs text-muted-foreground wide:block">
+        <span className="hidden w-[72px] shrink-0 text-right text-xs text-muted-foreground @min-[800px]:block">
           {clock(at, locale)}
         </span>
-        <span className="shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground wide:hidden">
+        <span className="shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground @min-[800px]:hidden">
           {formatRelative(at, locale)}
         </span>
 
         {/* Present but subordinate: metadata, never the title of a row. First
             thing to go when the width runs out. */}
-        <span className="hidden w-[60px] shrink-0 text-right font-mono text-xs text-muted-foreground wide:block">
+        <span className="hidden w-[60px] shrink-0 text-right font-mono text-xs text-muted-foreground @min-[800px]:block">
           {shortId(version.id)}
         </span>
       </button>
+
+      {trailing && (
+        <div className="absolute top-1/2 right-2 -translate-y-1/2">{trailing(version)}</div>
+      )}
     </li>
   );
 }
 
 /**
  * Both gutters, one hidden. The narrow one is a CSS decision and the lane
- * count is a JS one, and a media-query hook would make the first depend on
- * the second for two SVGs that cost nothing.
+ * count is a JS one, and a resize hook would make the first depend on the
+ * second for two SVGs that cost nothing.
  */
 function Rail({ gutter, height = 40 }: { gutter: Row['gutter']; height?: number }) {
   return (
     <>
-      <span className="wide:hidden">
+      <span className="@min-[800px]:hidden">
         <HistoryGutter {...gutter} height={height} narrow />
       </span>
-      <span className="hidden wide:block">
+      <span className="hidden @min-[800px]:block">
         <HistoryGutter {...gutter} height={height} />
       </span>
     </>
@@ -216,33 +291,34 @@ function Author({ email }: { email: string }) {
  * spinner and never knowing whether the history ended or the page did.
  */
 export function LoadMore({
-  loaded,
-  total,
+  showing,
   loading,
+  labels,
   onLoad,
 }: {
-  loaded: number;
-  total: number;
+  /** *Showing the 40 most recent versions of 212.* */
+  showing: string;
   loading: boolean;
+  labels: { loadMore: string; loading: string };
   onLoad(): void;
 }) {
-  const { t } = useTranslation();
-
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border bg-card py-3 pr-4 wide:pr-6">
-      <p className="flex items-center text-sm text-muted-foreground">
-        <span aria-hidden className="w-6 flex-none wide:w-20" />
-        {t('history.showing', { loaded, total })}
-      </p>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="h-7 shrink-0 rounded-sm"
-        disabled={loading}
-        onClick={onLoad}
-      >
-        {loading ? t('history.loading') : t('history.loadMore')}
-      </Button>
+    <div className="@container">
+      <div className="flex items-center justify-between gap-4 border-b border-border bg-card py-3 pr-4 @min-[800px]:pr-6">
+        <p className="flex items-center text-sm text-muted-foreground">
+          <span aria-hidden className="w-6 flex-none @min-[800px]:w-20" />
+          {showing}
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-7 shrink-0 rounded-sm"
+          disabled={loading}
+          onClick={onLoad}
+        >
+          {loading ? labels.loading : labels.loadMore}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -252,19 +328,17 @@ export function LoadMore({
  * whole motion budget. The rail is drawn straight with no nodes, because the
  * shape of the history is not known until the round-trip lands.
  */
-export function HistorySkeleton() {
-  const { t } = useTranslation();
-
+export function HistorySkeleton({ labels }: { labels: Pick<HistoryLabels, 'reading'> }) {
   return (
     <>
       <p role="status" className="sr-only">
-        {t('history.reading')}
+        {labels.reading}
       </p>
-      <div aria-hidden>
+      <div aria-hidden className="@container">
         {[180, 132, 216, 96, 160, 124].map((width, index) => (
           <div
             key={width}
-            className="flex h-10 items-center gap-3 border-b border-border-subtle pr-4 wide:pr-6"
+            className="flex h-10 items-center gap-3 border-b border-border-subtle pr-4 @min-[800px]:pr-6"
           >
             <Rail
               gutter={{

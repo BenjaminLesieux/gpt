@@ -54,7 +54,18 @@
       "noSnapshots": "Aucun instantané automatique pour l'instant.",
       "autoSnapshot": "Sauvegarde automatique",
       "compareFrom": "Comparer depuis ici",
-      "clearCompare": "Arrêter la comparaison"
+      "clearCompare": "Arrêter la comparaison",
+      "latest": "La plus récente",
+      "landed": "Intégrée",
+      "reading": "Lecture de tes versions.",
+      "session": {
+        "morning_one": "Session du matin · {{count}} version entre {{from}} et {{to}}",
+        "morning_other": "Session du matin · {{count}} versions entre {{from}} et {{to}}",
+        "afternoon_one": "Session de l'après-midi · {{count}} version entre {{from}} et {{to}}",
+        "afternoon_other": "Session de l'après-midi · {{count}} versions entre {{from}} et {{to}}",
+        "evening_one": "Session du soir · {{count}} version entre {{from}} et {{to}}",
+        "evening_other": "Session du soir · {{count}} versions entre {{from}} et {{to}}"
+      }
     },
     "stage": {
       "allTracks": "Toutes les pistes",

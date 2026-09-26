@@ -1,3 +1,4 @@
+import type { VersionScope } from '@gpt/ui/score/history';
 import i18n from './i18n';
 
 /**
@@ -78,16 +79,6 @@ export interface Score {
  * Null when the score would not parse — the row still lists, it just has
  * nothing to say about what changed, which is the truth rather than a zero.
  */
-export interface VersionScope {
-  /** Only the tracks whose bars changed, in the score's own order. */
-  tracks: { name: string; bars: number }[];
-  bars: number;
-  /** How many tracks the score has, for the *5 tracks · 0 bars* form. */
-  trackCount: number;
-  /** Tempo, title or a time signature moved. */
-  meta: boolean;
-}
-
 /** One version. `id` is the full sha; the screen shows seven characters. */
 export interface Version {
   id: string;

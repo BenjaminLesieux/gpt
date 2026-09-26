@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { ChevronRight, GitCompareArrows, History as HistoryIcon } from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import { ScrollArea } from '@gpt/ui/scroll-area';
-import { Skeleton } from '@gpt/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Version } from '@/lib/ipc';
-import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
+import { dateLocale } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { HistoryList, HistorySkeleton, type HistoryLabels } from '@gpt/ui/score/history';
 import type { History } from './useHistory';
 
 interface TimelineProps {
@@ -27,10 +27,36 @@ interface TimelineProps {
  * base of a diff.
  */
 export function Timeline({ history, headId, baseId, onSelect, onCompare }: TimelineProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [showSnapshots, setShowSnapshots] = useState(false);
 
-  if (history.loading) return <TimelineSkeleton />;
+  const labels = (unnamed: string): HistoryLabels => ({
+    unnamed,
+    current: t('extended.timeline.latest'),
+    landed: t('extended.timeline.landed'),
+    reading: t('extended.timeline.reading'),
+    session: ({ part, ...rest }) => t(`extended.timeline.session.${part}`, rest),
+  });
+
+  if (history.loading) return <HistorySkeleton labels={labels('')} />;
+
+  const tier = (versions: Version[], unnamed: string) => (
+    <HistoryList
+      versions={linked(versions)}
+      head={versions[0]?.id ?? null}
+      locale={dateLocale(i18n.language)}
+      labels={labels(unnamed)}
+      selected={headId ? [headId] : []}
+      base={baseId}
+      onSelect={(id) => {
+        const version = versions.find((entry) => entry.id === id);
+        if (version) onSelect(version);
+      }}
+      trailing={(version) => (
+        <ComparePin isBase={version.id === baseId} onCompare={() => onCompare(version)} />
+      )}
+    />
+  );
 
   return (
     <ScrollArea className="min-h-0 flex-1">
@@ -42,19 +68,8 @@ export function Timeline({ history, headId, baseId, onSelect, onCompare }: Timel
             {t('extended.timeline.noVersions')}
           </p>
         ) : (
-          <ol>
-            {history.versions.map((version, index) => (
-              <VersionRow
-                key={version.id}
-                version={version}
-                index={history.versions.length - index}
-                isHead={version.id === headId}
-                isBase={version.id === baseId}
-                onSelect={onSelect}
-                onCompare={onCompare}
-              />
-            ))}
-          </ol>
+          // Named versions always carry their message, so there is no unnamed one to label.
+          tier(history.versions, '')
         )}
       </section>
 
@@ -81,101 +96,47 @@ export function Timeline({ history, headId, baseId, onSelect, onCompare }: Timel
               {t('extended.timeline.noSnapshots')}
             </p>
           ) : (
-            <ol className="pb-2">
-              {history.snapshots.map((snapshot) => (
-                <VersionRow
-                  key={snapshot.id}
-                  version={snapshot}
-                  isHead={snapshot.id === headId}
-                  isBase={snapshot.id === baseId}
-                  onSelect={onSelect}
-                  onCompare={onCompare}
-                />
-              ))}
-            </ol>
+            tier(history.snapshots, t('extended.timeline.autoSnapshot'))
           ))}
       </section>
     </ScrollArea>
   );
 }
 
-interface VersionRowProps {
-  version: Version;
-  /** Ordinal shown for named versions; snapshots are unnumbered. */
-  index?: number;
-  isHead: boolean;
-  isBase: boolean;
-  onSelect(version: Version): void;
-  onCompare(version: Version): void;
+/** Each tier is one straight line, newest first: a version's parent is the row below it. */
+function linked(versions: Version[]) {
+  return versions.map((version, index) => ({
+    ...version,
+    parents: index + 1 < versions.length ? [versions[index + 1].id] : [],
+  }));
 }
 
-function VersionRow({ version, index, isHead, isBase, onSelect, onCompare }: VersionRowProps) {
-  const { t, i18n } = useTranslation();
-  const label =
-    version.kind === 'named' ? version.message : t('extended.timeline.autoSnapshot');
+function ComparePin({ isBase, onCompare }: { isBase: boolean; onCompare(): void }) {
+  const { t } = useTranslation();
 
   return (
-    <li className="group/row relative">
-      <button
-        type="button"
-        onClick={() => onSelect(version)}
-        aria-current={isHead}
-        className={cn(
-          'grid w-full grid-cols-[1.25rem_1fr_auto] items-baseline gap-2 py-1.5 pr-9 pl-4 text-left transition-colors',
-          'border-l-2 border-transparent hover:bg-accent',
-          isHead && 'border-brand bg-accent/60',
-          isBase && !isHead && 'border-diff-removed',
-        )}
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onCompare}
+            aria-label={t('extended.timeline.compareFrom')}
+            aria-pressed={isBase}
+            className={cn(
+              'opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100',
+              isBase && 'text-diff-removed opacity-100',
+            )}
+          />
+        }
       >
-        <span
-          className={cn(
-            'font-mono text-[10px] tabular-nums',
-            isHead ? 'text-brand-bright' : 'text-muted-foreground/50',
-          )}
-        >
-          {index !== undefined ? String(index).padStart(2, '0') : '··'}
-        </span>
-        <span
-          className={cn(
-            'truncate text-xs',
-            version.kind === 'named' ? 'text-foreground/90' : 'text-muted-foreground italic',
-          )}
-          title={label}
-        >
-          {label}
-        </span>
-        <time
-          className="font-mono text-[10px] whitespace-nowrap text-muted-foreground"
-          dateTime={version.at.toISOString()}
-        >
-          {formatRelative(version.at, dateLocale(i18n.language))}
-        </time>
-      </button>
-
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => onCompare(version)}
-              aria-label={t('extended.timeline.compareFrom')}
-              aria-pressed={isBase}
-              className={cn(
-                'absolute top-1/2 right-2 -translate-y-1/2 opacity-0 transition-opacity',
-                'group-hover/row:opacity-100 focus-visible:opacity-100',
-                isBase && 'text-diff-removed opacity-100',
-              )}
-            />
-          }
-        >
-          <GitCompareArrows />
-        </TooltipTrigger>
-        <TooltipContent>
-          {isBase ? t('extended.timeline.clearCompare') : t('extended.timeline.compareFrom')}
-        </TooltipContent>
-      </Tooltip>
-    </li>
+        <GitCompareArrows />
+      </TooltipTrigger>
+      <TooltipContent>
+        {isBase ? t('extended.timeline.clearCompare') : t('extended.timeline.compareFrom')}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -188,15 +149,5 @@ function SectionHeading({ label, count }: { label: string; count: number }) {
         {count}
       </span>
     </h2>
-  );
-}
-
-function TimelineSkeleton() {
-  return (
-    <div className="flex flex-col gap-2 p-4">
-      {[90, 70, 80, 60, 75].map((width, index) => (
-        <Skeleton key={index} className="h-4" style={{ width: `${width}%` }} />
-      ))}
-    </div>
   );
 }

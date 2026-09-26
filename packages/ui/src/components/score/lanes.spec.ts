@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Version } from './api';
+import type { HistoryVersion as Version } from './history-format';
 import { layOut } from './lanes';
 
 /**
