@@ -5,12 +5,15 @@ export { Viewport } from "./components/Viewport";
 export type { ViewportProps } from "./components/Viewport";
 export { Cursor } from "./components/Cursor";
 export type { CursorProps } from "./components/Cursor";
+export { Stage } from "./components/Stage";
+export type { StageProps } from "./components/Stage";
 
 // ── Namespace export — Radix-style composable API ─────────────────────────────
 import { Root } from "./components/Root";
 import { Viewport } from "./components/Viewport";
 import { Cursor } from "./components/Cursor";
-export const AlphaTab = { Root, Viewport, Cursor };
+import { Stage } from "./components/Stage";
+export const AlphaTab = { Root, Viewport, Cursor, Stage };
 
 // ── Convenience wrapper ────────────────────────────────────────────────────────
 export { TabScore } from "./components/TabScore";
@@ -38,6 +41,9 @@ export type { UsePlayerControlsResult } from "./hooks/usePlayerControls";
 
 export { useTrackControl } from "./hooks/useTrackControl";
 export type { UseTrackControlResult } from "./hooks/useTrackControl";
+
+export { useSeek } from "./hooks/useSeek";
+export type { UseSeekResult } from "./hooks/useSeek";
 
 export { useAutoScroll } from "./hooks/useAutoScroll";
 
