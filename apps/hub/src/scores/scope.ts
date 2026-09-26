@@ -59,16 +59,7 @@ export async function scopesFor(
   const missing = versions.filter((version) => !scopes.has(version.id));
   if (missing.length === 0) return scopes;
 
-  // One entry per commit we have to read, parents included. Parsing is the
-  // expensive half and a parent is very often the next row down.
-  const parsed = new Map<string, Score | null>();
-  const load = async (commit: string) => {
-    if (!parsed.has(commit)) {
-      const bytes = await readVersionScore(gitRoot, ownerId, scoreId, commit);
-      parsed.set(commit, bytes ? parse(bytes) : null);
-    }
-    return parsed.get(commit) ?? null;
-  };
+  const load = parser(gitRoot, ownerId, scoreId);
 
   for (const version of missing) {
     const head = await load(version.id);
@@ -84,6 +75,75 @@ export async function scopesFor(
   }
 
   return scopes;
+}
+
+/**
+ * What each branch touches, relative to where it left the main line.
+ *
+ * Not a fold over the per-version scopes, and not cacheable the way they are.
+ * A version's scope is keyed by its own sha and true forever; a branch's is a
+ * diff over a *range*, and both of its ends move — the base every time main
+ * advances, the tip every time somebody pushes. There is nothing stable to key
+ * on, so this parses on every read and is why it takes a list rather than one
+ * branch: six branches off the same base cost one parse of the base, not six.
+ *
+ * Folding the per-version rows would be cheaper and wrong. Three versions that
+ * each edit bar 12 are one touched bar, not three, and a version that puts
+ * back what the one before it changed is nothing at all.
+ *
+ * Serialised on purpose — see ADR 0008. Parsing holds whole score models in
+ * memory, so a score with eight branches walks them one at a time rather than
+ * holding nine models at once.
+ */
+export async function branchScopes(
+  gitRoot: string,
+  ownerId: string,
+  scoreId: string,
+  branches: { name: string; base: string | null; tip: string }[]
+): Promise<Map<string, VersionScope>> {
+  const scopes = new Map<string, VersionScope>();
+  if (branches.length === 0) return scopes;
+
+  const load = parser(gitRoot, ownerId, scoreId);
+
+  for (const branch of branches) {
+    const tip = await load(branch.tip);
+    // No scope rather than an empty one, exactly as a version gets: a tip the
+    // importer cannot read has nothing to say about what it touched, and a
+    // zero would be the claim that it touched nothing.
+    if (!tip) continue;
+
+    // A branch sharing no history with main is the whole of its own tip, the
+    // same reading the first version gets.
+    const base = branch.base ? await load(branch.base) : null;
+    scopes.set(branch.name, base ? against(base, tip) : whole(tip));
+  }
+
+  return scopes;
+}
+
+/**
+ * A parse, memoised by commit, for the length of one read.
+ *
+ * Both callers diff commits against other commits, and in both the same
+ * commit turns up on two sides — a version's parent is usually the next row
+ * down, and every branch off main shares one merge-base. Parsing is the
+ * expensive half by a wide margin, so it happens once per commit.
+ */
+function parser(
+  gitRoot: string,
+  ownerId: string,
+  scoreId: string
+): (commit: string) => Promise<Score | null> {
+  const parsed = new Map<string, Score | null>();
+
+  return async (commit: string) => {
+    if (!parsed.has(commit)) {
+      const bytes = await readVersionScore(gitRoot, ownerId, scoreId, commit);
+      parsed.set(commit, bytes ? parse(bytes) : null);
+    }
+    return parsed.get(commit) ?? null;
+  };
 }
 
 function parse(bytes: Buffer): Score | null {

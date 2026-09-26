@@ -41,6 +41,18 @@ export interface Branch {
   ahead: number;
 }
 
+/**
+ * A branch, with the two extra facts the branches screen needs and the
+ * history page does not: where it left the main line, and when it was last
+ * worked on.
+ */
+export interface BranchPoint extends Branch {
+  /** `merge-base(main, tip)`, or null when the two share no history. */
+  base: string | null;
+  /** The tip's author date, ISO 8601 — when they saved, not when it arrived. */
+  at: string;
+}
+
 export interface History {
   /** The main line's tip, or null when nothing has been pushed yet. */
   head: string | null;
@@ -118,9 +130,14 @@ export async function readHistory(
   return {
     head: main,
     versions: parseLog(log),
-    branches: await countAhead(
-      repository,
-      refs.filter((ref) => ref.name !== mainName())
+    branches: await Promise.all(
+      refs
+        .filter((ref) => ref.name !== mainName())
+        .map(async (ref) => ({
+          name: ref.name,
+          tip: ref.tip,
+          ahead: await countAhead(repository, ref.name),
+        }))
     ),
     total: Number.parseInt(total, 10) || 0,
   };
@@ -156,15 +173,55 @@ export async function readVersionScore(
   }
 }
 
+/**
+ * Every named line except the main one, with where it left main and when it
+ * was last touched.
+ *
+ * Separate from `readHistory` rather than folded into it because the two
+ * answer different questions: a history is a page of versions that happens to
+ * mention its refs, and this is the refs themselves. Loading forty commits to
+ * find out what two branches are doing is work nobody asked for.
+ *
+ * Null for a malformed id, as everywhere else here. An empty array is a score
+ * with nothing but a main line, or nothing at all — both are ordinary.
+ */
+export async function readBranchPoints(
+  root: string,
+  accountId: string,
+  scoreId: string
+): Promise<BranchPoint[] | null> {
+  const repository = repositoryPath(root, accountId, scoreId);
+  if (!repository) return null;
+
+  const refs = (await readBranches(repository)).filter((ref) => ref.name !== mainName());
+
+  return Promise.all(
+    refs.map(async (ref) => ({
+      name: ref.name,
+      tip: ref.tip,
+      at: ref.at,
+      ahead: await countAhead(repository, ref.name),
+      base: await mergeBase(repository, ref.name),
+    }))
+  );
+}
+
 /** The main line's ref, short. Kept in one place so the two readers agree. */
 function mainName(): string {
   return NAMED_REF.replace('refs/heads/', '');
 }
 
-async function readBranches(repository: string): Promise<{ name: string; tip: string }[]> {
+interface Ref {
+  name: string;
+  tip: string;
+  /** The tip's author date, which is when somebody last worked on this line. */
+  at: string;
+}
+
+async function readBranches(repository: string): Promise<Ref[]> {
   const out = await git(repository, [
     'for-each-ref',
-    '--format=%(refname:short)%00%(objectname)',
+    '--format=%(refname:short)%00%(objectname)%00%(authordate:iso-strict)',
     'refs/heads',
   ]);
 
@@ -172,8 +229,8 @@ async function readBranches(repository: string): Promise<{ name: string; tip: st
     .split('\n')
     .filter(Boolean)
     .map((line) => {
-      const [name, tip] = line.split(FIELD);
-      return { name, tip };
+      const [name, tip, at] = line.split(FIELD);
+      return { name, tip, at };
     });
 }
 
@@ -183,24 +240,27 @@ async function readBranches(repository: string): Promise<{ name: string; tip: st
  * answers 0 here, which is exactly the distinction the screen draws between
  * *in flight* and *landed* and is not one we should re-derive.
  */
-async function countAhead(
-  repository: string,
-  refs: { name: string; tip: string }[]
-): Promise<Branch[]> {
-  return Promise.all(
-    refs.map(async (ref) => ({
-      ...ref,
-      ahead:
-        Number.parseInt(
-          await git(repository, [
-            'rev-list',
-            '--count',
-            `${mainName()}..${ref.name}`,
-          ]).catch(() => '0'),
-          10
-        ) || 0,
-    }))
+async function countAhead(repository: string, name: string): Promise<number> {
+  const out = await git(repository, ['rev-list', '--count', `${mainName()}..${name}`]).catch(
+    () => '0'
   );
+  return Number.parseInt(out, 10) || 0;
+}
+
+/**
+ * Where a branch left the main line. This is the base of the diff that says
+ * what the branch *touches*, and it is deliberately not the tip's parent: a
+ * branch three versions long touches the union of those three minus whatever
+ * it put back, which only `merge-base..tip` says.
+ *
+ * Null when the two lines share no history — a repository whose main ref does
+ * not exist yet, or a branch pushed from an unrelated one. The caller reads
+ * that as "nothing to compare against", the same as the first version does.
+ */
+async function mergeBase(repository: string, name: string): Promise<string | null> {
+  return git(repository, ['merge-base', mainName(), name])
+    .then((out) => out.trim() || null)
+    .catch(() => null);
 }
 
 function parseLog(out: string): Version[] {

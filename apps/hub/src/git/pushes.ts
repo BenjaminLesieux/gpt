@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { desc, eq } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
-import { scorePushes } from '../db/schema';
+import { accounts, scorePushes, scoreTokens } from '../db/schema';
 import { newId } from '../ids';
 import type { ScoreTokenBearer } from '../scores/tokens';
 
@@ -78,4 +79,51 @@ export async function recordPush(
   }
 
   if (rows.length > 0) db.insert(scorePushes).values(rows).run();
+}
+
+/** Who put a branch on the hub, and when it arrived. */
+export interface RefPush {
+  /**
+   * The address on the account whose credential pushed. Null once that device
+   * is revoked — `token_id` is nulled rather than cascaded, so the push
+   * survives the laptop and the person behind it does not.
+   */
+  email: string | null;
+  at: Date;
+}
+
+/**
+ * The newest push to each of a score's refs, by full ref name.
+ *
+ * One pass over the score's pushes rather than a query per branch: the index
+ * is `(score_id, pushed_at)` and not `(score_id, ref, ...)`, so a per-branch
+ * query for a line nobody has touched in months walks the same rows anyway.
+ * Doing it once is the same work for one branch and a fraction of it for six.
+ *
+ * That still scales with a score's whole push history rather than with its
+ * branches. A score busy enough for that to matter wants
+ * `(score_id, ref, pushed_at)` and a query per ref, not a cleverer fold.
+ */
+export function lastPushByRef(db: HubDatabase, scoreId: string): Map<string, RefPush> {
+  const rows = db
+    .select({
+      ref: scorePushes.ref,
+      at: scorePushes.pushedAt,
+      email: accounts.email,
+    })
+    .from(scorePushes)
+    // Both joins are left: a revoked device leaves `token_id` null, and the
+    // row is still "somebody pushed this", which is the fact being read.
+    .leftJoin(scoreTokens, eq(scorePushes.tokenId, scoreTokens.id))
+    .leftJoin(accounts, eq(scoreTokens.accountId, accounts.id))
+    .where(eq(scorePushes.scoreId, scoreId))
+    .orderBy(desc(scorePushes.pushedAt))
+    .all();
+
+  const newest = new Map<string, RefPush>();
+  // Newest first, so the first row for a ref is the one to keep.
+  for (const row of rows) {
+    if (!newest.has(row.ref)) newest.set(row.ref, { email: row.email, at: row.at });
+  }
+  return newest;
 }
