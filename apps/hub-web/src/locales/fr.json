@@ -1,0 +1,232 @@
+{
+  "common": {
+    "cancel": "Annuler",
+    "done": "Terminé",
+    "copy": "Copier",
+    "copied": "Copié",
+    "genericError": "Un problème est survenu. Réessaie.",
+    "unreachable": "Impossible de joindre le hub. Vérifie ta connexion.",
+    "yourScores": "Tes partitions",
+    "unnamedVersion": "Version sans nom",
+    "name": "Nom",
+    "namePlaceholder": "Riff sans titre",
+    "nameRequired": "Donne un nom à la partition."
+  },
+  "time": {
+    "justNow": "à l'instant",
+    "underAMinute": "dans moins d'une minute",
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "dayAtTime": "{{day}} à {{time}}"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "noAccount": "Pas encore de compte ?",
+      "signUp": "Inscris-toi"
+    },
+    "signup": {
+      "title": "Crée ton compte",
+      "blurb": "Un endroit où tes versions sont à l'abri, pour que ce que tu as fait ce soir soit encore là demain.",
+      "haveAccount": "Tu as déjà un compte ?",
+      "logIn": "Connecte-toi"
+    },
+    "email": "E-mail",
+    "emailPlaceholder": "toi@exemple.fr",
+    "emailInvalid": "Saisis une adresse e-mail.",
+    "password": "Mot de passe",
+    "passwordPlaceholder": "Au moins {{min}} caractères",
+    "passwordTooShort": "Utilise au moins {{min}} caractères.",
+    "createAccount": "Créer le compte",
+    "logIn": "Se connecter",
+    "logOut": "Se déconnecter"
+  },
+  "join": {
+    "checking": "Vérification du lien",
+    "oneMoment": "Un instant.",
+    "broken": {
+      "title": "Ce lien ne fonctionne pas",
+      "unknown": "Ce lien ne mène nulle part. Demande-en un nouveau.",
+      "footer": "Demande à la personne qui a partagé la partition de t'en envoyer un nouveau.",
+      "goToScores": "Aller à tes partitions"
+    },
+    "title": "Rejoindre « {{score}} »",
+    "blurb": "{{invitedBy}} t'a invité. Tu pourras ouvrir la partition, lire chacune de ses versions et enregistrer les tiennes.",
+    "signedInAs": "Connecté en tant que {{email}}.",
+    "haveAccount": "Tu as déjà un compte ?",
+    "logIn": "Connecte-toi",
+    "failed": "Impossible de rejoindre cette partition. Réessaie.",
+    "joining": "Connexion à la partition…",
+    "join": "Rejoindre cette partition",
+    "createAccount": "Créer un compte pour rejoindre"
+  },
+  "credentials": {
+    "eyebrow": "Partition créée",
+    "title": "« {{name}} » est prête à être synchronisée.",
+    "instruction": "Ouvre l'app Gitarpro, choisis Configurer la synchro et colle ces trois valeurs.",
+    "detail": "Sa fenêtre a les trois mêmes champs, dans le même ordre. Ensuite, tu peux oublier tout ça : chaque sauvegarde est enregistrée toute seule.",
+    "url": "URL",
+    "username": "Nom d'utilisateur",
+    "token": "Jeton",
+    "copyUrl": "Copier l'URL",
+    "copyUsername": "Copier le nom d'utilisateur",
+    "copyToken": "Copier le jeton",
+    "shownOnce": "AFFICHÉ UNE FOIS",
+    "shownOnceDetail": "Le jeton n'est stocké nulle part où l'on pourrait le relire. Quitte cet écran et il est perdu pour de bon.",
+    "copyAll": "Tout copier",
+    "copyAllLabel": "Copier les trois valeurs",
+    "done": "Je les ai collées — terminé"
+  },
+  "scores": {
+    "title": "Partitions",
+    "upstreamDown": "Le serveur de synchro est injoignable pour le moment. Tes partitions et tout ce que tu as enregistré sont en sécurité — tu ne peux simplement pas en ajouter de nouvelle avant son retour.",
+    "tryAgain": "Réessayer",
+    "unavailable": "Indisponible tant que le serveur est hors ligne",
+    "import": "Importer une partition",
+    "create": "Créer une partition",
+    "loading": "Chargement de tes partitions.",
+    "loadFailed": "Impossible de charger tes partitions.",
+    "empty": "Une partition, c'est un morceau, versionné. Crées-en une et chaque sauvegarde dans Guitar Pro arrive ici.",
+    "importExisting": "Importer un fichier que tu as déjà",
+    "caption": "Un carré, c'est un ordinateur que cette partition a atteint. Les jetons ne sont plus jamais affichés après la création d'une partition — chaque machine a le sien.",
+    "columns": {
+      "name": "Nom",
+      "url": "URL de clonage",
+      "created": "Créée",
+      "synced": "Synchronisée sur",
+      "actions": "Actions"
+    },
+    "createdToday": "Aujourd'hui, {{time}}",
+    "setupUnfinished": "Configuration inachevée",
+    "finishing": "Finalisation…",
+    "finishSetup": "Terminer la configuration",
+    "finishSetupFor": " de {{name}}",
+    "clone": "Cloner",
+    "cloneFor": " {{name}} sur cet ordinateur",
+    "unfinishedExplanation": "Cette partition a un espace de stockage mais pas encore d'identifiants. Termine la configuration pour obtenir son URL, son nom d'utilisateur et son jeton — rien de ce que tu as enregistré n'est perdu.",
+    "devices": {
+      "none": "Sur aucun ordinateur pour l'instant",
+      "lastVersion": "{{name}} — dernière version {{when}}",
+      "noVersions": "{{name}} — a la partition, aucune version enregistrée depuis"
+    }
+  },
+  "create": {
+    "title": "Créer une partition",
+    "description": "Donne-lui le nom du morceau. Ça prend quelques secondes — on lui prépare un espace de stockage sur le serveur.",
+    "settingUp": "Préparation de « {{name}} »…",
+    "submit": "Créer"
+  },
+  "import": {
+    "title": "Importer une partition",
+    "file": "Fichier",
+    "description": "Un fichier Guitar Pro — {{extensions}}. Il devient la première version de la partition, exactement comme si tu l'avais enregistré depuis l'app Gitarpro.",
+    "tooLarge": "Ce fichier dépasse 32 Mo, c'est plus que ce que le hub accepte.",
+    "resending": "Nouvel envoi du fichier…",
+    "importing": "Importation…",
+    "stranded": "« {{name}} » a été créée, mais le fichier n'est pas arrivé. La partition et ses identifiants existent bien — seule la musique manque, comme pour toute partition avant sa première sauvegarde. Renvoie le fichier, ou envoie-le depuis l'app Gitarpro.",
+    "retry": "Renvoyer le fichier",
+    "submit": "Importer"
+  },
+  "clone": {
+    "title": "Ajouter « {{name}} » à cet ordinateur",
+    "description": "Gitarpro devrait te demander où l'enregistrer. Cette machine reçoit ses propres identifiants — rien n'est partagé avec l'ordinateur sur lequel tu as configuré la partition.",
+    "nothingHappened": "Il ne s'est rien passé ?",
+    "download": "Télécharger Gitarpro",
+    "gettingValues": "Récupération…",
+    "showValues": "Afficher les valeurs à la place"
+  },
+  "invite": {
+    "title": "Inviter quelqu'un sur « {{name}} »",
+    "description": "Envoie-lui ce lien. Quiconque l'ouvre et se connecte rejoint la partition et peut y enregistrer des versions — alors envoie-le au groupe, pas sur un canal public.",
+    "failed": "Impossible de créer un lien. Réessaie.",
+    "linkLabel": "Lien d'invitation",
+    "making": "Création du lien…",
+    "copyLabel": "Copier le lien d'invitation pour {{name}}",
+    "thisScore": "cette partition",
+    "expires": "Il ne sert qu'une fois, et expire {{when}}.",
+    "once": "Une personne, une fois."
+  },
+  "members": {
+    "owner": "{{email}} — propriétaire",
+    "pending": "Invité par {{invitedBy}} — personne n'a encore ouvert le lien. Il expire {{when}}."
+  },
+  "score": {
+    "created": "Créée le {{date}}",
+    "nothingPushed": "Rien d'envoyé pour l'instant",
+    "lastVersion": "Dernière version {{when}}",
+    "noBranchesInFlight": "aucune branche en cours",
+    "branchesInFlight_one": "une branche en cours",
+    "branchesInFlight_other": "{{count}} branches en cours",
+    "invite": "Inviter",
+    "inviteFor": " quelqu'un sur {{name}}",
+    "history": "Historique",
+    "selectedRange": "{{count}} sélectionnées · clique sur une ligne pour réinitialiser",
+    "selectedOne": "1 sélectionnée · Maj-clic pour une plage",
+    "versions_one": "{{count}} version",
+    "versions_other": "{{count}} versions",
+    "branches_one": "{{count}} branche",
+    "branches_other": "{{count}} branches",
+    "readFailed": "Impossible de lire cet historique.",
+    "branchesLabel": "Branches",
+    "inFlight": "En cours",
+    "ahead_one": "{{count}} version d'avance sur la ligne principale.",
+    "ahead_other": "{{count}} versions d'avance sur la ligne principale.",
+    "empty": {
+      "title": "Aucune version pour l'instant.",
+      "body": "Ouvre la partition dans Guitar Pro, appuie sur <kbd>⌥⌘G</kbd>, écris ce que tu as changé et valide avec Entrée. Elle apparaît ici tout de suite."
+    }
+  },
+  "history": {
+    "current": "Version actuelle",
+    "landed": "Intégrée",
+    "showing": "Affichage des {{loaded}} versions les plus récentes sur {{total}}.",
+    "loading": "Chargement…",
+    "loadMore": "Charger 40 de plus",
+    "reading": "Lecture de tes versions.",
+    "bars_one": "{{count}} mesure",
+    "bars_other": "{{count}} mesures",
+    "tracks_one": "{{count}} piste",
+    "tracks_other": "{{count}} pistes",
+    "session": {
+      "morning_one": "Session du matin · {{count}} version entre {{from}} et {{to}}",
+      "morning_other": "Session du matin · {{count}} versions entre {{from}} et {{to}}",
+      "afternoon_one": "Session de l'après-midi · {{count}} version entre {{from}} et {{to}}",
+      "afternoon_other": "Session de l'après-midi · {{count}} versions entre {{from}} et {{to}}",
+      "evening_one": "Session du soir · {{count}} version entre {{from}} et {{to}}",
+      "evening_other": "Session du soir · {{count}} versions entre {{from}} et {{to}}"
+    },
+    "short": {
+      "minutes": "{{n}}m",
+      "hours": "{{n}}h",
+      "days": "{{n}}j"
+    }
+  },
+  "inspector": {
+    "rangeLabel": "La plage sélectionnée",
+    "versionLabel": "La version sélectionnée",
+    "range_one": "Plage · {{count}} version",
+    "range_other": "Plage · {{count}} versions",
+    "version": "Version",
+    "close": "Fermer",
+    "who": "Qui",
+    "when": "Quand",
+    "branch": "Branche",
+    "tracksTouched": "Pistes modifiées",
+    "barsChanged": "Mesures changées",
+    "id": "Id",
+    "between": "Entre ces deux versions : {{bars}}, {{versions}}.",
+    "betweenAcross": "Entre ces deux versions : {{bars}} sur {{tracks}}, {{versions}}.",
+    "newerEnd": "Plus récente",
+    "olderEnd": "Plus ancienne",
+    "whoWorked": "Qui y a travaillé",
+    "span": "Période",
+    "loadingScore": "Chargement de la partition."
+  },
+  "player": {
+    "unreadable": "Cette version ne peut pas s'afficher ici — le fichier est dans un format Guitar Pro que le lecteur web ne lit pas. Ouvre-la plutôt dans Gitarpro.",
+    "play": "Lecture",
+    "pause": "Pause",
+    "stop": "Stop",
+    "loadingSounds": "Chargement des sons"
+  }
+}

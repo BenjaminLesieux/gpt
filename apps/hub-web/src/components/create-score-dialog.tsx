@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import {
   Dialog,
@@ -28,6 +29,7 @@ export function CreateScoreDialog({
   error,
   onCreate,
 }: CreateScoreDialogProps) {
+  const { t } = useTranslation();
   const form = useForm({
     defaultValues: { name: '' },
     onSubmit: async ({ value }) => {
@@ -51,7 +53,7 @@ export function CreateScoreDialog({
         className="max-w-[440px] gap-5 rounded-lg border border-border bg-popover p-6 shadow-[0_8px_32px_rgba(0,0,0,.6)] ring-0"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-medium">Create score</DialogTitle>
+          <DialogTitle className="text-lg font-medium">{t('create.title')}</DialogTitle>
         </DialogHeader>
 
         <form
@@ -66,7 +68,7 @@ export function CreateScoreDialog({
             name="name"
             validators={{
               onBlur: ({ value }) =>
-                value.trim().length > 0 ? undefined : { message: 'Give the score a name.' },
+                value.trim().length > 0 ? undefined : { message: t('common.nameRequired') },
             }}
           >
             {(field) => (
@@ -75,13 +77,13 @@ export function CreateScoreDialog({
                   htmlFor={field.name}
                   className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
                 >
-                  Name
+                  {t('common.name')}
                 </FieldLabel>
                 <Input
                   id={field.name}
                   name={field.name}
                   autoFocus
-                  placeholder="Untitled riff"
+                  placeholder={t('common.namePlaceholder')}
                   disabled={submitting}
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -89,8 +91,7 @@ export function CreateScoreDialog({
                   className="h-10 rounded-sm bg-card shadow-none"
                 />
                 <DialogDescription className="text-sm leading-normal text-muted-foreground">
-                  Give it the song's name. This takes a few seconds — we're setting up
-                  storage for it on the server.
+                  {t('create.description')}
                 </DialogDescription>
                 {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
               </Field>
@@ -100,7 +101,7 @@ export function CreateScoreDialog({
           {submitting && (
             <div className="flex flex-col gap-2.5" aria-live="polite">
               <p className="text-base text-foreground">
-                Setting up “{form.state.values.name.trim()}”…
+                {t('create.settingUp', { name: form.state.values.name.trim() })}
               </p>
               {/* Honest indeterminate bar: the wait is real and its length
                   is not known, so a skeleton would be a guess. */}
@@ -117,7 +118,7 @@ export function CreateScoreDialog({
             >
               {error instanceof HubError
                 ? error.message
-                : 'Something went wrong. Try again.'}
+                : t('common.genericError')}
             </p>
           )}
 
@@ -125,12 +126,12 @@ export function CreateScoreDialog({
             <DialogClose
               render={
                 <Button type="button" variant="ghost" disabled={submitting} className="rounded-sm">
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               }
             />
             <Button type="submit" disabled={submitting} className="rounded-sm">
-              Create
+              {t('create.submit')}
             </Button>
           </DialogFooter>
         </form>

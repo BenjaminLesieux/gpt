@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@gpt/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { ScoreToken } from '@/lib/api';
@@ -23,13 +25,14 @@ const STALE_MS = 14 * 24 * 60 * 60 * 1000;
 const SQUARE = 'size-6 rounded-sm after:rounded-sm';
 
 export function DeviceAvatars({ tokens }: { tokens: ScoreToken[] }) {
+  const { t } = useTranslation();
   const devices = activeDevices(tokens);
 
   if (devices.length === 0) {
     // Not an error and not unfinished — a score can sit here happily until
     // someone presses Clone. Saying so beats an empty cell that reads as a
     // rendering fault.
-    return <span className="text-sm text-muted-foreground">Not on a computer yet</span>;
+    return <span className="text-sm text-muted-foreground">{t('scores.devices.none')}</span>;
   }
 
   const shown = devices.slice(0, SHOWN);
@@ -56,7 +59,7 @@ export function DeviceAvatars({ tokens }: { tokens: ScoreToken[] }) {
               {monogram(device.name)}
             </AvatarFallback>
           </TooltipTrigger>
-          <TooltipContent>{describe(device)}</TooltipContent>
+          <TooltipContent>{describe(device, t)}</TooltipContent>
         </Tooltip>
       ))}
       {rest > 0 && (
@@ -66,7 +69,7 @@ export function DeviceAvatars({ tokens }: { tokens: ScoreToken[] }) {
       )}
       {/* The squares carry no text of their own, so without this the cell is
           silent to a screen reader and unreachable to anyone not hovering. */}
-      <span className="sr-only">{devices.map(describe).join('. ')}</span>
+      <span className="sr-only">{devices.map((device) => describe(device, t)).join('. ')}</span>
     </AvatarGroup>
   );
 }
@@ -116,8 +119,8 @@ function monogram(name: string): string {
 }
 
 /** What the square means, in the product's own words — never "pushed". */
-function describe(device: Device): string {
+function describe(device: Device, t: TFunction): string {
   return device.pushedAt
-    ? `${device.name} — last version ${ago(device.pushedAt)}`
-    : `${device.name} — has the score, no versions saved from it yet`;
+    ? t('scores.devices.lastVersion', { name: device.name, when: ago(device.pushedAt) })
+    : t('scores.devices.noVersions', { name: device.name });
 }

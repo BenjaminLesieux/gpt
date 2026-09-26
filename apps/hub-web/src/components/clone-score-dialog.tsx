@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import {
   Dialog,
@@ -41,6 +42,7 @@ export function CloneScoreDialog({
   onShowValues,
   showingValues,
 }: CloneScoreDialogProps) {
+  const { t } = useTranslation();
   // One claim per opening. Without the guard, StrictMode's double effect
   // would mint two and leave the first unspendable for five minutes.
   const claimedForRef = useRef<string | null>(null);
@@ -71,11 +73,10 @@ export function CloneScoreDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-lg font-medium">
-            Add “{score?.name}” to this computer
+            {t('clone.title', { name: score?.name })}
           </DialogTitle>
           <DialogDescription className="text-sm leading-normal text-muted-foreground">
-            Gitarpro should be asking you where to save it. It gets its own sign-in details
-            for this machine — nothing is shared with the computer you set the score up on.
+            {t('clone.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -84,19 +85,19 @@ export function CloneScoreDialog({
             role="alert"
             className="rounded-sm border border-brand-border bg-brand-dim px-3 py-2.5 text-sm leading-normal text-foreground"
           >
-            {error instanceof HubError ? error.message : 'Something went wrong. Try again.'}
+            {error instanceof HubError ? error.message : t('common.genericError')}
           </p>
         )}
 
         <div className="flex flex-col gap-3 border-t border-border-subtle pt-5">
-          <p className="text-sm text-muted-foreground">Nothing happened?</p>
+          <p className="text-sm text-muted-foreground">{t('clone.nothingHappened')}</p>
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="secondary"
               className="rounded-sm"
               render={
                 <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                  Download Gitarpro
+                  {t('clone.download')}
                 </a>
               }
             />
@@ -106,7 +107,7 @@ export function CloneScoreDialog({
               disabled={busy || !score}
               onClick={() => score && onShowValues(score.id)}
             >
-              {showingValues ? 'Getting them…' : 'Show the values instead'}
+              {showingValues ? t('clone.gettingValues') : t('clone.showValues')}
             </Button>
           </div>
         </div>
@@ -115,7 +116,7 @@ export function CloneScoreDialog({
           <DialogClose
             render={
               <Button type="button" variant="ghost" disabled={busy} className="rounded-sm">
-                Done
+                {t('common.done')}
               </Button>
             }
           />

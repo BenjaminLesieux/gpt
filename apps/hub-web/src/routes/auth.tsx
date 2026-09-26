@@ -1,4 +1,5 @@
 import { Link, createRoute, redirect } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import { AuthForm } from '@/components/auth-form';
 import { Wordmark } from '@/components/wordmark';
 import { accountQuery, useLogin, useSignup } from '@/lib/queries';
@@ -72,18 +73,19 @@ function inviteSearch(search: Record<string, unknown>): { invite?: string } {
 }
 
 function LoginPage() {
+  const { t } = useTranslation();
   const login = useLogin();
   const navigate = loginRoute.useNavigate();
   const { invite } = loginRoute.useSearch();
 
   return (
     <AuthLayout
-      title="Log in"
+      title={t('auth.login.title')}
       footer={
         <>
-          No account yet?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link to="/signup" search={{ invite }} className={linkClass}>
-            Sign up
+            {t('auth.login.signUp')}
           </Link>
         </>
       }
@@ -107,19 +109,20 @@ function LoginPage() {
 }
 
 function SignupPage() {
+  const { t } = useTranslation();
   const signup = useSignup();
   const navigate = signupRoute.useNavigate();
   const { invite } = signupRoute.useSearch();
 
   return (
     <AuthLayout
-      title="Create your account"
-      blurb="Somewhere for your versions to live, so the work you did tonight is still there tomorrow."
+      title={t('auth.signup.title')}
+      blurb={t('auth.signup.blurb')}
       footer={
         <>
-          Already have an account?{' '}
+          {t('auth.signup.haveAccount')}{' '}
           <Link to="/login" search={{ invite }} className={linkClass}>
-            Log in
+            {t('auth.signup.logIn')}
           </Link>
         </>
       }

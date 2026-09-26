@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import {
   Dialog,
@@ -46,6 +47,7 @@ export function InviteDialog({
   minting,
   error,
 }: InviteDialogProps) {
+  const { t } = useTranslation();
   // One invite per opening. Without the guard StrictMode's double effect
   // mints two, and the first is a live link nobody will ever hold.
   const mintedForRef = useRef<string | null>(null);
@@ -72,10 +74,11 @@ export function InviteDialog({
         className="max-w-[520px] gap-5 rounded-lg border border-border bg-popover p-6 shadow-[0_8px_32px_rgba(0,0,0,.6)] ring-0"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-medium">Invite someone to “{score?.name}”</DialogTitle>
+          <DialogTitle className="text-lg font-medium">
+            {t('invite.title', { name: score?.name })}
+          </DialogTitle>
           <DialogDescription className="text-sm leading-normal text-muted-foreground">
-            Send them this link. Whoever opens it and signs in joins the score and can save
-            versions to it — so send it to the band and not to a public channel.
+            {t('invite.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -84,7 +87,7 @@ export function InviteDialog({
             role="alert"
             className="rounded-sm border border-brand-border bg-brand-dim px-3 py-2.5 text-sm leading-normal text-foreground"
           >
-            {error instanceof HubError ? error.message : 'Could not make a link. Try again.'}
+            {error instanceof HubError ? error.message : t('invite.failed')}
           </p>
         )}
 
@@ -93,8 +96,8 @@ export function InviteDialog({
             <div className="flex items-center gap-2">
               <Input
                 readOnly
-                aria-label="Invite link"
-                value={minting ? 'Making a link…' : link}
+                aria-label={t('invite.linkLabel')}
+                value={minting ? t('invite.making') : link}
                 // It is read character by character and pasted, never typed
                 // into — and selecting the whole of it is the only thing
                 // anyone does here.
@@ -107,15 +110,15 @@ export function InviteDialog({
               {invite && (
                 <CopyButton
                   value={link}
-                  label={`Copy the invite link for ${score?.name ?? 'this score'}`}
+                  label={t('invite.copyLabel', { name: score?.name ?? t('invite.thisScore') })}
                   className="h-8"
                 />
               )}
             </div>
             <p className="text-sm text-muted-foreground">
               {invite
-                ? `It works once, and stops working ${until(new Date(invite.expiresAt))}.`
-                : 'One person, once.'}
+                ? t('invite.expires', { when: until(new Date(invite.expiresAt)) })
+                : t('invite.once')}
             </p>
           </div>
         )}
@@ -124,7 +127,7 @@ export function InviteDialog({
           <DialogClose
             render={
               <Button type="button" variant="ghost" className="rounded-sm">
-                Done
+                {t('common.done')}
               </Button>
             }
           />

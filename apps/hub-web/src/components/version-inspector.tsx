@@ -1,8 +1,10 @@
 import { Suspense, lazy } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Separator } from '@gpt/ui/separator';
 import type { Version } from '@/lib/api';
 import { initials, shortId, time, when } from '@/lib/history-format';
+import { dateLocale } from '@/lib/relative-time';
 
 /**
  * alphaTab is most of a megabyte gzipped and nothing needs it until someone
@@ -38,16 +40,17 @@ export function VersionInspector({
   branchOf,
   onClose,
 }: VersionInspectorProps) {
+  const { t } = useTranslation();
   const range = selected.length > 1;
 
   return (
     <aside
-      aria-label={range ? 'The selected range' : 'The selected version'}
+      aria-label={range ? t('inspector.rangeLabel') : t('inspector.versionLabel')}
       className="flex w-[520px] flex-none flex-col border-l border-border bg-card"
     >
       <div className="flex h-8 flex-none items-center justify-between border-b border-border px-4">
         <h2 className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          {range ? `Range · ${selected.length} versions` : 'Version'}
+          {range ? t('inspector.range', { count: selected.length }) : t('inspector.version')}
         </h2>
         <Button
           variant="ghost"
@@ -55,7 +58,7 @@ export function VersionInspector({
           className="-mr-2 h-6 rounded-sm px-2 text-sm"
           onClick={onClose}
         >
-          Close
+          {t('inspector.close')}
         </Button>
       </div>
 
@@ -79,6 +82,8 @@ export function VersionInspector({
 }
 
 function OneVersion({ version, branch }: { version: Version; branch: string | null }) {
+  const { t } = useTranslation();
+
   return (
     <>
       <p
@@ -88,27 +93,27 @@ function OneVersion({ version, branch }: { version: Version; branch: string | nu
       >
         {/* An empty message is the user's own two-second entry and is never
             given an invented title. */}
-        {version.message || 'Unnamed version'}
+        {version.message || t('common.unnamedVersion')}
       </p>
 
       <dl className="flex flex-col gap-2.5">
-        <Fact label="Who" mono>
+        <Fact label={t('inspector.who')} mono>
           {version.authorEmail}
         </Fact>
-        <Fact label="When">{when(version.at)}</Fact>
-        <Fact label="Branch" mono>
+        <Fact label={t('inspector.when')}>{when(version.at)}</Fact>
+        <Fact label={t('inspector.branch')} mono>
           {branch ?? 'main'}
         </Fact>
         <Separator className="my-0.5 bg-border" />
-        <Fact label="Tracks touched" mono>
+        <Fact label={t('inspector.tracksTouched')} mono>
           {version.scope?.tracks.length
             ? version.scope.tracks.map((track) => track.name).join(', ')
             : '—'}
         </Fact>
-        <Fact label="Bars changed" mono>
+        <Fact label={t('inspector.barsChanged')} mono>
           {version.scope ? String(version.scope.bars) : '—'}
         </Fact>
-        <Fact label="Id" mono muted>
+        <Fact label={t('inspector.id')} mono muted>
           {shortId(version.id)}
         </Fact>
       </dl>
@@ -117,6 +122,7 @@ function OneVersion({ version, branch }: { version: Version; branch: string | nu
 }
 
 function RangeFacts({ selected }: { selected: Version[] }) {
+  const { t } = useTranslation();
   const newest = selected[0];
   const oldest = selected[selected.length - 1];
 
@@ -137,24 +143,27 @@ function RangeFacts({ selected }: { selected: Version[] }) {
   return (
     <>
       <p className="text-md leading-normal text-pretty text-foreground">
-        Between these two: {bars} {bars === 1 ? 'bar' : 'bars'}
-        {names.length > 0 && <> across {list(names)}</>}, {selected.length} versions.
+        {t(names.length > 0 ? 'inspector.betweenAcross' : 'inspector.between', {
+          bars: t('history.bars', { count: bars }),
+          tracks: list(names),
+          versions: t('score.versions', { count: selected.length }),
+        })}
       </p>
 
       <dl className="flex flex-col gap-2.5">
-        <Fact label="Newer end">{newest.message || 'Unnamed version'}</Fact>
-        <Fact label="Older end">{oldest.message || 'Unnamed version'}</Fact>
+        <Fact label={t('inspector.newerEnd')}>{newest.message || t('common.unnamedVersion')}</Fact>
+        <Fact label={t('inspector.olderEnd')}>{oldest.message || t('common.unnamedVersion')}</Fact>
         <Separator className="my-0.5 bg-border" />
         {names.map((name) => (
           <Fact key={name} label={name} labelMono mono muted>
-            {`${tracks.get(name)} ${tracks.get(name) === 1 ? 'bar' : 'bars'}`}
+            {t('history.bars', { count: tracks.get(name) })}
           </Fact>
         ))}
         {names.length > 0 && <Separator className="my-0.5 bg-border" />}
-        <Fact label="Who worked in it" mono>
+        <Fact label={t('inspector.whoWorked')} mono>
           {people.join(', ')}
         </Fact>
-        <Fact label="Span">{`${when(oldest.at)} → ${time(newest.at)}`}</Fact>
+        <Fact label={t('inspector.span')}>{`${when(oldest.at)} → ${time(newest.at)}`}</Fact>
       </dl>
     </>
   );
@@ -195,15 +204,16 @@ function Fact({
 
 /** *Guitar 1 and Bass*, *Guitar 1, Bass and Drums* — prose, not a join. */
 function list(names: string[]): string {
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return new Intl.ListFormat(dateLocale(), { type: 'conjunction' }).format(names);
 }
 
 /** The first selection of a session waits on alphaTab's chunk. Say so. */
 function PlayerLoading() {
+  const { t } = useTranslation();
+
   return (
     <p role="status" className="border border-border-subtle bg-card px-3 py-2.5 text-sm text-muted-foreground">
-      Loading the score.
+      {t('inspector.loadingScore')}
     </p>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { cn } from '@gpt/ui/lib/utils';
 
@@ -20,10 +21,11 @@ interface CopyButtonProps {
 export function CopyButton({
   value,
   label,
-  children = 'Copy',
+  children,
   className,
   size = 'sm',
 }: CopyButtonProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -56,7 +58,7 @@ export function CopyButton({
         className
       )}
     >
-      <span aria-live="polite">{copied ? 'Copied' : children}</span>
+      <span aria-live="polite">{copied ? t('common.copied') : (children ?? t('common.copy'))}</span>
     </Button>
   );
 }

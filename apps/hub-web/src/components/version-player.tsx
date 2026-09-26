@@ -1,4 +1,5 @@
 import { AlphaTab, darkTheme, usePlayback, useScore } from '@gpt/alphatab-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Skeleton } from '@gpt/ui/skeleton';
 import { versionScoreUrl } from '@/lib/api';
@@ -59,6 +60,7 @@ export function VersionPlayer({ scoreId, commit }: { scoreId: string; commit: st
  * *over* it.
  */
 function Stage() {
+  const { t } = useTranslation();
   const { isLoading, error } = useScore();
 
   return (
@@ -75,8 +77,7 @@ function Stage() {
           <div className="absolute inset-0 bg-background">
             {error ? (
               <p className="p-3 text-sm leading-normal text-muted-foreground">
-                This version can't be shown here — the file is a Guitar Pro format the web
-                player doesn't read. Open it in Gitarpro instead.
+                {t('player.unreadable')}
               </p>
             ) : (
               <ScoreSkeleton />
@@ -89,6 +90,7 @@ function Stage() {
 }
 
 function Transport() {
+  const { t } = useTranslation();
   const { state, isReadyForPlayback, playPause, stop } = usePlayback();
 
   return (
@@ -100,7 +102,7 @@ function Transport() {
         disabled={!isReadyForPlayback}
         onClick={playPause}
       >
-        {state === 'playing' ? 'Pause' : 'Play'}
+        {state === 'playing' ? t('player.pause') : t('player.play')}
       </Button>
       <Button
         size="sm"
@@ -109,13 +111,13 @@ function Transport() {
         disabled={state === 'idle'}
         onClick={stop}
       >
-        Stop
+        {t('player.stop')}
       </Button>
       {!isReadyForPlayback && (
         // The soundfont is a megabyte and arrives after the notation does.
         // Saying so beats a Play button that silently does nothing.
         <span role="status" className="ml-auto text-xs text-muted-foreground">
-          Loading the sounds
+          {t('player.loadingSounds')}
         </span>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Field, FieldError, FieldLabel } from '@gpt/ui/field';
 import { Input } from '@gpt/ui/input';
@@ -21,6 +22,7 @@ interface AuthFormProps {
 }
 
 export function AuthForm({ mode, submitting, error, onSubmit }: AuthFormProps) {
+  const { t } = useTranslation();
   const signup = mode === 'signup';
 
   const form = useForm({
@@ -47,7 +49,7 @@ export function AuthForm({ mode, submitting, error, onSubmit }: AuthFormProps) {
           role="alert"
           className="rounded-sm border border-brand-border bg-brand-dim px-3 py-2.5 text-sm leading-normal text-foreground"
         >
-          {error instanceof HubError ? error.message : 'Something went wrong. Try again.'}
+          {error instanceof HubError ? error.message : t('common.genericError')}
         </p>
       )}
 
@@ -55,20 +57,20 @@ export function AuthForm({ mode, submitting, error, onSubmit }: AuthFormProps) {
         name="email"
         validators={{
           onBlur: ({ value }) =>
-            value.includes('@') ? undefined : { message: 'Enter an email address.' },
+            value.includes('@') ? undefined : { message: t('auth.emailInvalid') },
         }}
       >
         {(field) => (
           <Field data-invalid={field.state.meta.isTouched && field.state.meta.errors.length > 0}>
             <FieldLabel htmlFor={field.name} className={LABEL}>
-              Email
+              {t('auth.email')}
             </FieldLabel>
             <Input
               id={field.name}
               name={field.name}
               type="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               value={field.state.value}
               onChange={(event) => field.handleChange(event.target.value)}
               onBlur={field.handleBlur}
@@ -85,20 +87,22 @@ export function AuthForm({ mode, submitting, error, onSubmit }: AuthFormProps) {
           onBlur: ({ value }) =>
             !signup || value.length >= MIN_PASSWORD
               ? undefined
-              : { message: `Use at least ${MIN_PASSWORD} characters.` },
+              : { message: t('auth.passwordTooShort', { min: MIN_PASSWORD }) },
         }}
       >
         {(field) => (
           <Field data-invalid={field.state.meta.isTouched && field.state.meta.errors.length > 0}>
             <FieldLabel htmlFor={field.name} className={LABEL}>
-              Password
+              {t('auth.password')}
             </FieldLabel>
             <Input
               id={field.name}
               name={field.name}
               type="password"
               autoComplete={signup ? 'new-password' : 'current-password'}
-              placeholder={signup ? `At least ${MIN_PASSWORD} characters` : undefined}
+              placeholder={
+                signup ? t('auth.passwordPlaceholder', { min: MIN_PASSWORD }) : undefined
+              }
               value={field.state.value}
               onChange={(event) => field.handleChange(event.target.value)}
               onBlur={field.handleBlur}
@@ -110,7 +114,7 @@ export function AuthForm({ mode, submitting, error, onSubmit }: AuthFormProps) {
       </form.Field>
 
       <Button type="submit" disabled={submitting} className="h-10 w-full rounded-sm">
-        {signup ? 'Create account' : 'Log in'}
+        {signup ? t('auth.createAccount') : t('auth.logIn')}
       </Button>
     </form>
   );

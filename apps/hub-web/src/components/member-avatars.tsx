@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Member } from '@/lib/api';
 import { initials } from '@/lib/history-format';
@@ -17,10 +19,12 @@ import { until } from '@/lib/relative-time';
  * is the one wrong thing it could say.
  */
 export function MemberAvatars({ members }: { members: Member[] }) {
+  const { t } = useTranslation();
+
   return (
     <ul className="flex gap-1">
       {members.map((member) => {
-        const described = describe(member);
+        const described = describe(member, t);
 
         return (
           <li key={member.id}>
@@ -59,12 +63,15 @@ export function MemberAvatars({ members }: { members: Member[] }) {
 }
 
 /** What the square means, in one line — the tooltip and the spoken name. */
-function describe(member: Member): string {
+function describe(member: Member, t: TFunction): string {
   if (member.status === 'joined') {
-    return member.role === 'owner' ? `${member.email} — owner` : member.email;
+    return member.role === 'owner' ? t('members.owner', { email: member.email }) : member.email;
   }
 
   // Named by who held the link out, because nobody else can be: an invite is
   // a link, so there is no address on it until somebody accepts.
-  return `Invited by ${member.invitedBy} — nobody has opened the link yet. It stops working ${until(new Date(member.expiresAt))}.`;
+  return t('members.pending', {
+    invitedBy: member.invitedBy,
+    when: until(new Date(member.expiresAt)),
+  });
 }
