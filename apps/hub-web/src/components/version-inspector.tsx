@@ -5,7 +5,7 @@ import { Button } from '@gpt/ui/button';
 import { Separator } from '@gpt/ui/separator';
 import { versionScoreUrl, type Version } from '@/lib/api';
 import { clock, dateLocale, dayLabel } from '@gpt/ui/lib/time';
-import { initials, shortId } from '@/lib/history-format';
+import { initials, shortId } from '@gpt/ui/score/history';
 
 /**
  * alphaTab is most of a megabyte gzipped and nothing needs it until someone

@@ -1,7 +1,5 @@
-import { clock, dateLocale, dayLabel } from '@gpt/ui/lib/time';
-import type { Version, VersionScope } from './api';
+import { clock, dayLabel } from '../../lib/time';
 import { layOut, type Row } from './lanes';
-import i18n from './i18n';
 
 /**
  * How the history reads.
@@ -16,11 +14,49 @@ import i18n from './i18n';
  * invented one.
  */
 
-export type Entry =
+/** What a version touched, when the source knows it. */
+export interface VersionScope {
+  /** Only the tracks whose bars changed, in the score's own order. */
+  tracks: { name: string; bars: number }[];
+  bars: number;
+  /** How many tracks the score has, for the *5 tracks · 0 bars* form. */
+  trackCount: number;
+  /** Tempo, title or a time signature moved. */
+  meta: boolean;
+}
+
+/**
+ * One version as the history draws it. The optional fields are optional
+ * because some sources do not have them, and a column with nothing to say is
+ * not drawn.
+ */
+export interface HistoryVersion {
+  id: string;
+  message: string;
+  /** A Date or an ISO string; either is read with `new Date(at)`. */
+  at: Date | string;
+  /** One normally, two for a landing, none for the first version. */
+  parents: string[];
+  authorEmail?: string;
+  /** Null when the source could not read the file; absent when it never tries. */
+  scope?: VersionScope | null;
+}
+
+export type SessionPart = 'morning' | 'afternoon' | 'evening';
+
+export interface Session {
+  part: SessionPart;
+  count: number;
+  /** Hours, already formatted: *9 pm*. */
+  from: string;
+  to: string;
+}
+
+export type Entry<V extends HistoryVersion = HistoryVersion> =
   | { kind: 'day'; key: string; label: string }
   /** A burst inside a day: *Evening session · 11 versions between 9 and 11 pm*. */
   | { kind: 'session'; key: string; label: string }
-  | ({ kind: 'version'; key: string } & Row);
+  | ({ kind: 'version'; key: string } & Row<V>);
 
 /**
  * A day with this many versions in it was a session, not a series of
@@ -30,9 +66,15 @@ export type Entry =
 const SESSION = 5;
 
 /** The rows and the headers between them, in reading order. */
-export function entries(versions: Version[], head: string | null, now = new Date()): Entry[] {
+export function entries<V extends HistoryVersion>(
+  versions: V[],
+  head: string | null,
+  locale: string,
+  label: (session: Session) => string,
+  now = new Date()
+): Entry<V>[] {
   const rows = layOut(versions, head);
-  const out: Entry[] = [];
+  const out: Entry<V>[] = [];
 
   let day: string | null = null;
 
@@ -42,11 +84,10 @@ export function entries(versions: Version[], head: string | null, now = new Date
 
     if (key !== day) {
       day = key;
-      const label = dayLabel(at, dateLocale(i18n.language), now);
-      out.push({ kind: 'day', key: `day-${key}`, label });
+      out.push({ kind: 'day', key: `day-${key}`, label: dayLabel(at, locale, now) });
 
       const sameDay = rows.slice(index).filter((row) => dayKey(new Date(row.version.at)) === key);
-      const line = session(sameDay);
+      const line = session(sameDay, locale, label);
       if (line) out.push({ kind: 'session', key: `session-${key}`, label: line });
     }
 
@@ -61,7 +102,11 @@ function dayKey(at: Date): string {
   return `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`;
 }
 
-function session(rows: Row[]): string | null {
+function session(
+  rows: Row[],
+  locale: string,
+  label: (session: Session) => string
+): string | null {
   if (rows.length < SESSION) return null;
 
   // Rows are newest first, so the last one opened the session.
@@ -69,13 +114,16 @@ function session(rows: Row[]): string | null {
   const to = new Date(rows[0].version.at);
 
   const part = from.getHours() >= 17 ? 'evening' : from.getHours() >= 12 ? 'afternoon' : 'morning';
+  // Just the hour, for a span: *between 9 and 11 pm*.
+  const hour = (at: Date) => clock(at, locale, { minutes: false });
 
-  return i18n.t(`history.session.${part}`, { count: rows.length, from: hour(from), to: hour(to) });
+  return label({ part, count: rows.length, from: hour(from), to: hour(to) });
 }
 
-/** Just the hour, for a span: *between 9 and 11 pm*. */
-function hour(at: Date): string {
-  return clock(at, dateLocale(i18n.language), { minutes: false });
+/** The two nouns a scope needs, pluralised by the caller's own copy. */
+export interface ScopeWords {
+  bars(count: number): string;
+  tracks(count: number): string;
 }
 
 /**
@@ -101,34 +149,32 @@ export function initials(email: string): string {
  * *5 tracks · 0 bars* — it touched the whole song without touching a bar, and
  * saying nothing would read as an empty version.
  */
-export function scopeText(scope: VersionScope | null): string {
+export function scopeText(scope: VersionScope | null | undefined, words: ScopeWords): string {
   if (!scope) return '';
 
-  const bars = i18n.t('history.bars', { count: scope.bars });
+  const bars = words.bars(scope.bars);
 
   if (scope.tracks.length === 0) {
-    return scope.meta ? `${i18n.t('history.tracks', { count: scope.trackCount })} · ${bars}` : '';
+    return scope.meta ? `${words.tracks(scope.trackCount)} · ${bars}` : '';
   }
 
   const tracks =
     scope.tracks.length <= 2
       ? scope.tracks.map((track) => track.name).join(', ')
-      : i18n.t('history.tracks', { count: scope.tracks.length });
+      : words.tracks(scope.tracks.length);
 
   return `${tracks} · ${bars}`;
 }
 
 /** The same, shortened for 640px: the bar count loses its noun. */
-export function shortScopeText(scope: VersionScope | null): string {
+export function shortScopeText(scope: VersionScope | null | undefined, words: ScopeWords): string {
   if (!scope) return '';
   if (scope.tracks.length === 0) {
     if (!scope.meta) return '';
-    return `${i18n.t('history.tracks', { count: scope.trackCount })} · ${scope.bars}`;
+    return `${words.tracks(scope.trackCount)} · ${scope.bars}`;
   }
   const tracks =
-    scope.tracks.length === 1
-      ? scope.tracks[0].name
-      : i18n.t('history.tracks', { count: scope.tracks.length });
+    scope.tracks.length === 1 ? scope.tracks[0].name : words.tracks(scope.tracks.length);
   return `${tracks} · ${scope.bars}`;
 }
 

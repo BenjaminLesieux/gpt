@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { dateLocale, until } from '@gpt/ui/lib/time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@gpt/ui/tooltip';
 import type { Member } from '@/lib/api';
-import { initials } from '@/lib/history-format';
+import { initials } from '@gpt/ui/score/history';
 
 /**
  * Who a score is shared with, as one square each.

@@ -7,7 +7,12 @@ import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Kbd } from '@gpt/ui/kbd';
 import { dateLocale, since } from '@gpt/ui/lib/time';
-import { HistoryList, HistorySkeleton, LoadMore } from '@/components/history-list';
+import {
+  HistoryList,
+  HistorySkeleton,
+  LoadMore,
+  type HistoryLabels,
+} from '@gpt/ui/score/history';
 import { InviteDialog } from '@/components/invite-dialog';
 import { MemberAvatars } from '@/components/member-avatars';
 import { VersionInspector } from '@/components/version-inspector';
@@ -27,6 +32,17 @@ import { authedRoute } from './authed';
 function ScorePage() {
   const { t, i18n } = useTranslation();
   const locale = dateLocale(i18n.language);
+  const labels: HistoryLabels = {
+    unnamed: t('common.unnamedVersion'),
+    current: t('history.current'),
+    landed: t('history.landed'),
+    reading: t('history.reading'),
+    session: ({ part, ...rest }) => t(`history.session.${part}`, rest),
+    scope: {
+      bars: (count) => t('history.bars', { count }),
+      tracks: (count) => t('history.tracks', { count }),
+    },
+  };
   const { scoreId } = scoreRoute.useParams();
   const score = useQuery(scoreQuery(scoreId));
   const history = useInfiniteQuery(historyQuery(scoreId));
@@ -80,7 +96,7 @@ function ScorePage() {
 
   return (
     <div className="flex min-h-0 flex-1">
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="@container flex min-w-0 flex-1 flex-col">
         <nav className="flex h-10 flex-none items-center gap-3 px-4 text-sm wide:px-6">
           <Link
             to="/"
@@ -128,9 +144,9 @@ function ScorePage() {
 
         {branches.length > 0 && <Branches branches={branches} />}
 
-        <div className="flex h-8 flex-none items-center justify-between border-b border-border pr-4 wide:pr-6">
+        <div className="flex h-8 flex-none items-center justify-between border-b border-border pr-4 @min-[800px]:pr-6">
           <h2 className="flex items-center text-xs tracking-widest text-muted-foreground uppercase">
-            <span aria-hidden className="w-6 flex-none wide:w-20" />
+            <span aria-hidden className="w-6 flex-none @min-[800px]:w-20" />
             {t('score.history')}
           </h2>
           <p className="font-mono text-xs text-muted-foreground">
@@ -143,7 +159,7 @@ function ScorePage() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {history.isPending && <HistorySkeleton />}
+          {history.isPending && <HistorySkeleton labels={labels} />}
 
           {history.isError && (
             <p
@@ -163,15 +179,17 @@ function ScorePage() {
               <HistoryList
                 versions={versions}
                 head={head}
+                locale={locale}
+                labels={labels}
                 tips={tips}
                 selected={selected}
                 onSelect={select}
               />
               {history.hasNextPage && (
                 <LoadMore
-                  loaded={versions.length}
-                  total={total}
+                  showing={t('history.showing', { loaded: versions.length, total })}
                   loading={history.isFetchingNextPage}
+                  labels={{ loading: t('history.loading'), loadMore: t('history.loadMore') }}
                   onLoad={() => void history.fetchNextPage()}
                 />
               )}
@@ -299,7 +317,7 @@ function Empty() {
 
   return (
     <div className="flex items-start pt-16">
-      <span aria-hidden className="w-6 flex-none wide:w-20" />
+      <span aria-hidden className="w-6 flex-none @min-[800px]:w-20" />
       <div className="flex max-w-[520px] flex-col gap-4 pr-4">
         <p className="text-lg leading-snug text-foreground">{t('score.empty.title')}</p>
         <p className="text-base leading-normal text-muted-foreground">
