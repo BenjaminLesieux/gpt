@@ -7,7 +7,8 @@ import { errorBody } from '../app/errors';
 import { requireAccount } from '../auth/session-guard';
 import type { HubDatabase } from '../db/client';
 import { scores } from '../db/schema';
-import { PAGE, readHistory, readVersionScore } from '../git/history';
+import { PAGE, readBranchPoints, readHistory, readVersionScore } from '../git/history';
+import { lastPushByRef } from '../git/pushes';
 import { createRepository } from '../git/repositories';
 import { newId } from '../ids';
 import { createCloneClaim } from './claims';
@@ -19,7 +20,7 @@ import {
   listScoreMembers,
   readMemberScore,
 } from './members';
-import { scopesFor } from './scope';
+import { branchScopes, scopesFor } from './scope';
 import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
 
 export interface ScoreRoutesOptions {
@@ -317,6 +318,64 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       versions: history.versions.map((version) => ({
         ...version,
         scope: scopes.get(version.id) ?? null,
+      })),
+    });
+  });
+
+  /**
+   * Every branch in flight, and what each of them touches.
+   *
+   * Separate from `/history` rather than a richer `branches` inside it. The
+   * history page wants a page of versions; this wants the refs, and it pays
+   * for parsing that the history does not — one score model per branch plus
+   * one for their shared base.
+   *
+   * **Scope is derived, never declared.** Nobody picks a track when they start
+   * work, and a label saying *bass* stays saying *bass* through the evening
+   * somebody fixes a wrong note in the guitar. The answer here is
+   * `diffScores(merge-base, tip)`, which cannot be out of date because nothing
+   * writes it.
+   *
+   * A tip the importer cannot read comes back with `scope: null`, exactly as a
+   * version does. The branch still lists with its name, its author and how far
+   * ahead it is; it just has nothing to say about which tracks it moved, which
+   * is the truth and is a sentence the screen can say. Never a 500, and never
+   * a silently empty diff — see ADR 0008.
+   */
+  fastify.get('/:id/branches', async (request, reply) => {
+    const account = requireAccount(db, request, reply, cookieSecure);
+    if (!account) return reply;
+
+    const { id } = request.params as { id: string };
+
+    const score = readMemberScore(db, id, account.id);
+
+    // Same answer for "no such score" and "not yours", as everywhere else.
+    if (!score) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    // Built from the owner: the repository did not move when the score was
+    // shared, so a member reads it out of somebody else's namespace.
+    const branches = await readBranchPoints(gitRoot, score.ownerId, score.id);
+    if (!branches) {
+      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    }
+
+    const scopes = await branchScopes(gitRoot, score.ownerId, score.id, branches);
+    const pushes = lastPushByRef(db, score.id);
+
+    return reply.send({
+      branches: branches.map((branch) => ({
+        name: branch.name,
+        tip: branch.tip,
+        ahead: branch.ahead,
+        at: branch.at,
+        // Who put it here, which is not the same as who wrote the versions on
+        // it. Null for a branch whose pushing device has since been revoked,
+        // and for one that reached the repository some other way.
+        pushedBy: pushes.get(`refs/heads/${branch.name}`)?.email ?? null,
+        scope: scopes.get(branch.name) ?? null,
       })),
     });
   });
