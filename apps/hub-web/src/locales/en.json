@@ -1,0 +1,232 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "done": "Done",
+    "copy": "Copy",
+    "copied": "Copied",
+    "genericError": "Something went wrong. Try again.",
+    "unreachable": "Could not reach the hub. Check your connection.",
+    "yourScores": "Your scores",
+    "unnamedVersion": "Unnamed version",
+    "name": "Name",
+    "namePlaceholder": "Untitled riff",
+    "nameRequired": "Give the score a name."
+  },
+  "time": {
+    "justNow": "just now",
+    "underAMinute": "in under a minute",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "dayAtTime": "{{day}} at {{time}}"
+  },
+  "auth": {
+    "login": {
+      "title": "Log in",
+      "noAccount": "No account yet?",
+      "signUp": "Sign up"
+    },
+    "signup": {
+      "title": "Create your account",
+      "blurb": "Somewhere for your versions to live, so the work you did tonight is still there tomorrow.",
+      "haveAccount": "Already have an account?",
+      "logIn": "Log in"
+    },
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "emailInvalid": "Enter an email address.",
+    "password": "Password",
+    "passwordPlaceholder": "At least {{min}} characters",
+    "passwordTooShort": "Use at least {{min}} characters.",
+    "createAccount": "Create account",
+    "logIn": "Log in",
+    "logOut": "Log out"
+  },
+  "join": {
+    "checking": "Checking this link",
+    "oneMoment": "One moment.",
+    "broken": {
+      "title": "This link doesn’t work",
+      "unknown": "That link does not name anything. Ask for a new one.",
+      "footer": "Ask whoever shared the score to send you a new one.",
+      "goToScores": "Go to your scores"
+    },
+    "title": "Join “{{score}}”",
+    "blurb": "{{invitedBy}} invited you. You’ll be able to open the score, read every version of it and save your own.",
+    "signedInAs": "Signed in as {{email}}.",
+    "haveAccount": "Already have an account?",
+    "logIn": "Log in",
+    "failed": "Could not join this score. Try again.",
+    "joining": "Joining…",
+    "join": "Join this score",
+    "createAccount": "Create an account to join"
+  },
+  "credentials": {
+    "eyebrow": "Score created",
+    "title": "“{{name}}” is ready to sync.",
+    "instruction": "Open the companion app, choose Set up sync, and paste these three values in.",
+    "detail": "Its dialog has the same three fields, in the same order. After that you can forget all of this — every save you make is stored on its own.",
+    "url": "URL",
+    "username": "Username",
+    "token": "Token",
+    "copyUrl": "Copy URL",
+    "copyUsername": "Copy username",
+    "copyToken": "Copy token",
+    "shownOnce": "SHOWN ONCE",
+    "shownOnceDetail": "The token isn't stored anywhere we can read it back. Leave this screen and it's gone for good.",
+    "copyAll": "Copy all three",
+    "copyAllLabel": "Copy all three values",
+    "done": "I've pasted them — done"
+  },
+  "scores": {
+    "title": "Scores",
+    "upstreamDown": "Can't reach the sync server right now. Your scores and everything you've saved are safe — you just can't add a new score until it's back.",
+    "tryAgain": "Try again",
+    "unavailable": "Unavailable while the server is down",
+    "import": "Import a score",
+    "create": "Create score",
+    "loading": "Loading your scores.",
+    "loadFailed": "Could not load your scores.",
+    "empty": "A score is one song, versioned. Create one and every save in Guitar Pro lands here.",
+    "importExisting": "Import a file you already have",
+    "caption": "A square is a computer this score has reached. Token values are never shown again after a score is created — each machine gets its own.",
+    "columns": {
+      "name": "Name",
+      "url": "Clone URL",
+      "created": "Created",
+      "synced": "Synced on",
+      "actions": "Actions"
+    },
+    "createdToday": "Today, {{time}}",
+    "setupUnfinished": "Setup unfinished",
+    "finishing": "Finishing…",
+    "finishSetup": "Finish setup",
+    "finishSetupFor": " for {{name}}",
+    "clone": "Clone",
+    "cloneFor": " {{name}} to this computer",
+    "unfinishedExplanation": "This score has storage but no sign-in details yet. Finish setup to get its URL, username and token — nothing you've saved is lost.",
+    "devices": {
+      "none": "Not on a computer yet",
+      "lastVersion": "{{name}} — last version {{when}}",
+      "noVersions": "{{name}} — has the score, no versions saved from it yet"
+    }
+  },
+  "create": {
+    "title": "Create score",
+    "description": "Give it the song's name. This takes a few seconds — we're setting up storage for it on the server.",
+    "settingUp": "Setting up “{{name}}”…",
+    "submit": "Create"
+  },
+  "import": {
+    "title": "Import a score",
+    "file": "File",
+    "description": "A Guitar Pro file — {{extensions}}. It becomes the score's first version, exactly as if you had saved it from the companion.",
+    "tooLarge": "That file is over 32 MB, which is more than the hub takes.",
+    "resending": "Sending the file again…",
+    "importing": "Importing…",
+    "stranded": "“{{name}}” was created, but the file did not make it. The score and its sign-in details are real — only the music is missing, which is the same state a score is in before its first save. Send the file again, or push to it from the companion.",
+    "retry": "Try the file again",
+    "submit": "Import"
+  },
+  "clone": {
+    "title": "Add “{{name}}” to this computer",
+    "description": "Gitarpro should be asking you where to save it. It gets its own sign-in details for this machine — nothing is shared with the computer you set the score up on.",
+    "nothingHappened": "Nothing happened?",
+    "download": "Download Gitarpro",
+    "gettingValues": "Getting them…",
+    "showValues": "Show the values instead"
+  },
+  "invite": {
+    "title": "Invite someone to “{{name}}”",
+    "description": "Send them this link. Whoever opens it and signs in joins the score and can save versions to it — so send it to the band and not to a public channel.",
+    "failed": "Could not make a link. Try again.",
+    "linkLabel": "Invite link",
+    "making": "Making a link…",
+    "copyLabel": "Copy the invite link for {{name}}",
+    "thisScore": "this score",
+    "expires": "It works once, and stops working {{when}}.",
+    "once": "One person, once."
+  },
+  "members": {
+    "owner": "{{email}} — owner",
+    "pending": "Invited by {{invitedBy}} — nobody has opened the link yet. It stops working {{when}}."
+  },
+  "score": {
+    "created": "Created {{date}}",
+    "nothingPushed": "Nothing pushed yet",
+    "lastVersion": "Last version {{when}}",
+    "noBranchesInFlight": "no branches in flight",
+    "branchesInFlight_one": "one branch in flight",
+    "branchesInFlight_other": "{{count}} branches in flight",
+    "invite": "Invite",
+    "inviteFor": " someone to {{name}}",
+    "history": "History",
+    "selectedRange": "{{count}} selected · click a row to reset",
+    "selectedOne": "1 selected · shift-click for a range",
+    "versions_one": "{{count}} version",
+    "versions_other": "{{count}} versions",
+    "branches_one": "{{count}} branch",
+    "branches_other": "{{count}} branches",
+    "readFailed": "Could not read this history.",
+    "branchesLabel": "Branches",
+    "inFlight": "In flight",
+    "ahead_one": "{{count}} version ahead of the main line.",
+    "ahead_other": "{{count}} versions ahead of the main line.",
+    "empty": {
+      "title": "No versions yet.",
+      "body": "Open the score in Guitar Pro, press <kbd>⌥⌘G</kbd>, type what you changed and hit Enter. It shows up here straight away."
+    }
+  },
+  "history": {
+    "current": "Current version",
+    "landed": "Landed",
+    "showing": "Showing the {{loaded}} most recent versions of {{total}}.",
+    "loading": "Loading…",
+    "loadMore": "Load 40 more",
+    "reading": "Reading your versions.",
+    "bars_one": "{{count}} bar",
+    "bars_other": "{{count}} bars",
+    "tracks_one": "{{count}} track",
+    "tracks_other": "{{count}} tracks",
+    "session": {
+      "morning_one": "Morning session · {{count}} version between {{from}} and {{to}}",
+      "morning_other": "Morning session · {{count}} versions between {{from}} and {{to}}",
+      "afternoon_one": "Afternoon session · {{count}} version between {{from}} and {{to}}",
+      "afternoon_other": "Afternoon session · {{count}} versions between {{from}} and {{to}}",
+      "evening_one": "Evening session · {{count}} version between {{from}} and {{to}}",
+      "evening_other": "Evening session · {{count}} versions between {{from}} and {{to}}"
+    },
+    "short": {
+      "minutes": "{{n}}m",
+      "hours": "{{n}}h",
+      "days": "{{n}}d"
+    }
+  },
+  "inspector": {
+    "rangeLabel": "The selected range",
+    "versionLabel": "The selected version",
+    "range_one": "Range · {{count}} version",
+    "range_other": "Range · {{count}} versions",
+    "version": "Version",
+    "close": "Close",
+    "who": "Who",
+    "when": "When",
+    "branch": "Branch",
+    "tracksTouched": "Tracks touched",
+    "barsChanged": "Bars changed",
+    "id": "Id",
+    "between": "Between these two: {{bars}}, {{versions}}.",
+    "betweenAcross": "Between these two: {{bars}} across {{tracks}}, {{versions}}.",
+    "newerEnd": "Newer end",
+    "olderEnd": "Older end",
+    "whoWorked": "Who worked in it",
+    "span": "Span",
+    "loadingScore": "Loading the score."
+  },
+  "player": {
+    "unreadable": "This version can't be shown here — the file is a Guitar Pro format the web player doesn't read. Open it in Gitarpro instead.",
+    "play": "Play",
+    "pause": "Pause",
+    "stop": "Stop",
+    "loadingSounds": "Loading the sounds"
+  }
+}

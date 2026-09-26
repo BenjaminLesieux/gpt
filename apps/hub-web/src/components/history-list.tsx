@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Skeleton } from '@gpt/ui/skeleton';
@@ -94,6 +95,7 @@ function HistoryRow({
   selected: boolean;
   onSelect(commit: string, extend: boolean): void;
 }) {
+  const { t } = useTranslation();
   const { version, gutter } = row;
   // Selection is a white left edge and a raised background, never the accent:
   // the accent belongs to the current version and is rationed to one meaning.
@@ -129,7 +131,7 @@ function HistoryRow({
         >
           {/* Never rewritten, never truncated mid-word by us, never given an
               invented title when it is empty. */}
-          {version.message || 'Unnamed version'}
+          {version.message || t('common.unnamedVersion')}
         </span>
 
         {version.id === head && (
@@ -137,7 +139,7 @@ function HistoryRow({
             variant="outline"
             className="shrink-0 rounded-sm border-brand-border text-xs font-normal text-brand-bright"
           >
-            Current version
+            {t('history.current')}
           </Badge>
         )}
         {version.parents.length > 1 && (
@@ -145,7 +147,7 @@ function HistoryRow({
             variant="outline"
             className="shrink-0 rounded-sm border-border text-xs font-normal text-muted-foreground"
           >
-            Landed
+            {t('history.landed')}
           </Badge>
         )}
 
@@ -229,11 +231,13 @@ export function LoadMore({
   loading: boolean;
   onLoad(): void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex items-center justify-between gap-4 border-b border-border bg-card py-3 pr-4 wide:pr-6">
       <p className="flex items-center text-sm text-muted-foreground">
         <span aria-hidden className="w-6 flex-none wide:w-20" />
-        Showing the {loaded} most recent versions of {total}.
+        {t('history.showing', { loaded, total })}
       </p>
       <Button
         variant="secondary"
@@ -242,7 +246,7 @@ export function LoadMore({
         disabled={loading}
         onClick={onLoad}
       >
-        {loading ? 'Loading…' : 'Load 40 more'}
+        {loading ? t('history.loading') : t('history.loadMore')}
       </Button>
     </div>
   );
@@ -254,10 +258,12 @@ export function LoadMore({
  * shape of the history is not known until the round-trip lands.
  */
 export function HistorySkeleton() {
+  const { t } = useTranslation();
+
   return (
     <>
       <p role="status" className="sr-only">
-        Reading your versions.
+        {t('history.reading')}
       </p>
       <div aria-hidden>
         {[180, 132, 216, 96, 160, 124].map((width, index) => (

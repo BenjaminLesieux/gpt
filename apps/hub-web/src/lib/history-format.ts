@@ -1,6 +1,7 @@
 import type { Version, VersionScope } from './api';
 import { layOut, type Row } from './lanes';
-import { LOCALE, ago as relative } from './relative-time';
+import i18n from './i18n';
+import { ago as relative, dateLocale } from './relative-time';
 
 /**
  * How the history reads.
@@ -67,14 +68,14 @@ function dayKey(at: Date): string {
 function dayLabel(at: Date, now: Date): string {
   const days = Math.round((midnight(now).getTime() - midnight(at).getTime()) / 86_400_000);
 
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return at.toLocaleDateString(LOCALE, { weekday: 'long' });
+  if (days <= 0) return i18n.t('time.today');
+  if (days === 1) return i18n.t('time.yesterday');
+  if (days < 7) return at.toLocaleDateString(dateLocale(), { weekday: 'long' });
 
   // Day first, assembled rather than formatted: `toLocaleDateString` would
   // give *September 4* under a US locale and the design reads *4 September*
   // everywhere. The month name still localizes; only the order is ours.
-  const month = at.toLocaleDateString(LOCALE, { month: 'long' });
+  const month = at.toLocaleDateString(dateLocale(), { month: 'long' });
   const stamp = `${at.getDate()} ${month}`;
 
   return at.getFullYear() === now.getFullYear() ? stamp : `${stamp} ${at.getFullYear()}`;
@@ -91,23 +92,31 @@ function session(rows: Row[]): string | null {
   const from = new Date(rows[rows.length - 1].version.at);
   const to = new Date(rows[0].version.at);
 
-  const part = from.getHours() >= 17 ? 'Evening' : from.getHours() >= 12 ? 'Afternoon' : 'Morning';
+  const part = from.getHours() >= 17 ? 'evening' : from.getHours() >= 12 ? 'afternoon' : 'morning';
 
-  return `${part} session · ${rows.length} versions between ${hour(from)} and ${hour(to)}`;
+  return i18n.t(`history.session.${part}`, { count: rows.length, from: hour(from), to: hour(to) });
+}
+
+/**
+ * English reads a twelve-hour clock with a lowercase meridiem, as the design
+ * sets it; every other language keeps its own clock.
+ */
+function twelveHour(): boolean {
+  return i18n.language === 'en';
 }
 
 /** Just the hour, for a span: *between 9 and 11 pm*. */
 function hour(at: Date): string {
   return at
-    .toLocaleTimeString(LOCALE, { hour: 'numeric', hour12: true })
+    .toLocaleTimeString(dateLocale(), { hour: 'numeric', hour12: twelveHour() })
     .toLowerCase()
     .replace(/\s+/g, ' ');
 }
 
-/** The clock time on a row. Lowercase meridiem, as the design sets it. */
+/** The clock time on a row. */
 export function time(iso: string): string {
   return new Date(iso)
-    .toLocaleTimeString(LOCALE, { hour: 'numeric', minute: '2-digit', hour12: true })
+    .toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit', hour12: twelveHour() })
     .toLowerCase()
     .replace(/\s+/g, ' ');
 }
@@ -121,14 +130,14 @@ export function time(iso: string): string {
  */
 export function ago(iso: string, now = new Date()): string {
   const minutes = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60_000));
-  if (minutes < 60) return `${minutes}m`;
-  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h`;
-  return `${Math.round(minutes / (60 * 24))}d`;
+  if (minutes < 60) return i18n.t('history.short.minutes', { n: minutes });
+  if (minutes < 60 * 24) return i18n.t('history.short.hours', { n: Math.round(minutes / 60) });
+  return i18n.t('history.short.days', { n: Math.round(minutes / (60 * 24)) });
 }
 
 /** *Yesterday at 9:31 pm* — the inspector's one long-form date. */
 export function when(iso: string, now = new Date()): string {
-  return `${dayLabel(new Date(iso), now)} at ${time(iso)}`;
+  return i18n.t('time.dayAtTime', { day: dayLabel(new Date(iso), now), time: time(iso) });
 }
 
 /**
@@ -157,16 +166,16 @@ export function initials(email: string): string {
 export function scopeText(scope: VersionScope | null): string {
   if (!scope) return '';
 
-  const bars = `${scope.bars} ${scope.bars === 1 ? 'bar' : 'bars'}`;
+  const bars = i18n.t('history.bars', { count: scope.bars });
 
   if (scope.tracks.length === 0) {
-    return scope.meta ? `${scope.trackCount} tracks · ${bars}` : '';
+    return scope.meta ? `${i18n.t('history.tracks', { count: scope.trackCount })} · ${bars}` : '';
   }
 
   const tracks =
     scope.tracks.length <= 2
       ? scope.tracks.map((track) => track.name).join(', ')
-      : `${scope.tracks.length} tracks`;
+      : i18n.t('history.tracks', { count: scope.tracks.length });
 
   return `${tracks} · ${bars}`;
 }
@@ -175,9 +184,13 @@ export function scopeText(scope: VersionScope | null): string {
 export function shortScopeText(scope: VersionScope | null): string {
   if (!scope) return '';
   if (scope.tracks.length === 0) {
-    return scope.meta ? `${scope.trackCount} tracks · ${scope.bars}` : '';
+    if (!scope.meta) return '';
+    return `${i18n.t('history.tracks', { count: scope.trackCount })} · ${scope.bars}`;
   }
-  const tracks = scope.tracks.length === 1 ? scope.tracks[0].name : `${scope.tracks.length} tracks`;
+  const tracks =
+    scope.tracks.length === 1
+      ? scope.tracks[0].name
+      : i18n.t('history.tracks', { count: scope.tracks.length });
   return `${tracks} · ${scope.bars}`;
 }
 

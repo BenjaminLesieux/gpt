@@ -1,3 +1,5 @@
+import i18n from './i18n';
+
 /**
  * The hub's JSON API. Every failure it returns carries the same shape, so
  * callers branch on `code` and show `message` — the server already writes
@@ -206,7 +208,7 @@ async function request<T>(
       headers: init?.body ? { 'content-type': contentType } : undefined,
     });
   } catch {
-    throw new HubError('network', 'Could not reach the hub. Check your connection.', 0);
+    throw new HubError('network', i18n.t('common.unreachable'), 0);
   }
 
   if (response.status === 204) return undefined as T;
@@ -217,7 +219,7 @@ async function request<T>(
     const error = (body as { error?: { code?: string; message?: string } } | null)?.error;
     throw new HubError(
       error?.code ?? 'unknown',
-      error?.message ?? 'Something went wrong. Try again.',
+      error?.message ?? i18n.t('common.genericError'),
       response.status
     );
   }

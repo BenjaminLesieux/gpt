@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Kbd } from '@gpt/ui/kbd';
@@ -10,7 +12,7 @@ import { MemberAvatars } from '@/components/member-avatars';
 import { VersionInspector } from '@/components/version-inspector';
 import { HubError, type Branch, type Version } from '@/lib/api';
 import { since } from '@/lib/history-format';
-import { LOCALE } from '@/lib/relative-time';
+import { dateLocale } from '@/lib/relative-time';
 import { historyQuery, scoreQuery, useCreateInvite } from '@/lib/queries';
 import { authedRoute } from './authed';
 
@@ -24,6 +26,7 @@ import { authedRoute } from './authed';
  */
 
 function ScorePage() {
+  const { t } = useTranslation();
   const { scoreId } = scoreRoute.useParams();
   const score = useQuery(scoreQuery(scoreId));
   const history = useInfiniteQuery(historyQuery(scoreId));
@@ -83,7 +86,7 @@ function ScorePage() {
             to="/"
             className="rounded-sm text-muted-foreground transition-colors duration-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
-            Your scores
+            {t('common.yourScores')}
           </Link>
           <span aria-hidden className="text-muted-foreground">
             /
@@ -102,9 +105,9 @@ function ScorePage() {
                   scores list gives it. */}
               <span className="truncate font-mono">{score.data?.url}</span>
               <Rule />
-              <span>Created {created(score.data?.createdAt)}</span>
+              <span>{t('score.created', { date: created(score.data?.createdAt) })}</span>
               <Rule />
-              <span>{state(total, versions, branches)}</span>
+              <span>{state(total, versions, branches, t)}</span>
             </p>
           </div>
 
@@ -117,8 +120,8 @@ function ScorePage() {
               onClick={() => score.data && setInviting({ id: scoreId, name: score.data.name })}
               className="h-6.5 rounded-sm border-border bg-card px-2.5 text-sm"
             >
-              Invite
-              <span className="sr-only"> someone to {score.data?.name}</span>
+              {t('score.invite')}
+              <span className="sr-only">{t('score.inviteFor', { name: score.data?.name })}</span>
             </Button>
           </div>
         </header>
@@ -128,14 +131,14 @@ function ScorePage() {
         <div className="flex h-8 flex-none items-center justify-between border-b border-border pr-4 wide:pr-6">
           <h2 className="flex items-center text-xs tracking-widest text-muted-foreground uppercase">
             <span aria-hidden className="w-6 flex-none wide:w-20" />
-            History
+            {t('score.history')}
           </h2>
           <p className="font-mono text-xs text-muted-foreground">
             {selected.length > 1
-              ? `${selected.length} selected · click a row to reset`
+              ? t('score.selectedRange', { count: selected.length })
               : selected.length === 1
-                ? '1 selected · shift-click for a range'
-                : count(total, branches.length)}
+                ? t('score.selectedOne')
+                : count(total, branches.length, t)}
           </p>
         </div>
 
@@ -149,7 +152,7 @@ function ScorePage() {
             >
               {history.error instanceof HubError
                 ? history.error.message
-                : 'Could not read this history.'}
+                : t('score.readFailed')}
             </p>
           )}
 
@@ -216,29 +219,26 @@ function Rule() {
 function created(iso: string | undefined): string {
   if (!iso) return '…';
   const at = new Date(iso);
-  return `${at.getDate()} ${at.toLocaleDateString(LOCALE, { month: 'long' })} ${at.getFullYear()}`;
+  const month = at.toLocaleDateString(dateLocale(), { month: 'long' });
+  return `${at.getDate()} ${month} ${at.getFullYear()}`;
 }
 
 /** *Last version 20 minutes ago · No branches in flight* — the page's state. */
-function state(total: number, versions: Version[], branches: Branch[]): string {
-  if (total === 0) return 'Nothing pushed yet';
+function state(total: number, versions: Version[], branches: Branch[], t: TFunction): string {
+  if (total === 0) return t('score.nothingPushed');
 
   const flight = branches.filter((branch) => branch.ahead > 0).length;
-  const last = versions[0] ? `Last version ${since(versions[0].at)}` : '';
+  const last = versions[0] ? t('score.lastVersion', { when: since(versions[0].at) }) : '';
   const lines =
-    flight === 0
-      ? 'no branches in flight'
-      : flight === 1
-        ? 'one branch in flight'
-        : `${flight} branches in flight`;
+    flight === 0 ? t('score.noBranchesInFlight') : t('score.branchesInFlight', { count: flight });
 
   return `${last} · ${lines}`;
 }
 
-function count(total: number, branches: number): string {
-  const versions = `${total} ${total === 1 ? 'version' : 'versions'}`;
+function count(total: number, branches: number, t: TFunction): string {
+  const versions = t('score.versions', { count: total });
   if (branches === 0) return `${versions} · main`;
-  return `${versions} · main + ${branches} ${branches === 1 ? 'branch' : 'branches'}`;
+  return `${versions} · main + ${t('score.branches', { count: branches })}`;
 }
 
 /**
@@ -247,11 +247,15 @@ function count(total: number, branches: number): string {
  * be readable without tracing two lines in a gutter.
  */
 function Branches({ branches }: { branches: Branch[] }) {
+  const { t } = useTranslation();
   const flight = branches.filter((branch) => branch.ahead > 0);
   if (flight.length === 0) return null;
 
   return (
-    <section aria-label="Branches" className="flex flex-none flex-col gap-2 px-4 pb-4 wide:px-6">
+    <section
+      aria-label={t('score.branchesLabel')}
+      className="flex flex-none flex-col gap-2 px-4 pb-4 wide:px-6"
+    >
       <ul className="grid gap-3 wide:grid-cols-2">
         {flight.map((branch) => (
           <li
@@ -264,11 +268,11 @@ function Branches({ branches }: { branches: Branch[] }) {
                 variant="outline"
                 className="shrink-0 rounded-sm border-border text-xs font-normal text-muted-foreground"
               >
-                In flight
+                {t('score.inFlight')}
               </Badge>
             </div>
             <p className="text-sm leading-normal text-muted-foreground">
-              {branch.ahead} {branch.ahead === 1 ? 'version' : 'versions'} ahead of the main line.
+              {t('score.ahead', { count: branch.ahead })}
             </p>
           </li>
         ))}
@@ -283,14 +287,15 @@ function Branches({ branches }: { branches: Branch[] }) {
  * they could check. It resolves itself the moment they hit the hotkey.
  */
 function Empty() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex items-start pt-16">
       <span aria-hidden className="w-6 flex-none wide:w-20" />
       <div className="flex max-w-[520px] flex-col gap-4 pr-4">
-        <p className="text-lg leading-snug text-foreground">No versions yet.</p>
+        <p className="text-lg leading-snug text-foreground">{t('score.empty.title')}</p>
         <p className="text-base leading-normal text-muted-foreground">
-          Open the score in Guitar Pro, press <Kbd>⌥⌘G</Kbd>, type what you changed and hit Enter.
-          It shows up here straight away.
+          <Trans i18nKey="score.empty.body" components={{ kbd: <Kbd /> }} />
         </p>
       </div>
     </div>

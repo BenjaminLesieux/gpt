@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useForm } from '@tanstack/react-form';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import {
   Dialog,
@@ -43,6 +44,7 @@ export function ImportScoreDialog({
   onImport,
   onRetry,
 }: ImportScoreDialogProps) {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [tooLarge, setTooLarge] = useState(false);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -97,7 +99,7 @@ export function ImportScoreDialog({
         className="max-w-[440px] gap-5 rounded-lg border border-border bg-popover p-6 shadow-[0_8px_32px_rgba(0,0,0,.6)] ring-0"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-medium">Import a score</DialogTitle>
+          <DialogTitle className="text-lg font-medium">{t('import.title')}</DialogTitle>
         </DialogHeader>
 
         <form
@@ -113,7 +115,7 @@ export function ImportScoreDialog({
               htmlFor="import-file"
               className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
             >
-              File
+              {t('import.file')}
             </FieldLabel>
             <Input
               id="import-file"
@@ -125,12 +127,11 @@ export function ImportScoreDialog({
               className="h-10 rounded-sm bg-card py-2 shadow-none file:mr-3 file:border-0 file:bg-transparent file:text-sm file:text-muted-foreground"
             />
             <DialogDescription className="text-sm leading-normal text-muted-foreground">
-              A Guitar Pro file — {GP_EXTENSIONS.join(', ')}. It becomes the score's first
-              version, exactly as if you had saved it from the companion.
+              {t('import.description', { extensions: GP_EXTENSIONS.join(', ') })}
             </DialogDescription>
             {tooLarge && (
               <FieldError
-                errors={[{ message: 'That file is over 32 MB, which is more than the hub takes.' }]}
+                errors={[{ message: t('import.tooLarge') }]}
               />
             )}
           </Field>
@@ -139,7 +140,7 @@ export function ImportScoreDialog({
             name="name"
             validators={{
               onBlur: ({ value }) =>
-                value.trim().length > 0 ? undefined : { message: 'Give the score a name.' },
+                value.trim().length > 0 ? undefined : { message: t('common.nameRequired') },
             }}
           >
             {(field) => (
@@ -148,12 +149,12 @@ export function ImportScoreDialog({
                   htmlFor={field.name}
                   className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
                 >
-                  Name
+                  {t('common.name')}
                 </FieldLabel>
                 <Input
                   id={field.name}
                   name={field.name}
-                  placeholder="Untitled riff"
+                  placeholder={t('common.namePlaceholder')}
                   disabled={submitting || stranded !== null}
                   value={field.state.value}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -168,7 +169,7 @@ export function ImportScoreDialog({
           {submitting && (
             <div className="flex flex-col gap-2.5" aria-live="polite">
               <p className="text-base text-foreground">
-                {stranded ? 'Sending the file again…' : 'Importing…'}
+                {stranded ? t('import.resending') : t('import.importing')}
               </p>
               <div className="relative h-0.5 overflow-hidden bg-accent">
                 <div className="absolute inset-y-0 left-0 w-[30%] animate-[hub-indeterminate_1.4s_ease-in-out_infinite] bg-brand" />
@@ -181,10 +182,7 @@ export function ImportScoreDialog({
               role="alert"
               className="rounded-sm border border-brand-border bg-brand-dim px-3 py-2.5 text-sm leading-normal text-foreground"
             >
-              “{stranded.name}” was created, but the file did not make it. The score and its
-              sign-in details are real — only the music is missing, which is the same state a
-              score is in before its first save. Send the file again, or push to it from the
-              companion.
+              {t('import.stranded', { name: stranded.name })}
             </p>
           )}
 
@@ -193,7 +191,7 @@ export function ImportScoreDialog({
               role="alert"
               className="rounded-sm border border-brand-border bg-brand-dim px-3 py-2.5 text-sm leading-normal text-foreground"
             >
-              {error instanceof HubError ? error.message : 'Something went wrong. Try again.'}
+              {error instanceof HubError ? error.message : t('common.genericError')}
             </p>
           )}
 
@@ -201,12 +199,12 @@ export function ImportScoreDialog({
             <DialogClose
               render={
                 <Button type="button" variant="ghost" disabled={submitting} className="rounded-sm">
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               }
             />
             <Button type="submit" disabled={blocked} className="rounded-sm">
-              {stranded ? 'Try the file again' : 'Import'}
+              {stranded ? t('import.retry') : t('import.submit')}
             </Button>
           </DialogFooter>
         </form>

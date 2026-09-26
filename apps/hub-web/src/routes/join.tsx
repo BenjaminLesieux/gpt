@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@gpt/ui/button';
 import { Skeleton } from '@gpt/ui/skeleton';
 import { HubError } from '@/lib/api';
@@ -22,6 +23,7 @@ import { rootRoute } from './root';
  * and never mentions the invite again.
  */
 function JoinPage() {
+  const { t } = useTranslation();
   const { code } = joinRoute.useParams();
   const invite = useQuery(inviteQuery(code));
   const account = useQuery(accountQuery);
@@ -32,7 +34,7 @@ function JoinPage() {
   // other would show *create an account* to somebody who has one.
   if (invite.isPending || account.isPending) {
     return (
-      <AuthLayout title="Checking this link" footer={<span>One moment.</span>}>
+      <AuthLayout title={t('join.checking')} footer={<span>{t('join.oneMoment')}</span>}>
         <Skeleton className="h-9 rounded-sm" />
       </AuthLayout>
     );
@@ -43,16 +45,16 @@ function JoinPage() {
     // expired, ask for a new link* — so they are shown rather than re-worded.
     return (
       <AuthLayout
-        title="This link doesn’t work"
+        title={t('join.broken.title')}
         blurb={
           invite.error instanceof HubError
             ? invite.error.message
-            : 'That link does not name anything. Ask for a new one.'
+            : t('join.broken.unknown')
         }
-        footer="Ask whoever shared the score to send you a new one."
+        footer={t('join.broken.footer')}
       >
         <Button variant="secondary" className="h-9 rounded-sm" render={<Link to="/" />}>
-          Go to your scores
+          {t('join.broken.goToScores')}
         </Button>
       </AuthLayout>
     );
@@ -62,21 +64,21 @@ function JoinPage() {
 
   return (
     <AuthLayout
-      title={`Join “${invite.data.scoreName}”`}
-      blurb={`${invite.data.invitedBy} invited you. You’ll be able to open the score, read every version of it and save your own.`}
+      title={t('join.title', { score: invite.data.scoreName })}
+      blurb={t('join.blurb', { invitedBy: invite.data.invitedBy })}
       footer={
         signedIn ? (
           <>
-            Signed in as {account.data.email}.{' '}
+            {t('join.signedInAs', { email: account.data.email })}{' '}
             <Link to="/" className={LINK}>
-              Your scores
+              {t('common.yourScores')}
             </Link>
           </>
         ) : (
           <>
-            Already have an account?{' '}
+            {t('join.haveAccount')}{' '}
             <Link to="/login" search={{ invite: code }} className={LINK}>
-              Log in
+              {t('join.logIn')}
             </Link>
           </>
         )
@@ -89,7 +91,7 @@ function JoinPage() {
         >
           {accept.error instanceof HubError
             ? accept.error.message
-            : 'Could not join this score. Try again.'}
+            : t('join.failed')}
         </p>
       )}
 
@@ -102,7 +104,7 @@ function JoinPage() {
             await navigate({ to: '/scores/$scoreId', params: { scoreId: score.id } });
           }}
         >
-          {accept.isPending ? 'Joining…' : 'Join this score'}
+          {accept.isPending ? t('join.joining') : t('join.join')}
         </Button>
       ) : (
         // Not a bare link to /signup: the code travels with them, because an
@@ -111,7 +113,7 @@ function JoinPage() {
           className="h-9 rounded-sm"
           render={<Link to="/signup" search={{ invite: code }} />}
         >
-          Create an account to join
+          {t('join.createAccount')}
         </Button>
       )}
     </AuthLayout>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Empty, EmptyContent, EmptyDescription } from '@gpt/ui/empty';
@@ -28,17 +30,20 @@ import {
   useMintToken,
   useRetryImport,
 } from '@/lib/queries';
+import { dateLocale } from '@/lib/relative-time';
 import { authedRoute } from './authed';
 
 const CELL_META = 'truncate text-sm text-muted-foreground';
 
 /** Dates the way someone reads them, not the way they serialise. */
-function formatCreated(iso: string): string {
+function formatCreated(iso: string, t: TFunction): string {
   const created = new Date(iso);
   const sameDay = new Date().toDateString() === created.toDateString();
   return sameDay
-    ? `Today, ${created.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
-    : created.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    ? t('scores.createdToday', {
+        time: created.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }),
+      })
+    : created.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function ScoreRow({
@@ -52,6 +57,7 @@ function ScoreRow({
   finishing: boolean;
   onClone: (score: Score) => void;
 }) {
+  const { t } = useTranslation();
   const unfinished = score.tokens.length === 0;
 
   // A row and, when setup was abandoned, the row explaining it. They are
@@ -82,7 +88,7 @@ function ScoreRow({
                 variant="outline"
                 className="shrink-0 rounded-sm border-border-strong bg-popover text-xs font-normal text-warning-bright"
               >
-                Setup unfinished
+                {t('scores.setupUnfinished')}
               </Badge>
             )}
           </div>
@@ -91,7 +97,7 @@ function ScoreRow({
           {score.url}
         </TableCell>
         <TableCell className={`${CELL_META} h-10 py-0 whitespace-nowrap`}>
-          {formatCreated(score.createdAt)}
+          {formatCreated(score.createdAt, t)}
         </TableCell>
         <TableCell className="h-10 py-0">
           {unfinished ? (
@@ -104,8 +110,8 @@ function ScoreRow({
             >
               {/* Naming the score keeps every one of these buttons distinct
                   to anyone listing the page's controls out of context. */}
-              {finishing ? 'Finishing…' : 'Finish setup'}
-              <span className="sr-only"> for {score.name}</span>
+              {finishing ? t('scores.finishing') : t('scores.finishSetup')}
+              <span className="sr-only">{t('scores.finishSetupFor', { name: score.name })}</span>
             </Button>
           ) : (
             // Machines that have actually answered, not credentials that were
@@ -123,8 +129,8 @@ function ScoreRow({
             onClick={() => onClone(score)}
             className="h-6.5 rounded-sm px-2.5 text-sm"
           >
-            Clone
-            <span className="sr-only"> {score.name} to this computer</span>
+            {t('scores.clone')}
+            <span className="sr-only">{t('scores.cloneFor', { name: score.name })}</span>
           </Button>
         </TableCell>
       </TableRow>
@@ -135,8 +141,7 @@ function ScoreRow({
             colSpan={5}
             className="bg-card py-3 text-sm leading-normal text-muted-foreground"
           >
-            This score has storage but no sign-in details yet. Finish setup to get its URL,
-            username and token — nothing you've saved is lost.
+            {t('scores.unfinishedExplanation')}
           </TableCell>
         </TableRow>
       )}
@@ -145,6 +150,7 @@ function ScoreRow({
 }
 
 function ScoresPage() {
+  const { t } = useTranslation();
   const scores = useQuery(scoresQuery);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -191,8 +197,7 @@ function ScoresPage() {
         <div className="flex flex-none flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-6 py-3.5">
           <p className="flex items-center gap-3 text-base leading-snug text-foreground">
             <span aria-hidden className="size-1.5 shrink-0 bg-warning-bright" />
-            Can't reach the sync server right now. Your scores and everything you've saved
-            are safe — you just can't add a new score until it's back.
+            {t('scores.upstreamDown')}
           </p>
           <Button
             variant="secondary"
@@ -205,7 +210,7 @@ function ScoresPage() {
               void scores.refetch();
             }}
           >
-            Try again
+            {t('scores.tryAgain')}
           </Button>
         </div>
       )}
@@ -213,7 +218,7 @@ function ScoresPage() {
       <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-8">
         <div className="flex items-baseline justify-between gap-4">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-xl font-medium tracking-tight">Scores</h1>
+            <h1 className="text-xl font-medium tracking-tight">{t('scores.title')}</h1>
             {rows.length > 0 && (
               <span className="font-mono text-sm text-muted-foreground">{rows.length}</span>
             )}
@@ -221,7 +226,7 @@ function ScoresPage() {
           <div className="flex items-center gap-3">
             {upstreamDown && (
               <span className="text-sm text-muted-foreground">
-                Unavailable while the server is down
+                {t('scores.unavailable')}
               </span>
             )}
             <Button
@@ -230,14 +235,14 @@ function ScoresPage() {
               disabled={upstreamDown}
               onClick={() => setImportOpen(true)}
             >
-              Import a score
+              {t('scores.import')}
             </Button>
             <Button
               className="rounded-sm"
               disabled={upstreamDown}
               onClick={() => setDialogOpen(true)}
             >
-              Create score
+              {t('scores.create')}
             </Button>
           </div>
         </div>
@@ -247,7 +252,7 @@ function ScoresPage() {
             {/* The skeleton is shape, not information. Without this the page
                 is silent until the rows land. */}
             <p role="status" className="sr-only">
-              Loading your scores.
+              {t('scores.loading')}
             </p>
             <div className="border border-border-subtle" aria-hidden>
               {[0, 1, 2].map((row) => (
@@ -268,7 +273,7 @@ function ScoresPage() {
           <p role="alert" className="border border-brand-border bg-brand-dim px-3 py-2.5 text-sm text-foreground">
             {scores.error instanceof HubError
               ? scores.error.message
-              : 'Could not load your scores.'}
+              : t('scores.loadFailed')}
           </p>
         )}
 
@@ -276,8 +281,7 @@ function ScoresPage() {
           <Empty className="flex-1 border border-border-subtle">
             <EmptyContent className="max-w-[420px] gap-5">
               <EmptyDescription className="text-base leading-normal text-muted-foreground">
-                A score is one song, versioned. Create one and every save in Guitar Pro
-                lands here.
+                {t('scores.empty')}
               </EmptyDescription>
               <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <Button
@@ -286,7 +290,7 @@ function ScoresPage() {
                   disabled={upstreamDown}
                   onClick={() => setDialogOpen(true)}
                 >
-                  Create score
+                  {t('scores.create')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -294,7 +298,7 @@ function ScoresPage() {
                   disabled={upstreamDown}
                   onClick={() => setImportOpen(true)}
                 >
-                  Import a file you already have
+                  {t('scores.importExisting')}
                 </Button>
               </div>
             </EmptyContent>
@@ -305,25 +309,24 @@ function ScoresPage() {
           <div className="border border-border-subtle">
             <Table className="table-fixed">
               <TableCaption className="mt-0 border-t border-border-subtle px-4 py-3 text-left">
-                A square is a computer this score has reached. Token values are never shown
-                again after a score is created — each machine gets its own.
+                {t('scores.caption')}
               </TableCaption>
               <TableHeader>
                 <TableRow className="border-border-subtle hover:bg-transparent">
                   <TableHead className="h-8 w-[260px] bg-card text-xs font-medium uppercase tracking-wide">
-                    Name
+                    {t('scores.columns.name')}
                   </TableHead>
                   <TableHead className="h-8 bg-card text-xs font-medium uppercase tracking-wide">
-                    Clone URL
+                    {t('scores.columns.url')}
                   </TableHead>
                   <TableHead className="h-8 w-[150px] bg-card text-xs font-medium uppercase tracking-wide">
-                    Created
+                    {t('scores.columns.created')}
                   </TableHead>
                   <TableHead className="h-8 w-[190px] bg-card text-xs font-medium uppercase tracking-wide">
-                    Synced on
+                    {t('scores.columns.synced')}
                   </TableHead>
                   <TableHead className="h-8 w-[110px] bg-card text-right text-xs font-medium uppercase tracking-wide">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('scores.columns.actions')}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>

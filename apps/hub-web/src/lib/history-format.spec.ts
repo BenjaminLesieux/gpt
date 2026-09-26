@@ -145,9 +145,9 @@ describe('how long ago', () => {
 
 describe('language', () => {
   /**
-   * The interface is English and these strings sit inside English sentences.
-   * Left to the browser's locale, a French machine put `Vendredi` between
-   * `Today` and `Yesterday` and wrote every row's time as `23:42`.
+   * These strings sit inside sentences, so they follow the interface's
+   * language (English here) rather than the machine's locale. Left to the
+   * browser, a French machine put `Vendredi` between `Today` and `Yesterday`.
    */
   it('is English whatever the machine is set to', () => {
     const versions = [v('2026-09-11T23:42:00')];

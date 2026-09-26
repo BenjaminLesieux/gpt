@@ -1,21 +1,24 @@
+import i18n from './i18n';
+
 /**
- * How long ago something happened, in words.
+ * How long ago something happened, in words, in the interface's language.
  *
- * Pinned to English rather than the browser's locale, and that is deliberate.
- * These values are interpolated into English sentences — *last version 21
- * minutes ago* — and `undefined` here produced "last version il y a 21
- * minutes" on a French machine. A bare date survives localisation; a fragment
- * inside a sentence does not.
- *
- * The same reasoning covers the history's day headers and clock times: the
- * interface is English, so `Vendredi` between `Today` and `Yesterday` is not
- * localisation, it is one row in the wrong language.
+ * These values are interpolated into sentences — *last version 21 minutes
+ * ago* — so they follow the language the sentence is in, never the browser's
+ * locale on its own: that produced "last version il y a 21 minutes".
  */
 
-/** The locale every date and time in this app is formatted in. */
-export const LOCALE = 'en-GB';
+/**
+ * The locale dates are formatted in. English goes through `en-GB` for its
+ * day-first ordering; every other language is its own.
+ */
+export function dateLocale(language = i18n.language): string {
+  return language === 'en' ? 'en-GB' : language;
+}
 
-const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+function relative(): Intl.RelativeTimeFormat {
+  return new Intl.RelativeTimeFormat(dateLocale(), { numeric: 'auto' });
+}
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 365 * 24 * 60 * 60 * 1000],
@@ -29,12 +32,12 @@ export function ago(when: Date, now = Date.now()): string {
   const elapsed = now - when.getTime();
 
   for (const [unit, size] of UNITS) {
-    if (elapsed >= size) return RELATIVE.format(-Math.floor(elapsed / size), unit);
+    if (elapsed >= size) return relative().format(-Math.floor(elapsed / size), unit);
   }
 
   // Under a minute. The push queue is event-driven, so this is someone
   // saving in Guitar Pro in the next room right now.
-  return 'just now';
+  return i18n.t('time.justNow');
 }
 
 /**
@@ -46,8 +49,8 @@ export function until(when: Date, now = Date.now()): string {
   const left = when.getTime() - now;
 
   for (const [unit, size] of UNITS) {
-    if (left >= size) return RELATIVE.format(Math.floor(left / size), unit);
+    if (left >= size) return relative().format(Math.floor(left / size), unit);
   }
 
-  return 'in under a minute';
+  return i18n.t('time.underAMinute');
 }
