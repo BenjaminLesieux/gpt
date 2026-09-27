@@ -41,7 +41,13 @@ describe('the API under the same prefix', () => {
   });
 
   it('leaves the other prefixes alone', () => {
-    for (const url of ['/auth/me', '/git/x/y.git/info/refs', '/health', '/invites/abc']) {
+    for (const url of [
+      '/auth/me',
+      '/git/x/y.git/info/refs',
+      '/health',
+      '/invites/abc',
+      '/companion/me',
+    ]) {
       expect(servesShell('GET', url), url).toBe(false);
     }
   });
@@ -49,7 +55,7 @@ describe('the API under the same prefix', () => {
 
 describe('a client route outside every prefix', () => {
   it('is the app', () => {
-    for (const url of ['/', '/login', '/credentials']) {
+    for (const url of ['/', '/login', '/credentials', '/connect?challenge=x&state=y']) {
       expect(servesShell('GET', url), url).toBe(true);
     }
   });

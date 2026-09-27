@@ -323,6 +323,53 @@ export const branchLandings = sqliteTable(
   (table) => [primaryKey({ columns: [table.scoreId, table.branch] })]
 );
 
+/**
+ * A one-time code the browser hands the companion after sign-in, bound to the
+ * companion's PKCE challenge. `clone_claims`' shape: hashed, five minutes,
+ * spent by the UPDATE's WHERE.
+ */
+export const companionCodes = sqliteTable(
+  'companion_codes',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull().unique(),
+    /** base64url sha256 of the verifier. S256 only. */
+    challenge: text('challenge').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    redeemedAt: integer('redeemed_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    index('companion_codes_account_id_idx').on(table.accountId),
+    index('companion_codes_expires_at_idx').on(table.expiresAt),
+  ]
+);
+
+/**
+ * An account credential held by a signed-in companion. `score_tokens`' shape
+ * minus the score, and it cannot push: the git route only reads score tokens.
+ * Revoked rather than deleted, so a revoked device can be told apart from a
+ * token that never existed.
+ */
+export const companionTokens = sqliteTable(
+  'companion_tokens',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    device: text('device').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [index('companion_tokens_account_id_idx').on(table.accountId)]
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;

@@ -205,7 +205,7 @@ export function revokeScoreToken(db: HubDatabase, tokenId: string): void {
   db.delete(scoreTokens).where(eq(scoreTokens.id, tokenId)).run();
 }
 
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   // As with sessions: 256 bits of randomness has nothing for a slow hash to
   // protect. This exists so the table cannot be replayed.
   return createHash('sha256').update(token).digest('hex');

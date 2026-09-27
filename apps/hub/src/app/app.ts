@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
+import { companionRoutes } from '../companion/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
 import { claimRoutes } from '../scores/claims';
@@ -67,6 +68,13 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
     db: opts.db,
     cookieSecure: opts.cookieSecure,
     prefix: '/invites',
+  });
+
+  await fastify.register(companionRoutes, {
+    db: opts.db,
+    cookieSecure: opts.cookieSecure,
+    publicUrl: opts.publicUrl,
+    prefix: '/companion',
   });
 
   // Its own scope: the raw-stream content-type parser git needs must not
