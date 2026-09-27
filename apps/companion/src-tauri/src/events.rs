@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::auth::AuthState;
 use crate::config::TrackedFile;
 use crate::deep_link::{AdoptLink, OpenLink};
 use crate::error::Result;
@@ -16,6 +17,7 @@ pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
 pub const CLAIM_ARRIVED: &str = "claim-arrived";
 pub const SCORE_LINK_OPENED: &str = "score-link-opened";
+pub const AUTH_STATE_CHANGED: &str = "auth-state-changed";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,4 +99,9 @@ pub fn score_link_opened(app: &AppHandle, link: &OpenLink, opened: Result<Option
             error,
         },
     );
+}
+
+/// Signed in, signed out, or waiting on the browser. Both windows gate on it.
+pub fn auth_state_changed(app: &AppHandle, state: AuthState) {
+    let _ = app.emit(AUTH_STATE_CHANGED, state);
 }

@@ -78,8 +78,10 @@ history shows nothing rather than *CO* for versions made before this.
   accounts have no display name.
 - `watcher.rs` — does not start, and stops, while signed out.
 
-**Frontend.** Both windows open on a sign-in screen while signed out: one
-button, a line saying why, and — after the browser opened — *waiting for the
+**Frontend.** Both windows open on a sign-in screen while signed out: the
+hub's address (there is no default hub; it is checked by `Hub::new`'s rule
+before the host is asked, and prefilled with the last hub asked or signed out
+of since launch), one button, a line saying why, and — after the browser opened — *waiting for the
 browser* with a way to start again. The panel is 420×320 and gets the compact
 version. `ExtendedApp.spec.tsx` and `PanelApp.spec.tsx` need a signed-in
 default in their IPC mocks.

@@ -71,6 +71,11 @@ impl Watcher {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub fn is_watching(&self) -> bool {
+        lock(&self.inner).is_some()
+    }
+
     fn take_due(&self) -> Vec<PathBuf> {
         let mut pending = lock(&self.pending);
         let due: Vec<PathBuf> = pending

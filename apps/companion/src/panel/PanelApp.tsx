@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Maximize2, X } from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import { hidePanel, openExtendedWindow } from '@/lib/ipc';
+import { SignIn } from '@/sign-in/SignIn';
+import { useAuth } from '@/sign-in/useAuth';
 import { BranchSwitcher } from './BranchSwitcher';
 import { CommitView } from './CommitView';
 import { FileSwitcher } from './FileSwitcher';
-import { PanelFooter, PanelHeader, PanelHint, PanelMark, PanelShell } from './PanelShell';
+import { PanelBody, PanelFooter, PanelHeader, PanelHint, PanelMark, PanelShell } from './PanelShell';
 import { TrackFirstFile } from './TrackFirstFile';
 import { useEnterAnimation } from './useEnterAnimation';
 import { usePanelSession } from './usePanelSession';
@@ -17,12 +19,14 @@ type Mode = 'commit' | 'switcher' | 'branch';
 /**
  * Hotkey panel — the product's main gesture.
  *
- * Mutually exclusive views, never mixed: nothing tracked yet, the commit flow,
- * the file switcher or the branch switcher. Escape always steps back one level
- * and then out.
+ * Mutually exclusive views, never mixed: signed out, nothing tracked yet, the
+ * commit flow, the file switcher or the branch switcher. Escape always steps
+ * back one level and then out.
  */
 export function PanelApp() {
   const { t } = useTranslation();
+  const auth = useAuth();
+  const signedIn = auth.state?.kind === 'signedIn';
   const shownAt = usePanelShown();
   const session = usePanelSession(shownAt);
   const [mode, setMode] = useState<Mode>('commit');
@@ -38,7 +42,7 @@ export function PanelApp() {
     clearError();
   }, [shownAt, clearError]);
 
-  const canSwitch = session.files.length > 0;
+  const canSwitch = signedIn && session.files.length > 0;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -70,12 +74,15 @@ export function PanelApp() {
             {t('panel.title')}
           </span>
         </span>
-        <WatchIndicator count={session.files.length} />
+        {/* Nothing is watched while signed out. */}
+        <WatchIndicator count={signedIn ? session.files.length : 0} />
       </PanelHeader>
 
       {session.error && <ErrorStrip message={session.error} onDismiss={session.clearError} />}
 
-      {session.active === null ? (
+      {!signedIn ? (
+        <PanelBody data-panel-stagger="">{auth.state && <SignIn auth={auth} compact />}</PanelBody>
+      ) : session.active === null ? (
         <TrackFirstFile onAddFile={() => void session.addFile()} />
       ) : mode === 'switcher' ? (
         <FileSwitcher
@@ -109,7 +116,8 @@ export function PanelApp() {
 
       <PanelFooter>
         <span className="flex items-center gap-3">
-          {session.active !== null &&
+          {signedIn &&
+            session.active !== null &&
             (mode !== 'commit' ? (
               <>
                 <PanelHint keys="⏎">{t('panel.hint.select')}</PanelHint>

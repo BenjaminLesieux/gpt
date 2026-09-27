@@ -1265,8 +1265,10 @@ dependencies = [
 name = "gitarpro-companion"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "core-foundation 0.10.1",
  "core-foundation-sys",
+ "getrandom 0.3.4",
  "git2",
  "keyring",
  "libc",
@@ -1276,6 +1278,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",

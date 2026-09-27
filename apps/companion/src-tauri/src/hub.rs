@@ -49,6 +49,18 @@ pub struct RedeemedClaim {
     pub token: String,
 }
 
+/// A signed-in companion: the account token, and whose it is.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CompanionToken {
+    pub token: String,
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Me {
+    email: String,
+}
+
 /// The shape every failure the hub returns takes.
 #[derive(Debug, Deserialize)]
 struct HubErrorBody {
@@ -313,6 +325,44 @@ impl Hub {
             .map_err(unreachable_hub)
     }
 
+    /// Spends a sign-in code. The verifier is what makes a code lifted off the
+    /// `gitarpro://` link worthless to whoever lifted it.
+    pub async fn redeem_code(
+        &self,
+        code: &str,
+        verifier: &str,
+        device: &str,
+    ) -> Result<CompanionToken> {
+        let response = self
+            .client
+            .post(self.endpoint("/companion/tokens")?)
+            .json(&serde_json::json!({ "code": code, "verifier": verifier, "device": device }))
+            .send()
+            .await
+            .map_err(unreachable_hub)?;
+
+        read(response).await
+    }
+
+    /// Whose token this is — and, by refusing, that it has been revoked.
+    pub async fn me(&self, token: &str) -> Result<String> {
+        let response = self
+            .client
+            .get(self.endpoint("/companion/me")?)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(unreachable_hub)?;
+
+        read::<Me>(response).await.map(|me| me.email)
+    }
+
+    fn endpoint(&self, path: &str) -> Result<Url> {
+        self.origin
+            .join(path)
+            .map_err(|_| Error::InvalidHub(self.origin.to_string()))
+    }
+
     /// The code goes in a path segment, so it is checked against the alphabet
     /// it is minted from rather than escaped. A value that is not a code
     /// cannot name a claim anyway, and refusing it here means nothing else
@@ -326,9 +376,7 @@ impl Hub {
             return Err(Error::InvalidClaim);
         }
 
-        self.origin
-            .join(&format!("/claims/{claim}"))
-            .map_err(|_| Error::InvalidHub(self.origin.to_string()))
+        self.endpoint(&format!("/claims/{claim}"))
     }
 }
 
@@ -453,7 +501,10 @@ mod tests {
         let hub = Hub::new("https://hub.example.com").unwrap();
 
         for bad in ["../auth/me", "a/b", "a?b", "a b", ""] {
-            assert!(matches!(hub.claim_url(bad), Err(Error::InvalidClaim)), "{bad}");
+            assert!(
+                matches!(hub.claim_url(bad), Err(Error::InvalidClaim)),
+                "{bad}"
+            );
         }
     }
 

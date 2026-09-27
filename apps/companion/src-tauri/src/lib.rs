@@ -5,6 +5,7 @@
 //! TypeScript (`packages/gpt-core`).
 
 mod adopt;
+mod auth;
 mod branch;
 mod commands;
 mod config;
@@ -78,6 +79,9 @@ pub fn run() {
             commands::land_branch,
             commands::set_ask_first,
             commands::ask_first,
+            commands::auth_state,
+            commands::sign_in,
+            commands::sign_out,
         ])
         .setup(|app| {
             // The resting state: menu-bar resident, no dock icon of its own.
@@ -89,10 +93,11 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
 
             let state = AppState::load(data_dir)?;
-            state.watcher.resync(&state.tracked_paths())?;
+            state.watch()?;
             app.manage(state);
             watcher::start(app.handle().clone());
             push::start(app.handle().clone());
+            auth::start(app.handle().clone());
 
             tray::init(app.handle())?;
             shortcut::init(app.handle())?;

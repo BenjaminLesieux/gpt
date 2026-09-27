@@ -87,7 +87,7 @@ pub fn adopt(
     // No seed snapshot, unlike tracking: the bytes on disk came out of the
     // repo, so they already are the newest named version.
     state.set_active(&file.id);
-    state.watcher.resync(&state.tracked_paths())?;
+    state.watch()?;
     Ok(file)
 }
 

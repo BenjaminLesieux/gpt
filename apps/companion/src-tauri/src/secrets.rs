@@ -17,6 +17,12 @@ use crate::error::Result;
 /// Keychain Access rather than showing up as an anonymous service.
 const SERVICE: &str = "com.gitarpro.companion";
 
+/// Where the companion token lives, beside the per-file remote tokens. File
+/// ids are hex, so this cannot collide with one.
+// ponytail: one account on one hub; for several hubs, key the token by the
+// hub's origin and make `config.account` a list.
+pub const ACCOUNT: &str = "account";
+
 pub fn store(file_id: &str, token: &str) -> Result<()> {
     entry(file_id)?.set_password(token)?;
     Ok(())
@@ -54,6 +60,16 @@ fn entry(file_id: &str) -> Result<keyring::Entry> {
     Ok(keyring::Entry::new(SERVICE, file_id)?)
 }
 
+/// Process-wide and settable once, hence the [`Once`](std::sync::Once). Any
+/// test that reaches the keychain calls this first.
+#[cfg(test)]
+pub fn use_mock_keychain() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+    });
+}
+
 /// Two suites, and they must not share a process.
 ///
 /// What is ours to test is the mapping of "no such entry" onto an ordinary
@@ -68,14 +84,6 @@ fn entry(file_id: &str) -> Result<keyring::Entry> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Process-wide and settable once, hence the [`Once`](std::sync::Once).
-    fn use_mock_keychain() {
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        ONCE.call_once(|| {
-            keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
-        });
-    }
 
     #[test]
     fn a_file_with_no_token_reads_as_none() {

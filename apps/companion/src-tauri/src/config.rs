@@ -25,6 +25,18 @@ pub struct Config {
     pub tracked_files: Vec<TrackedFile>,
     #[serde(default)]
     pub snapshot_policy: SnapshotPolicy,
+    /// Who this companion is signed in as. The email is kept here rather than
+    /// only behind the keychain because it signs every commit, and the
+    /// keychain can prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<Account>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Account {
+    pub hub: String,
+    pub email: String,
 }
 
 fn config_version() -> u32 {
@@ -37,6 +49,7 @@ impl Default for Config {
             version: CONFIG_VERSION,
             tracked_files: Vec::new(),
             snapshot_policy: SnapshotPolicy::default(),
+            account: None,
         }
     }
 }
@@ -233,6 +246,18 @@ mod tests {
         assert_eq!(reloaded.tracked_files.len(), 1);
         assert_eq!(reloaded.tracked_files[0].name, "riff");
         assert_eq!(reloaded.snapshot_policy.keep_count, 200);
+        assert!(reloaded.account.is_none());
+    }
+
+    /// Every install from before sign-in has a config with no account in it.
+    #[test]
+    fn a_config_from_before_sign_in_still_loads() {
+        let config: Config = serde_json::from_str(
+            r#"{"version":1,"trackedFiles":[],"snapshotPolicy":{"keepDays":14,"keepCount":200}}"#,
+        )
+        .unwrap();
+
+        assert!(config.account.is_none());
     }
 
     #[test]

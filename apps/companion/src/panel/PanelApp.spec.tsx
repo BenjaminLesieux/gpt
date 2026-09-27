@@ -31,6 +31,9 @@ vi.mock('@/lib/ipc', () => ({
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
+  authState: vi.fn(),
+  signIn: vi.fn(),
+  onAuthStateChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 const ipc = vi.mocked(await import('@/lib/ipc'));
@@ -70,6 +73,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ipc.authState.mockResolvedValue({
+    kind: 'signedIn',
+    hub: 'https://hub.example.com',
+    email: 'ben@example.com',
+  });
   ipc.listTrackedFiles.mockResolvedValue([blackbird, riff]);
   ipc.getActiveFile.mockResolvedValue(blackbird);
   ipc.guitarProBinding.mockResolvedValue({ kind: 'guitarPro' });
@@ -397,5 +405,80 @@ describe('PanelApp', () => {
 
       expect((await screen.findByRole('alert')).textContent).toMatch(/could not reach the hub/);
     });
+  });
+});
+
+describe('PanelApp signed out', () => {
+  const hub = 'https://hub.example.com';
+  const signedOut = { kind: 'signedOut', waiting: false, failure: null, hub: null } as const;
+  const waiting = { kind: 'signedOut', waiting: true, failure: null, hub } as const;
+
+  beforeEach(() => {
+    ipc.authState.mockResolvedValue(signedOut);
+    ipc.signIn.mockResolvedValue(waiting);
+  });
+
+  it('shows the sign-in screen and nothing of the files', async () => {
+    render(<PanelApp />);
+
+    expect(await screen.findByRole('button', { name: 'Sign in with the browser' })).toBeTruthy();
+    expect(screen.getByText(/saves are not recorded/)).toBeTruthy();
+    expect(screen.queryByLabelText('Version name')).toBeNull();
+  });
+
+  it('opens the browser at the typed hub and waits for it', async () => {
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    await user.type(await screen.findByLabelText('Hub address'), hub);
+    await user.click(screen.getByRole('button', { name: 'Sign in with the browser' }));
+
+    expect(ipc.signIn).toHaveBeenCalledWith(hub);
+    expect(await screen.findByText('Waiting for the browser…')).toBeTruthy();
+  });
+
+  it('refuses an address the host would, without asking it', async () => {
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    await user.type(await screen.findByLabelText('Hub address'), 'http://hub.example.com');
+    await user.click(screen.getByRole('button', { name: 'Sign in with the browser' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/starting with https/);
+    expect(ipc.signIn).not.toHaveBeenCalled();
+  });
+
+  it('starts again from the waiting screen, at the same hub', async () => {
+    ipc.authState.mockResolvedValue(waiting);
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    await user.click(await screen.findByRole('button', { name: 'Start again' }));
+
+    expect(ipc.signIn).toHaveBeenCalledWith(hub);
+    expect(await screen.findByText('Waiting for the browser…')).toBeTruthy();
+  });
+
+  it('says why the last attempt did not sign in', async () => {
+    ipc.authState.mockResolvedValue({
+      kind: 'signedOut',
+      waiting: false,
+      failure: 'That code has expired.',
+      hub,
+    });
+    render(<PanelApp />);
+
+    expect((await screen.findByRole('alert')).textContent).toBe('That code has expired.');
+  });
+
+  it('says so when the browser could not be opened', async () => {
+    ipc.signIn.mockRejectedValue('open exited with 1');
+    const user = userEvent.setup();
+    render(<PanelApp />);
+
+    await user.type(await screen.findByLabelText('Hub address'), hub);
+    await user.click(screen.getByRole('button', { name: 'Sign in with the browser' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/open exited/);
   });
 });

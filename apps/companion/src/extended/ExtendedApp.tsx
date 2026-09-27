@@ -20,6 +20,9 @@ import {
 } from '@/lib/ipc';
 import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { SignIn } from '@/sign-in/SignIn';
+import { useAuth } from '@/sign-in/useAuth';
+import { AccountMenu } from './AccountMenu';
 import { AdoptDialog } from './AdoptDialog';
 import { ClaimDialog } from './ClaimDialog';
 import { DiffStage } from './DiffStage';
@@ -41,6 +44,7 @@ import { useSync } from './useSync';
  */
 export function ExtendedApp() {
   const { t } = useTranslation();
+  const auth = useAuth();
   const library = useLibrary();
   const history = useHistory(library.selected?.id ?? null);
   const sync = useSync(library.selected?.id ?? null);
@@ -182,9 +186,17 @@ export function ExtendedApp() {
     />
   );
 
+  if (auth.state?.kind !== 'signedIn') {
+    return <Shell>{auth.state && <SignIn auth={auth} />}</Shell>;
+  }
+
+  const account = (
+    <AccountMenu email={auth.state.email} onSignOut={auth.signOut} onError={setFailure} />
+  );
+
   if (!library.loading && library.files.length === 0) {
     return (
-      <Shell>
+      <Shell account={account}>
         {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
         <NoTrackedFiles
           onAddFile={() => void library.addFile()}
@@ -198,6 +210,7 @@ export function ExtendedApp() {
 
   return (
     <Shell
+      account={account}
       header={
         library.selected && (
           <>
@@ -306,7 +319,15 @@ export function ExtendedApp() {
   );
 }
 
-function Shell({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) {
+function Shell({
+  header,
+  account,
+  children,
+}: {
+  header?: React.ReactNode;
+  account?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   const { t } = useTranslation();
 
   return (
@@ -319,7 +340,10 @@ function Shell({ header, children }: { header?: React.ReactNode; children: React
           <span className="text-xs font-bold tracking-widest uppercase" data-tauri-drag-region>
             {t('extended.title')}
           </span>
-          {header}
+          <div className="flex min-w-0 flex-1 items-center gap-4" data-tauri-drag-region>
+            {header}
+          </div>
+          {account}
         </header>
         {children}
       </div>

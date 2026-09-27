@@ -24,6 +24,10 @@ vi.mock('@/lib/ipc', () => ({
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
   onClaimArrived: vi.fn(() => Promise.resolve(() => {})),
   onScoreLinkOpened: vi.fn(() => Promise.resolve(() => {})),
+  authState: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  onAuthStateChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -71,6 +75,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ipc.authState.mockResolvedValue({
+    kind: 'signedIn',
+    hub: 'https://hub.example.com',
+    email: 'ben@example.com',
+  });
   ipc.listTrackedFiles.mockResolvedValue([blackbird]);
   ipc.getActiveFile.mockResolvedValue(blackbird);
   ipc.listVersions.mockResolvedValue([bridge, intro]);
@@ -582,5 +591,54 @@ describe('ExtendedApp', () => {
     await user.click(await screen.findByRole('button', { name: /Choose a file/ }));
 
     expect(ipc.pickAndTrackFile).toHaveBeenCalled();
+  });
+});
+
+describe('ExtendedApp account', () => {
+  it('signs out only once the confirm is accepted', async () => {
+    ipc.signOut.mockResolvedValue({
+      kind: 'signedOut',
+      waiting: false,
+      failure: null,
+      hub: 'https://hub.example.com',
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: 'ben@example.com' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(within(confirm).getByText(/saves are not snapshotted/)).toBeTruthy();
+    expect(ipc.signOut).not.toHaveBeenCalled();
+
+    await user.click(within(confirm).getByRole('button', { name: 'Sign out' }));
+
+    expect(ipc.signOut).toHaveBeenCalledTimes(1);
+    // Back on the sign-in screen, with the hub just left.
+    expect(
+      ((await screen.findByLabelText('Hub address')) as HTMLInputElement).value,
+    ).toBe('https://hub.example.com');
+  });
+});
+
+describe('ExtendedApp signed out', () => {
+  it('opens on the sign-in screen instead of the history', async () => {
+    ipc.authState.mockResolvedValue({ kind: 'signedOut', waiting: false, failure: null, hub: null });
+    ipc.signIn.mockResolvedValue({
+      kind: 'signedOut',
+      waiting: true,
+      failure: null,
+      hub: 'https://hub.example.com',
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+
+    await user.type(await screen.findByLabelText('Hub address'), 'https://hub.example.com');
+    await user.click(screen.getByRole('button', { name: 'Sign in with the browser' }));
+
+    expect(ipc.signIn).toHaveBeenCalledWith('https://hub.example.com');
+    expect(await screen.findByText('Waiting for the browser…')).toBeTruthy();
+    expect(screen.queryByText('score:v2')).toBeNull();
   });
 });

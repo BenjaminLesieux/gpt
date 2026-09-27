@@ -1,4 +1,13 @@
 {
+  "signIn": {
+    "title": "Sign in to your hub",
+    "why": "Every version is signed with your account. Until you sign in, saves are not recorded.",
+    "action": "Sign in with the browser",
+    "waiting": "Waiting for the browser…",
+    "again": "Start again",
+    "hub": "Hub address",
+    "invalidHub": "Enter the hub's address, starting with https://."
+  },
   "panel": {
     "title": "Gitarpro",
     "close": "close",
@@ -61,6 +70,13 @@
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Extended window",
+    "account": {
+      "signOut": "Sign out",
+      "title": "Sign out?",
+      "description": "Until you sign in again, saves are not snapshotted and no version can be named. Your files and their history stay on this machine.",
+      "cancel": "Cancel",
+      "confirm": "Sign out"
+    },
     "trackAnotherFile": "Track another file…",
     "timeline": {
       "versions": "Versions",

@@ -1,4 +1,13 @@
 {
+  "signIn": {
+    "title": "Connecte-toi à ton hub",
+    "why": "Chaque version est signée avec ton compte. Sans connexion, tes sauvegardes ne sont pas enregistrées.",
+    "action": "Se connecter avec le navigateur",
+    "waiting": "En attente du navigateur…",
+    "again": "Recommencer",
+    "hub": "Adresse du hub",
+    "invalidHub": "Saisis l'adresse du hub, en commençant par https://."
+  },
   "panel": {
     "title": "Gitarpro",
     "close": "fermer",
@@ -61,6 +70,13 @@
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Fenêtre étendue",
+    "account": {
+      "signOut": "Se déconnecter",
+      "title": "Se déconnecter ?",
+      "description": "Tant que tu ne te reconnectes pas, tes sauvegardes ne sont pas enregistrées et aucune version ne peut être nommée. Tes fichiers et leur historique restent sur cette machine.",
+      "cancel": "Annuler",
+      "confirm": "Se déconnecter"
+    },
     "trackAnotherFile": "Suivre un autre fichier…",
     "timeline": {
       "versions": "Versions",

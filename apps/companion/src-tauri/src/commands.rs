@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::adopt;
+use crate::auth::{self, AuthState};
 use crate::branch;
 use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTENSIONS};
 use crate::error::{Error, Result};
@@ -92,7 +93,7 @@ fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile
     )?;
 
     state.set_active(&file.id);
-    state.watcher.resync(&state.tracked_paths())?;
+    state.watch()?;
     events::tracked_files_changed(app, state.config().tracked_files.clone());
     Ok(file)
 }
@@ -111,7 +112,7 @@ pub fn untrack_file(app: AppHandle, state: State<'_, AppState>, id: String) -> R
     })?;
 
     state.clear_active(&id);
-    state.watcher.resync(&state.tracked_paths())?;
+    state.watch()?;
     events::tracked_files_changed(&app, state.config().tracked_files.clone());
     Ok(())
 }
@@ -542,6 +543,26 @@ pub async fn set_ask_first(app: AppHandle, id: String, ask_first: bool) -> Resul
     client
         .set_ask_first(&score, &file.branch, ask_first, &auth)
         .await
+}
+
+#[tauri::command]
+pub fn auth_state(state: State<'_, AppState>) -> AuthState {
+    auth::auth_state(&state)
+}
+
+/// Opens `hub`'s connect page in the browser. Calling it again starts over:
+/// the link the earlier page would hand back stops working.
+#[tauri::command]
+pub async fn sign_in(app: AppHandle, hub: String) -> Result<AuthState> {
+    auth::sign_in(&app, &hub)?;
+    Ok(auth::auth_state(&app.state::<AppState>()))
+}
+
+#[tauri::command]
+pub fn sign_out(app: AppHandle, state: State<'_, AppState>) -> Result<AuthState> {
+    auth::sign_out(&state)?;
+    auth::changed(&app);
+    Ok(auth::auth_state(&state))
 }
 
 /// What the active file is anchored to. Read from the host's cache — the
