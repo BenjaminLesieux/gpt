@@ -250,3 +250,22 @@ export function useSetAskFirst(scoreId: string) {
     api.setAskFirst(scoreId, branch, askFirst)
   );
 }
+
+export const companionTokensQuery = queryOptions({
+  queryKey: ['companion-tokens'],
+  queryFn: api.listCompanionTokens,
+  retry: (attempt, error) => !(error instanceof HubError && error.isSignedOut) && attempt < 2,
+});
+
+/** Not cached: a code works once, for five minutes. */
+export function useCompanionCode() {
+  return useMutation({ mutationFn: (challenge: string) => api.createCompanionCode(challenge) });
+}
+
+export function useRevokeCompanionToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.revokeCompanionToken(id),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: companionTokensQuery.queryKey }),
+  });
+}

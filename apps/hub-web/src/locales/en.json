@@ -246,5 +246,36 @@
     "stale": "This branch changed since it was checked — land it again to see where it stands.",
     "dryRun": "It would land cleanly, but this hub has landing switched off — nothing was written.",
     "mainMoved": "Someone landed something at the same time — try again."
+  },
+  "connect": {
+    "title": "Connect Gitarpro on {{device}}?",
+    "thisComputer": "this computer",
+    "blurb": "The app will sign every version you save as you, and list your scores.",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "failed": "Could not connect the app. Try again.",
+    "sent": {
+      "title": "You can close this tab",
+      "blurb": "Gitarpro is finishing signing in."
+    },
+    "broken": {
+      "title": "This link doesn’t work",
+      "blurb": "It is missing what Gitarpro needs to sign in.",
+      "footer": "Start again from the app."
+    }
+  },
+  "devices": {
+    "title": "Signed-in computers",
+    "columns": {
+      "device": "Computer",
+      "lastSeen": "Last seen"
+    },
+    "neverSeen": "Not yet",
+    "revoke": "Disconnect",
+    "confirm": {
+      "title": "Disconnect {{device}}?",
+      "description": "Gitarpro on that computer is signed out the next time it reaches the hub. Scores already on it stay there.",
+      "revoke": "Disconnect"
+    }
   }
 }

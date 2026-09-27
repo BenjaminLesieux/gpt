@@ -246,5 +246,36 @@
     "stale": "Cette branche a changé depuis la vérification — fusionne-la à nouveau pour voir où elle en est.",
     "dryRun": "Elle fusionnerait proprement, mais la fusion est désactivée sur ce hub — rien n’a été écrit.",
     "mainMoved": "Quelqu’un a fusionné quelque chose au même moment — réessaie."
+  },
+  "connect": {
+    "title": "Connecter Gitarpro sur {{device}} ?",
+    "thisComputer": "cet ordinateur",
+    "blurb": "L'app signera chaque version que tu enregistres à ton nom, et listera tes partitions.",
+    "connect": "Connecter",
+    "connecting": "Connexion…",
+    "failed": "Impossible de connecter l'app. Réessaie.",
+    "sent": {
+      "title": "Tu peux fermer cet onglet",
+      "blurb": "Gitarpro termine la connexion."
+    },
+    "broken": {
+      "title": "Ce lien ne fonctionne pas",
+      "blurb": "Il manque ce dont Gitarpro a besoin pour se connecter.",
+      "footer": "Recommence depuis l'app."
+    }
+  },
+  "devices": {
+    "title": "Ordinateurs connectés",
+    "columns": {
+      "device": "Ordinateur",
+      "lastSeen": "Vu pour la dernière fois"
+    },
+    "neverSeen": "Pas encore",
+    "revoke": "Déconnecter",
+    "confirm": {
+      "title": "Déconnecter {{device}} ?",
+      "description": "Gitarpro sur cet ordinateur sera déconnecté la prochaine fois qu'il joindra le hub. Les partitions déjà dessus y restent.",
+      "revoke": "Déconnecter"
+    }
   }
 }

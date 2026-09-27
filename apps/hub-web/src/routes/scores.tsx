@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@gpt/ui/table';
 import { CloneScoreDialog } from '@/components/clone-score-dialog';
+import { CompanionDevices } from '@/components/companion-devices';
 import { CreateScoreDialog } from '@/components/create-score-dialog';
 import { DeviceAvatars } from '@/components/device-avatars';
 import { ImportScoreDialog } from '@/components/import-score-dialog';
@@ -348,6 +349,8 @@ function ScoresPage() {
             </Table>
           </div>
         )}
+
+        <CompanionDevices />
       </main>
 
       <CloneScoreDialog

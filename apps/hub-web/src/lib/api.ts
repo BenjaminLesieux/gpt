@@ -178,6 +178,14 @@ export interface InvitePeek {
   invitedBy: string;
 }
 
+/** A companion signed in to this account — a device, revocable from here. */
+export interface CompanionToken {
+  id: string;
+  device: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 /** One score and its band, which the list route does not carry. */
 export interface ScoreDetail {
   id: string;
@@ -192,7 +200,7 @@ export class HubError extends Error {
   constructor(
     readonly code: string,
     message: string,
-    readonly status: number
+    readonly status: number,
   ) {
     super(message);
     this.name = 'HubError';
@@ -222,7 +230,7 @@ async function request<T>(
   path: string,
   init?: RequestInit,
   /** For a body that is not JSON. Declared only when there is a body. */
-  contentType = 'application/json'
+  contentType = 'application/json',
 ): Promise<T> {
   let response: Response;
 
@@ -243,11 +251,13 @@ async function request<T>(
   const body = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const error = (body as { error?: { code?: string; message?: string } } | null)?.error;
+    const error = (
+      body as { error?: { code?: string; message?: string } } | null
+    )?.error;
     throw new HubError(
       error?.code ?? 'unknown',
       error?.message ?? i18n.t('common.genericError'),
-      response.status
+      response.status,
     );
   }
 
@@ -291,7 +301,7 @@ export const api = {
     request<ImportedScore>(
       `/scores/${encodeURIComponent(id)}/import`,
       { method: 'POST', body: file },
-      'application/octet-stream'
+      'application/octet-stream',
     ),
 
   /**
@@ -330,7 +340,9 @@ export const api = {
    * score is arriving at.
    */
   createCloneClaim: (id: string) =>
-    request<CloneClaim>(`/scores/${encodeURIComponent(id)}/clone-claims`, { method: 'POST' }),
+    request<CloneClaim>(`/scores/${encodeURIComponent(id)}/clone-claims`, {
+      method: 'POST',
+    }),
 
   /**
    * Mints a token for a score that already exists — the retry after a
@@ -345,21 +357,38 @@ export const api = {
 
   /** Mints the link that puts a second person on a score. */
   createInvite: (id: string) =>
-    request<ScoreInvite>(`/scores/${encodeURIComponent(id)}/invites`, { method: 'POST' }),
+    request<ScoreInvite>(`/scores/${encodeURIComponent(id)}/invites`, {
+      method: 'POST',
+    }),
 
   /**
    * What the link names, without spending it. The one call in this client
    * that works signed out — being asked to sign up before being told what
    * for is how an invite gets ignored.
    */
-  peekInvite: (code: string) => request<InvitePeek>(`/invites/${encodeURIComponent(code)}`),
+  peekInvite: (code: string) =>
+    request<InvitePeek>(`/invites/${encodeURIComponent(code)}`),
 
   /** Spends it. Needs a session: it puts an *account* on a score. */
   acceptInvite: (code: string) =>
     request<{ id: string; name: string; role: 'member' }>(
       `/invites/${encodeURIComponent(code)}`,
-      { method: 'POST' }
+      { method: 'POST' },
     ),
+
+  /** A code for the companion that opened `/connect`, bound to its PKCE challenge. */
+  createCompanionCode: (challenge: string) =>
+    request<{ code: string; expiresAt: string }>('/companion/codes', {
+      method: 'POST',
+      body: JSON.stringify({ challenge, challengeMethod: 'S256' }),
+    }),
+
+  listCompanionTokens: () => request<CompanionToken[]>('/companion/tokens'),
+
+  revokeCompanionToken: (id: string) =>
+    request<void>(`/companion/tokens/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 };
 
 /**

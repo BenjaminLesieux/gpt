@@ -2,8 +2,14 @@ import { Link, createRoute, redirect } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthForm } from '@/components/auth-form';
 import { Wordmark } from '@/components/wordmark';
+import { connectSearch, type ConnectSearch } from '@/lib/clone-link';
 import { accountQuery, useLogin, useSignup } from '@/lib/queries';
 import { rootRoute, type RouterContext } from './root';
+
+export interface AuthSearch {
+  invite?: string;
+  connect?: ConnectSearch;
+}
 
 /** Someone already signed in has no business on these two screens. */
 async function redirectIfSignedIn({
@@ -11,17 +17,21 @@ async function redirectIfSignedIn({
   search,
 }: {
   context: RouterContext;
-  search: { invite?: string };
+  search: AuthSearch;
 }) {
   try {
     await context.queryClient.ensureQueryData(accountQuery);
   } catch {
     return;
   }
-  // Still holding an invite: it is the reason they are here, and the score
-  // list has nothing to say about it.
+  // Still holding an invite or a companion's question: it is the reason they
+  // are here, and the score list has nothing to say about it.
   throw redirect(
-    search.invite ? { to: '/join/$code', params: { code: search.invite } } : { to: '/' }
+    search.connect
+      ? { to: '/connect', search: search.connect }
+      : search.invite
+        ? { to: '/join/$code', params: { code: search.invite } }
+        : { to: '/' }
   );
 }
 
@@ -38,7 +48,7 @@ export function AuthLayout({
 }: {
   title: string;
   blurb?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   footer: React.ReactNode;
 }) {
   return (
@@ -62,21 +72,27 @@ const linkClass =
   'border-b border-border-strong text-foreground transition-colors hover:text-brand-bright';
 
 /**
- * The invite somebody was holding when they were sent here to sign in.
+ * The invite, or the `/connect` query, somebody was holding when they were
+ * sent here to sign in.
  *
- * A code and not a return URL: it is fed straight back into a typed route, so
- * there is no string from the address bar that can be navigated to and no
+ * Values and not a return URL: they are fed straight back into a typed route,
+ * so there is no string from the address bar that can be navigated to and no
  * open redirect to get wrong.
  */
-function inviteSearch(search: Record<string, unknown>): { invite?: string } {
-  return typeof search.invite === 'string' ? { invite: search.invite } : {};
+function authSearch(search: Record<string, unknown>): AuthSearch {
+  return {
+    ...(typeof search.invite === 'string' ? { invite: search.invite } : {}),
+    ...(search.connect && typeof search.connect === 'object'
+      ? { connect: connectSearch(search.connect as Record<string, unknown>) }
+      : {}),
+  };
 }
 
 function LoginPage() {
   const { t } = useTranslation();
   const login = useLogin();
   const navigate = loginRoute.useNavigate();
-  const { invite } = loginRoute.useSearch();
+  const { invite, connect } = loginRoute.useSearch();
 
   return (
     <AuthLayout
@@ -84,7 +100,7 @@ function LoginPage() {
       footer={
         <>
           {t('auth.login.noAccount')}{' '}
-          <Link to="/signup" search={{ invite }} className={linkClass}>
+          <Link to="/signup" search={{ invite, connect }} className={linkClass}>
             {t('auth.login.signUp')}
           </Link>
         </>
@@ -99,9 +115,11 @@ function LoginPage() {
           // Back to the link they were holding. Landing on the score list
           // instead leaves them signed in and none the wiser about the
           // invite, which is where an invite quietly dies.
-          await (invite
-            ? navigate({ to: '/join/$code', params: { code: invite } })
-            : navigate({ to: '/' }));
+          await (connect
+            ? navigate({ to: '/connect', search: connect })
+            : invite
+              ? navigate({ to: '/join/$code', params: { code: invite } })
+              : navigate({ to: '/' }));
         }}
       />
     </AuthLayout>
@@ -112,7 +130,7 @@ function SignupPage() {
   const { t } = useTranslation();
   const signup = useSignup();
   const navigate = signupRoute.useNavigate();
-  const { invite } = signupRoute.useSearch();
+  const { invite, connect } = signupRoute.useSearch();
 
   return (
     <AuthLayout
@@ -121,7 +139,7 @@ function SignupPage() {
       footer={
         <>
           {t('auth.signup.haveAccount')}{' '}
-          <Link to="/login" search={{ invite }} className={linkClass}>
+          <Link to="/login" search={{ invite, connect }} className={linkClass}>
             {t('auth.signup.logIn')}
           </Link>
         </>
@@ -133,9 +151,11 @@ function SignupPage() {
         error={signup.error}
         onSubmit={async (values) => {
           await signup.mutateAsync(values);
-          await (invite
-            ? navigate({ to: '/join/$code', params: { code: invite } })
-            : navigate({ to: '/' }));
+          await (connect
+            ? navigate({ to: '/connect', search: connect })
+            : invite
+              ? navigate({ to: '/join/$code', params: { code: invite } })
+              : navigate({ to: '/' }));
         }}
       />
     </AuthLayout>
@@ -145,7 +165,7 @@ function SignupPage() {
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  validateSearch: inviteSearch,
+  validateSearch: authSearch,
   beforeLoad: redirectIfSignedIn,
   component: LoginPage,
 });
@@ -153,7 +173,7 @@ export const loginRoute = createRoute({
 export const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
-  validateSearch: inviteSearch,
+  validateSearch: authSearch,
   beforeLoad: redirectIfSignedIn,
   component: SignupPage,
 });
