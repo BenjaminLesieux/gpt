@@ -53,7 +53,12 @@ pub fn switch(state: &AppState, id: &str, branch: &str) -> Result<Option<Version
             }
             let arriving = git::read_score(&repo, &target)?;
             let safety = match std::fs::read(&file.path) {
-                Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
+                Ok(current) => git::commit_snapshot(
+                    &repo,
+                    &file.branch,
+                    &normalize_gp(&current),
+                    &state.signature()?,
+                )?,
                 Err(_) => None,
             };
             std::fs::write(&file.path, &arriving)?;
@@ -98,7 +103,7 @@ fn names_under(repo: &Repository, prefix: &str) -> Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Remote, RemoteAuth, TrackedFile};
+    use crate::config::{Account, Remote, RemoteAuth, TrackedFile};
     use crate::git::{branch_ref, MAIN_BRANCH, SNAPSHOT_REF};
     use crate::remote;
     use std::path::PathBuf;
@@ -136,6 +141,10 @@ mod tests {
         state
             .update(|config| {
                 config.tracked_files.push(file);
+                config.account = Some(Account {
+                    hub: "https://hub.example.com".to_owned(),
+                    email: "sam.rivers@example.com".to_owned(),
+                });
                 Ok(())
             })
             .unwrap();
@@ -144,6 +153,7 @@ mod tests {
             MAIN_BRANCH,
             b"riff",
             "Intro",
+            &git::me(),
         )
         .unwrap();
 
@@ -189,7 +199,7 @@ mod tests {
     fn switching_back_brings_that_branch_onto_disk_and_keeps_what_was_there() {
         let f = fixture();
         switch(&f.state, &f.id, BRANCH).unwrap();
-        git::commit_named(&f.repo(), BRANCH, b"riff and bass", "Bass line").unwrap();
+        git::commit_named(&f.repo(), BRANCH, b"riff and bass", "Bass line", &git::me()).unwrap();
         std::fs::write(&f.score, b"riff and bass, unnamed").unwrap();
 
         let safety = switch(&f.state, &f.id, MAIN_BRANCH).unwrap().unwrap();
@@ -213,7 +223,7 @@ mod tests {
     fn a_file_already_on_its_branch_tip_needs_no_safety_snapshot() {
         let f = fixture();
         switch(&f.state, &f.id, BRANCH).unwrap();
-        git::commit_named(&f.repo(), BRANCH, b"riff and bass", "Bass line").unwrap();
+        git::commit_named(&f.repo(), BRANCH, b"riff and bass", "Bass line", &git::me()).unwrap();
         std::fs::write(&f.score, b"riff and bass").unwrap();
 
         assert!(switch(&f.state, &f.id, MAIN_BRANCH).unwrap().is_none());
@@ -224,7 +234,14 @@ mod tests {
     fn a_branch_only_the_remote_has_is_taken_from_it() {
         let f = fixture();
         let elsewhere = git::open_or_init(&f.dir.path().join("elsewhere")).unwrap();
-        git::commit_named(&elsewhere, BRANCH, b"their bass line", "Bass line").unwrap();
+        git::commit_named(
+            &elsewhere,
+            BRANCH,
+            b"their bass line",
+            "Bass line",
+            &git::me(),
+        )
+        .unwrap();
         remote::push(&elsewhere, BRANCH, &f.remote, None).unwrap();
         remote::fetch(&f.repo(), &f.remote, None).unwrap();
 

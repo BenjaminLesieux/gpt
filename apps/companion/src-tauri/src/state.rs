@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-use git2::Repository;
+use git2::{Repository, Signature};
 use serde::Serialize;
 
 use crate::auth::SignIn;
@@ -103,6 +103,15 @@ impl AppState {
             Vec::new()
         };
         self.watcher.resync(&paths)
+    }
+
+    pub fn signature(&self) -> Result<Signature<'static>> {
+        let email = self
+            .config()
+            .account
+            .as_ref()
+            .map(|account| account.email.clone());
+        git::signature(&email.ok_or(Error::SignedOut)?)
     }
 
     pub fn snapshot_policy(&self) -> SnapshotPolicy {

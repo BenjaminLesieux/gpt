@@ -28,6 +28,10 @@ pub enum Error {
     #[error("nothing to name in {0}: it is already the newest version")]
     NothingToName(String),
 
+    /// Every version has an author, and signed out there is nobody to sign as.
+    #[error("sign in to make a version")]
+    SignedOut,
+
     #[error("the remote refused {refname}: {reason}")]
     PushRejected { refname: String, reason: String },
 

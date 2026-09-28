@@ -24,8 +24,12 @@ export interface Version {
   id: string;
   /** What the musician typed. Empty is ordinary and never invented over. */
   message: string;
-  /** Whoever authored it. Accounts have no display name yet. */
-  authorEmail: string;
+  /**
+   * Whoever authored it. Accounts have no display name yet. Absent for the
+   * companion's placeholder, which every version was signed with before the
+   * companion had an account: it names nobody.
+   */
+  authorEmail?: string;
   /** ISO 8601, with the author's offset — when *they* saved, not when it arrived. */
   at: string;
   /** One normally, two for a landing, none for the first version. */
@@ -297,6 +301,8 @@ async function mergeBase(repository: string, name: string): Promise<string | nul
     .catch(() => null);
 }
 
+const PLACEHOLDER_EMAIL = 'companion@gitarpro.app';
+
 function parseLog(out: string): Version[] {
   return out
     .split(RECORD)
@@ -309,7 +315,7 @@ function parseLog(out: string): Version[] {
         // %B keeps the trailing newline git adds. Trimming the ends and not
         // the middle: a two-line message stays two lines.
         message: (message ?? '').trim(),
-        authorEmail,
+        ...(authorEmail === PLACEHOLDER_EMAIL ? {} : { authorEmail }),
         at,
         parents: parents ? parents.split(' ').filter(Boolean) : [],
       };

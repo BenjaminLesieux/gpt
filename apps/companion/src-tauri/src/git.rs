@@ -19,8 +19,9 @@ pub const SCORE_ENTRY: &str = "score.gp";
 pub const MAIN_BRANCH: &str = "main";
 pub const SNAPSHOT_REF: &str = "refs/snapshots";
 
-const AUTHOR_NAME: &str = "Gitarpro";
-const AUTHOR_EMAIL: &str = "companion@gitarpro.app";
+/// What every version was signed with before the companion had an account.
+/// It names nobody, so it reads back as no author.
+const PLACEHOLDER_EMAIL: &str = "companion@gitarpro.app";
 const BLOB_MODE: i32 = 0o100644;
 const SECONDS_PER_DAY: i64 = 86_400;
 
@@ -39,6 +40,8 @@ pub struct Version {
     /// Unix seconds.
     pub timestamp: i64,
     pub kind: VersionKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_email: Option<String>,
 }
 
 impl Version {
@@ -48,6 +51,12 @@ impl Version {
             message: commit.message().unwrap_or_default().to_owned(),
             timestamp: commit.time().seconds(),
             kind,
+            author_email: commit
+                .author()
+                .email()
+                .ok()
+                .filter(|email| *email != PLACEHOLDER_EMAIL)
+                .map(str::to_owned),
         }
     }
 }
@@ -66,26 +75,24 @@ pub fn branch_ref(branch: &str) -> String {
     format!("refs/heads/{branch}")
 }
 
+/// Signed as the account, dated now. Accounts have no display name, so the
+/// email's local part stands in for one.
+pub fn signature(email: &str) -> Result<Signature<'static>> {
+    signature_at(email, now_seconds())
+}
+
+fn signature_at(email: &str, when: i64) -> Result<Signature<'static>> {
+    let name = email.split('@').next().unwrap_or(email);
+    Ok(Signature::new(name, email, &Time::new(when, 0))?)
+}
+
 /// `None` when the bytes already match the snapshot tip or `branch`'s tip —
 /// nothing musically changed, so there is nothing to record.
-pub fn commit_snapshot(repo: &Repository, branch: &str, bytes: &[u8]) -> Result<Option<Version>> {
-    commit_snapshot_at(repo, branch, bytes, now_seconds())
-}
-
-pub fn commit_named(
+pub fn commit_snapshot(
     repo: &Repository,
     branch: &str,
     bytes: &[u8],
-    message: &str,
-) -> Result<Version> {
-    commit_named_at(repo, branch, bytes, message, now_seconds())
-}
-
-fn commit_snapshot_at(
-    repo: &Repository,
-    branch: &str,
-    bytes: &[u8],
-    when: i64,
+    author: &Signature,
 ) -> Result<Option<Version>> {
     let blob = repo.blob(bytes)?;
     if score_of(repo, SNAPSHOT_REF)? == Some(blob)
@@ -93,7 +100,7 @@ fn commit_snapshot_at(
     {
         return Ok(None);
     }
-    let commit = write(repo, SNAPSHOT_REF, blob, "", when)?;
+    let commit = write(repo, SNAPSHOT_REF, blob, "", author)?;
     Ok(Some(Version::from_commit(&commit, VersionKind::Snapshot)))
 }
 
@@ -108,15 +115,15 @@ pub fn is_named_tip(repo: &Repository, branch: &str, bytes: &[u8]) -> Result<boo
 
 /// Commits whatever it is handed, changed or not — the guard against naming a
 /// version with nothing in it lives at the IPC surface.
-fn commit_named_at(
+pub fn commit_named(
     repo: &Repository,
     branch: &str,
     bytes: &[u8],
     message: &str,
-    when: i64,
+    author: &Signature,
 ) -> Result<Version> {
     let blob = repo.blob(bytes)?;
-    let commit = write(repo, &branch_ref(branch), blob, message, when)?;
+    let commit = write(repo, &branch_ref(branch), blob, message, author)?;
     Ok(Version::from_commit(&commit, VersionKind::Named))
 }
 
@@ -231,24 +238,16 @@ fn write<'repo>(
     refname: &str,
     blob: Oid,
     message: &str,
-    when: i64,
+    author: &Signature,
 ) -> Result<Commit<'repo>> {
     let mut builder = repo.treebuilder(None)?;
     builder.insert(SCORE_ENTRY, blob, BLOB_MODE)?;
     let tree = repo.find_tree(builder.write()?)?;
 
-    let signature = Signature::new(AUTHOR_NAME, AUTHOR_EMAIL, &Time::new(when, 0))?;
     let parent = tip(repo, refname)?;
     let parents: Vec<&Commit> = parent.iter().collect();
 
-    let oid = repo.commit(
-        Some(refname),
-        &signature,
-        &signature,
-        message,
-        &tree,
-        &parents,
-    )?;
+    let oid = repo.commit(Some(refname), author, author, message, &tree, &parents)?;
     Ok(repo.find_commit(oid)?)
 }
 
@@ -269,16 +268,63 @@ fn score_of(repo: &Repository, refname: &str) -> Result<Option<Oid>> {
 }
 
 #[cfg(test)]
+pub fn me() -> Signature<'static> {
+    signature("sam.rivers@example.com").unwrap()
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     /// Not `main`, so nothing here passes by leaning on the default.
     const BRANCH: &str = "bass-line";
 
+    fn at(when: i64) -> Signature<'static> {
+        signature_at("sam.rivers@example.com", when).unwrap()
+    }
+
     fn repo() -> (tempfile::TempDir, Repository) {
         let dir = tempfile::tempdir().unwrap();
         let repo = open_or_init(&dir.path().join("repo")).unwrap();
         (dir, repo)
+    }
+
+    #[test]
+    fn named_versions_and_snapshots_are_signed_as_the_account() {
+        let (_dir, repo) = repo();
+
+        commit_snapshot(&repo, BRANCH, b"take one", &me()).unwrap();
+        commit_named(&repo, BRANCH, b"take two", "Intro", &me()).unwrap();
+
+        for refname in [SNAPSHOT_REF, &branch_ref(BRANCH)] {
+            let author = tip(&repo, refname).unwrap().unwrap().author().to_owned();
+            assert_eq!(author.email(), Ok("sam.rivers@example.com"));
+            assert_eq!(author.name(), Ok("sam.rivers"));
+            let version = &list(&repo, refname, None).unwrap()[0];
+            assert_eq!(
+                version.author_email.as_deref(),
+                Some("sam.rivers@example.com")
+            );
+        }
+    }
+
+    #[test]
+    fn the_placeholder_signature_reads_back_as_no_author() {
+        let (_dir, repo) = repo();
+
+        commit_named(
+            &repo,
+            BRANCH,
+            b"riff",
+            "Before sign-in",
+            &signature(PLACEHOLDER_EMAIL).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            list(&repo, &branch_ref(BRANCH), None).unwrap()[0].author_email,
+            None
+        );
     }
 
     #[test]
@@ -292,10 +338,10 @@ mod tests {
     fn snapshots_and_named_versions_are_separate_histories() {
         let (_dir, repo) = repo();
 
-        commit_snapshot(&repo, BRANCH, b"take one")
+        commit_snapshot(&repo, BRANCH, b"take one", &me())
             .unwrap()
             .unwrap();
-        commit_named(&repo, BRANCH, b"take two", "Intro reworked").unwrap();
+        commit_named(&repo, BRANCH, b"take two", "Intro reworked", &me()).unwrap();
 
         let named = list(&repo, &branch_ref(BRANCH), None).unwrap();
         let snapshots = list(&repo, SNAPSHOT_REF, None).unwrap();
@@ -311,8 +357,8 @@ mod tests {
     fn branches_keep_separate_lines_of_versions() {
         let (_dir, repo) = repo();
 
-        commit_named(&repo, MAIN_BRANCH, b"riff", "Intro").unwrap();
-        commit_named(&repo, BRANCH, b"riff and bass", "Bass line").unwrap();
+        commit_named(&repo, MAIN_BRANCH, b"riff", "Intro", &me()).unwrap();
+        commit_named(&repo, BRANCH, b"riff and bass", "Bass line", &me()).unwrap();
 
         assert_eq!(
             read_score(&repo, &branch_ref(MAIN_BRANCH)).unwrap(),
@@ -330,9 +376,13 @@ mod tests {
     fn an_unchanged_save_makes_no_snapshot() {
         let (_dir, repo) = repo();
 
-        assert!(commit_snapshot(&repo, BRANCH, b"riff").unwrap().is_some());
-        assert!(commit_snapshot(&repo, BRANCH, b"riff").unwrap().is_none());
-        assert!(commit_snapshot(&repo, BRANCH, b"riff II")
+        assert!(commit_snapshot(&repo, BRANCH, b"riff", &me())
+            .unwrap()
+            .is_some());
+        assert!(commit_snapshot(&repo, BRANCH, b"riff", &me())
+            .unwrap()
+            .is_none());
+        assert!(commit_snapshot(&repo, BRANCH, b"riff II", &me())
             .unwrap()
             .is_some());
 
@@ -343,17 +393,26 @@ mod tests {
     fn a_save_matching_the_named_tip_makes_no_snapshot() {
         let (_dir, repo) = repo();
 
-        commit_named(&repo, BRANCH, b"riff", "Named").unwrap();
+        commit_named(&repo, BRANCH, b"riff", "Named", &me()).unwrap();
 
-        assert!(commit_snapshot(&repo, BRANCH, b"riff").unwrap().is_none());
+        assert!(commit_snapshot(&repo, BRANCH, b"riff", &me())
+            .unwrap()
+            .is_none());
     }
 
     #[test]
     fn a_named_version_is_recorded_even_without_changes() {
         let (_dir, repo) = repo();
 
-        commit_named(&repo, BRANCH, b"riff", "First").unwrap();
-        commit_named(&repo, BRANCH, b"riff", "Same bytes, still a milestone").unwrap();
+        commit_named(&repo, BRANCH, b"riff", "First", &me()).unwrap();
+        commit_named(
+            &repo,
+            BRANCH,
+            b"riff",
+            "Same bytes, still a milestone",
+            &me(),
+        )
+        .unwrap();
 
         assert_eq!(list(&repo, &branch_ref(BRANCH), None).unwrap().len(), 2);
     }
@@ -364,12 +423,12 @@ mod tests {
 
         assert!(!is_named_tip(&repo, BRANCH, b"riff").unwrap());
 
-        commit_named(&repo, BRANCH, b"riff", "First").unwrap();
+        commit_named(&repo, BRANCH, b"riff", "First", &me()).unwrap();
         assert!(is_named_tip(&repo, BRANCH, b"riff").unwrap());
         assert!(!is_named_tip(&repo, BRANCH, b"riff II").unwrap());
 
         // A snapshot on top leaves the named tip where it was.
-        commit_snapshot(&repo, BRANCH, b"riff II").unwrap();
+        commit_snapshot(&repo, BRANCH, b"riff II", &me()).unwrap();
         assert!(is_named_tip(&repo, BRANCH, b"riff").unwrap());
     }
 
@@ -393,6 +452,7 @@ mod tests {
                 BRANCH,
                 format!("take {take}").as_bytes(),
                 &format!("Take {take}"),
+                &me(),
             )
             .unwrap();
         }
@@ -409,8 +469,8 @@ mod tests {
     fn a_version_reads_back_byte_for_byte() {
         let (_dir, repo) = repo();
 
-        let version = commit_named(&repo, BRANCH, b"riff bytes", "First").unwrap();
-        commit_named(&repo, BRANCH, b"other bytes", "Second").unwrap();
+        let version = commit_named(&repo, BRANCH, b"riff bytes", "First", &me()).unwrap();
+        commit_named(&repo, BRANCH, b"other bytes", "Second", &me()).unwrap();
 
         assert_eq!(read_score(&repo, &version.id).unwrap(), b"riff bytes");
         assert_eq!(
@@ -434,11 +494,11 @@ mod tests {
 
         for take in 0..6 {
             let minutes_ago = 6 - take;
-            commit_snapshot_at(
+            commit_snapshot(
                 &repo,
                 BRANCH,
                 format!("take {take}").as_bytes(),
-                now - minutes_ago * 60,
+                &at(now - minutes_ago * 60),
             )
             .unwrap();
         }
@@ -461,11 +521,11 @@ mod tests {
         };
 
         for day in [60, 80, 95, 99] {
-            commit_snapshot_at(
+            commit_snapshot(
                 &repo,
                 BRANCH,
                 format!("day {day}").as_bytes(),
-                day * SECONDS_PER_DAY,
+                &at(day * SECONDS_PER_DAY),
             )
             .unwrap();
         }
@@ -486,7 +546,7 @@ mod tests {
             keep_count: 100,
         };
 
-        commit_snapshot_at(&repo, BRANCH, b"ancient", 0).unwrap();
+        commit_snapshot(&repo, BRANCH, b"ancient", &at(0)).unwrap();
 
         assert_eq!(
             prune_snapshots_at(&repo, policy, 10 * SECONDS_PER_DAY).unwrap(),
@@ -500,7 +560,7 @@ mod tests {
         let (_dir, repo) = repo();
         let policy = SnapshotPolicy::default();
 
-        commit_snapshot(&repo, BRANCH, b"one").unwrap();
+        commit_snapshot(&repo, BRANCH, b"one", &me()).unwrap();
         let before = list(&repo, SNAPSHOT_REF, None).unwrap();
 
         assert_eq!(prune_snapshots(&repo, policy).unwrap(), 0);
@@ -511,8 +571,8 @@ mod tests {
     fn a_fast_forward_moves_main_onto_a_later_version() {
         let (_dir, repo) = repo();
 
-        commit_named(&repo, BRANCH, b"one", "One").unwrap();
-        let second = commit_named(&repo, BRANCH, b"two", "Two").unwrap();
+        commit_named(&repo, BRANCH, b"one", "One", &me()).unwrap();
+        let second = commit_named(&repo, BRANCH, b"two", "Two", &me()).unwrap();
         let onto = Oid::from_str(&second.id).unwrap();
 
         // Already there: moving onto the current tip is a no-op, not a refusal.
@@ -527,8 +587,8 @@ mod tests {
     fn moving_main_somewhere_that_drops_versions_is_refused() {
         let (_dir, repo) = repo();
 
-        let first = commit_named(&repo, BRANCH, b"one", "One").unwrap();
-        commit_named(&repo, BRANCH, b"two", "Two").unwrap();
+        let first = commit_named(&repo, BRANCH, b"one", "One", &me()).unwrap();
+        commit_named(&repo, BRANCH, b"two", "Two", &me()).unwrap();
 
         // Backwards: "Two" is not an ancestor of "One", so this would lose it.
         let onto = Oid::from_str(&first.id).unwrap();
@@ -545,7 +605,7 @@ mod tests {
         let path = dir.path().join("repo");
 
         let first = open_or_init(&path).unwrap();
-        commit_named(&first, BRANCH, b"riff", "First").unwrap();
+        commit_named(&first, BRANCH, b"riff", "First", &me()).unwrap();
         drop(first);
 
         let reopened = open_or_init(&path).unwrap();

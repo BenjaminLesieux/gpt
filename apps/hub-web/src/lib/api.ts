@@ -84,7 +84,8 @@ export interface Version {
   id: string;
   /** The musician's own words. Empty is ordinary and is never rewritten. */
   message: string;
-  authorEmail: string;
+  /** Absent when the version names nobody. */
+  authorEmail?: string;
   /** ISO, with the author's own offset. */
   at: string;
   /** One normally, two for a landing, none for the first version. */

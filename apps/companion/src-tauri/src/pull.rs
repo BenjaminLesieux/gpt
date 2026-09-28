@@ -38,6 +38,7 @@ pub struct Pulled {
 /// the newest of them the score on disk.
 pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
     let file = state.tracked(id)?;
+    let author = state.signature()?;
     let Some(descriptor) = file.remote.as_ref() else {
         return Err(Error::NoRemote(file.name.clone()));
     };
@@ -68,7 +69,7 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
     let arriving = git::read_score(&repo, &theirs)?;
 
     let safety = match std::fs::read(&file.path) {
-        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
+        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current), &author)?,
         // The file is gone; the pull is the recovery, nothing to preserve.
         Err(_) => None,
     };
@@ -90,7 +91,7 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Remote, RemoteAuth, TrackedFile};
+    use crate::config::{Account, Remote, RemoteAuth, TrackedFile};
     use crate::git::branch_ref;
     use std::path::PathBuf;
 
@@ -128,6 +129,10 @@ mod tests {
                     auth: RemoteAuth::None,
                 });
                 config.tracked_files.push(file);
+                config.account = Some(Account {
+                    hub: "https://hub.example.com".to_owned(),
+                    email: "sam.rivers@example.com".to_owned(),
+                });
                 Ok(())
             })
             .unwrap();
@@ -157,7 +162,7 @@ mod tests {
 
         /// The other machine commits and pushes.
         fn published(&self, bytes: &[u8], message: &str) {
-            git::commit_named(&self.elsewhere, BRANCH, bytes, message).unwrap();
+            git::commit_named(&self.elsewhere, BRANCH, bytes, message, &git::me()).unwrap();
             remote::push(&self.elsewhere, BRANCH, &self.descriptor(), None).unwrap();
         }
 
@@ -221,7 +226,7 @@ mod tests {
         let repo = f.repo();
         f.adopt_remote(&repo);
         // Both sides write a different bridge over the same intro.
-        git::commit_named(&repo, BRANCH, b"riff, my bridge", "My bridge").unwrap();
+        git::commit_named(&repo, BRANCH, b"riff, my bridge", "My bridge", &git::me()).unwrap();
         f.published(b"riff, their bridge", "Their bridge");
 
         let refused = pull(&f.state, &f.id).unwrap_err();
@@ -239,12 +244,27 @@ mod tests {
     fn a_score_that_is_only_ahead_has_nothing_to_pull() {
         let f = fixture();
         let repo = f.repo();
-        git::commit_named(&repo, BRANCH, b"riff, mine alone", "Mine").unwrap();
+        git::commit_named(&repo, BRANCH, b"riff, mine alone", "Mine", &git::me()).unwrap();
 
         let pulled = pull(&f.state, &f.id).unwrap();
 
         assert_eq!(pulled.state, SyncState::Ahead { versions: 1 });
         assert!(pulled.version.is_none());
+    }
+
+    #[test]
+    fn a_signed_out_companion_refuses_to_pull_rather_than_sign_as_nobody() {
+        let f = fixture();
+        f.published(b"riff with a bridge", "Bridge");
+        f.state
+            .update(|config| {
+                config.account = None;
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(matches!(pull(&f.state, &f.id), Err(Error::SignedOut)));
+        assert_eq!(f.on_disk(), b"take one");
     }
 
     #[test]

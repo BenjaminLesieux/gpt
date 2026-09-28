@@ -178,6 +178,19 @@ describe('a straight line of versions', () => {
     expect(versions[0].parents).toEqual([versions[1].id]);
   });
 
+  it('names nobody for a version signed with the companion placeholder', async () => {
+    const id = await createScore();
+    await clone(id);
+    await version('made before the companion could sign in', {
+      email: 'companion@gitarpro.app',
+    });
+    await push('main');
+
+    const [only] = (await history(id)).json().versions;
+
+    expect(only).not.toHaveProperty('authorEmail');
+  });
+
   it('keeps an empty message empty instead of inventing one', async () => {
     const id = await createScore();
     await clone(id);

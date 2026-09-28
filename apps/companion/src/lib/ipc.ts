@@ -13,6 +13,8 @@ export interface Version {
   message: string;
   at: Date;
   kind: VersionKind;
+  /** Absent for versions signed before sign-in, which name nobody. */
+  authorEmail?: string;
 }
 
 /** A version as the host sends it: `timestamp` in unix seconds. */

@@ -68,6 +68,7 @@ pub async fn pick_and_track_file(app: AppHandle) -> Result<Option<TrackedFile>> 
 /// score as it stands — so the first Guitar Pro save already has a baseline to
 /// diff against.
 fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile> {
+    let author = state.signature()?;
     let path = path.canonicalize()?;
     if !path.is_file() {
         return Err(Error::NotAFile(path.display().to_string()));
@@ -90,6 +91,7 @@ fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile
         &repo,
         &file.branch,
         &normalize_gp(&std::fs::read(&file.path)?),
+        &author,
     )?;
 
     state.set_active(&file.id);
@@ -145,7 +147,7 @@ pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> 
         return Err(Error::NothingToName(file.name));
     }
 
-    let version = git::commit_named(&repo, &file.branch, &bytes, &message)?;
+    let version = git::commit_named(&repo, &file.branch, &bytes, &message, &state.signature()?)?;
     state.set_active(&file.id);
     // Queued, not sent. The version is already safe on disk, and nothing about
     // the network is allowed to reach back and spoil that.
@@ -233,12 +235,13 @@ pub fn restore_version(
 ) -> Result<Option<Version>> {
     let file = state.tracked(&id)?;
     let repo = state.open_repo(&file.id)?;
+    let author = state.signature()?;
 
     // Read first: an unknown rev must not touch the file on disk.
     let restored = git::read_score(&repo, &rev)?;
 
     let safety = match std::fs::read(&file.path) {
-        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
+        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current), &author)?,
         // File gone — restoring is the recovery, nothing to preserve.
         Err(_) => None,
     };
@@ -605,9 +608,10 @@ mod tests {
         let id = crate::config::file_id(file);
         let repo = git::open_or_init(&data_dir.join("repos").join(&id)).unwrap();
         let bytes = std::fs::read(file).unwrap();
-        let version = git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&bytes))
-            .unwrap()
-            .unwrap();
+        let version =
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&bytes), &git::me())
+                .unwrap()
+                .unwrap();
         (id, version)
     }
 
@@ -631,7 +635,7 @@ mod tests {
         std::fs::write(&score, &resaved).unwrap();
 
         assert!(
-            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&resaved))
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&resaved), &git::me())
                 .unwrap()
                 .is_none()
         );
@@ -643,8 +647,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repo = git::open_or_init(&dir.path().join("repo")).unwrap();
 
-        let first = git::commit_named(&repo, git::MAIN_BRANCH, b"intro v1", "Intro").unwrap();
-        git::commit_named(&repo, git::MAIN_BRANCH, b"intro v2", "Intro reworked").unwrap();
+        let first =
+            git::commit_named(&repo, git::MAIN_BRANCH, b"intro v1", "Intro", &git::me()).unwrap();
+        git::commit_named(
+            &repo,
+            git::MAIN_BRANCH,
+            b"intro v2",
+            "Intro reworked",
+            &git::me(),
+        )
+        .unwrap();
 
         assert_eq!(git::read_score(&repo, &first.id).unwrap(), b"intro v1");
     }
@@ -659,8 +671,13 @@ mod tests {
         };
 
         for take in 0..20 {
-            git::commit_snapshot(&repo, git::MAIN_BRANCH, format!("take {take}").as_bytes())
-                .unwrap();
+            git::commit_snapshot(
+                &repo,
+                git::MAIN_BRANCH,
+                format!("take {take}").as_bytes(),
+                &git::me(),
+            )
+            .unwrap();
             git::prune_snapshots(&repo, policy).unwrap();
         }
 

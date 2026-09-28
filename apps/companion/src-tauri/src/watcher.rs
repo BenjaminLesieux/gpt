@@ -127,7 +127,12 @@ fn capture(state: &AppState, path: &Path) -> Result<Option<events::FileSaved>> {
     }
 
     let repo = state.open_repo(&file.id)?;
-    let version = git::commit_snapshot(&repo, &file.branch, &normalize::normalize_gp(&bytes))?;
+    let version = git::commit_snapshot(
+        &repo,
+        &file.branch,
+        &normalize::normalize_gp(&bytes),
+        &state.signature()?,
+    )?;
     if version.is_some() {
         git::prune_snapshots(&repo, state.snapshot_policy())?;
     }
@@ -149,7 +154,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::TrackedFile;
+    use crate::config::{Account, TrackedFile};
     use crate::git::SNAPSHOT_REF;
 
     /// Real fs events, real debounce — only the Tauri handle is absent.
@@ -160,6 +165,10 @@ mod tests {
                 config
                     .tracked_files
                     .push(TrackedFile::new(score.to_path_buf()));
+                config.account = Some(Account {
+                    hub: "https://hub.example.com".to_owned(),
+                    email: "sam.rivers@example.com".to_owned(),
+                });
                 Ok(())
             })
             .unwrap();

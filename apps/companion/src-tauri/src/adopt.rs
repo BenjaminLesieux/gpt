@@ -199,7 +199,7 @@ mod tests {
 
         /// The other machine commits and pushes.
         fn published(&self, bytes: &[u8], message: &str) {
-            git::commit_named(&self.elsewhere, MAIN_BRANCH, bytes, message).unwrap();
+            git::commit_named(&self.elsewhere, MAIN_BRANCH, bytes, message, &git::me()).unwrap();
             remote::push(&self.elsewhere, MAIN_BRANCH, &self.descriptor(), None).unwrap();
         }
 
@@ -297,7 +297,14 @@ mod tests {
         let id =
             config::file_id(&config::canonical(f.score.parent().unwrap()).join("Blackbird.gp"));
         let orphaned = f.state.open_repo(&id).unwrap();
-        git::commit_named(&orphaned, MAIN_BRANCH, b"riff, kept locally", "Mine").unwrap();
+        git::commit_named(
+            &orphaned,
+            MAIN_BRANCH,
+            b"riff, kept locally",
+            "Mine",
+            &git::me(),
+        )
+        .unwrap();
 
         let refused = f.adopt().unwrap_err();
 
