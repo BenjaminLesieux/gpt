@@ -177,6 +177,7 @@ export function ExtendedApp() {
   const adoptDialog = (
     <AdoptDialog
       open={adoptOpen}
+      files={library.files}
       onClose={() => setAdoptOpen(false)}
       onAdopted={(file) => {
         library.adopted(file);

@@ -79,6 +79,8 @@ pub fn run() {
             commands::land_branch,
             commands::set_ask_first,
             commands::ask_first,
+            commands::scores,
+            commands::adopt_score,
             commands::auth_state,
             commands::sign_in,
             commands::sign_out,

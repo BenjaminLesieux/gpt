@@ -161,7 +161,15 @@
       "title": "Bring in a score from a remote",
       "description": "Paste the repository a score already lives in. Its named versions come down, and you choose where the file is saved.",
       "action": "Choose where to save…",
-      "adopted": "“{{file}}” is on disk and tracked."
+      "adopted": "“{{file}}” is on disk and tracked.",
+      "pick": "Pick one of your scores. Its named versions come down, and you choose where the file is saved.",
+      "differentHub": "Different hub…",
+      "yourScores": "Your scores",
+      "tracked": "On this machine",
+      "loadFailed": "Your scores could not be loaded",
+      "retry": "Try again",
+      "emptyTitle": "No scores yet",
+      "emptyDescription": "Scores you create or join on the hub show up here."
     },
     "claim": {
       "title": "Add “{{score}}” to this computer?",

@@ -17,6 +17,8 @@ vi.mock('@/lib/ipc', () => ({
   fetchRemote: vi.fn(),
   pullRemote: vi.fn(),
   pickAndAdoptRemote: vi.fn(),
+  listScores: vi.fn(),
+  adoptScore: vi.fn(),
   peekClaim: vi.fn(),
   adoptClaim: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
@@ -87,6 +89,7 @@ beforeEach(() => {
   ipc.restoreVersion.mockResolvedValue(null);
   ipc.setRemote.mockResolvedValue(undefined);
   ipc.syncState.mockResolvedValue({ kind: 'unconfigured' });
+  ipc.listScores.mockResolvedValue([]);
 });
 
 /** The same file, but pointed at a server. */
@@ -358,6 +361,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
 
     await user.type(
       await screen.findByLabelText('Repository URL'),
@@ -386,6 +390,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
     const url = (await screen.findByLabelText('Repository URL')) as HTMLInputElement;
     await user.type(url, 'https://hub.example.com/git/lasagna.git');
     await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
@@ -404,6 +409,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
     await user.type(
       await screen.findByLabelText('Repository URL'),
       'https://hub.example.com/git/lasagna.git',
@@ -423,7 +429,79 @@ describe('ExtendedApp', () => {
 
     await user.click(await screen.findByRole('button', { name: /Bring in a score/ }));
 
-    expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
+    expect(await screen.findByText('No scores yet')).toBeTruthy();
+  });
+
+  describe("the account's scores", () => {
+    const lasagna = {
+      id: 'k7m2x',
+      name: 'Lasagna',
+      url: 'https://hub.example.com/git/ben/k7m2x.git',
+      createdAt: '2026-09-01T10:00:00.000Z',
+    };
+    const tracked = { ...lasagna, id: 'q9r4t', name: 'Blackbird', url: synced.remote?.url ?? '' };
+
+    async function openAdopt() {
+      const user = userEvent.setup();
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      await user.click(screen.getByRole('button', { name: 'Blackbird' }));
+      await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+      return user;
+    }
+
+    it('lists them and marks the ones already on this machine', async () => {
+      ipc.listTrackedFiles.mockResolvedValue([synced]);
+      ipc.listScores.mockResolvedValue([lasagna, tracked]);
+      await openAdopt();
+
+      const here = await screen.findByRole('button', { name: /Blackbird/ });
+      expect(within(here).getByText('On this machine')).toBeTruthy();
+      expect((here as HTMLButtonElement).disabled).toBe(true);
+      const elsewhere = screen.getByRole('button', { name: 'Lasagna' });
+      expect(within(elsewhere).queryByText('On this machine')).toBeNull();
+    });
+
+    it('leaves the save dialog and the token to the host', async () => {
+      ipc.listScores.mockResolvedValue([lasagna]);
+      ipc.adoptScore.mockResolvedValue({
+        id: 'b2',
+        path: '/Users/ben/Songs/Lasagna.gp',
+        name: 'Lasagna',
+        addedAt: NOW,
+        remote: { url: lasagna.url, auth: { kind: 'token', username: 'ben' } },
+      });
+      const user = await openAdopt();
+
+      await user.click(await screen.findByRole('button', { name: 'Lasagna' }));
+
+      expect(ipc.adoptScore).toHaveBeenCalledWith('k7m2x', 'Lasagna');
+      expect(ipc.pickAndAdoptRemote).not.toHaveBeenCalled();
+      expect(await screen.findByText(/is on disk and tracked/)).toBeTruthy();
+    });
+
+    it('keeps the triple behind a different hub', async () => {
+      ipc.listScores.mockResolvedValue([lasagna]);
+      const user = await openAdopt();
+      await screen.findByRole('button', { name: 'Lasagna' });
+      expect(screen.queryByLabelText('Repository URL')).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: 'Different hub…' }));
+
+      expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Lasagna' })).toBeNull();
+    });
+
+    it('says when the list could not be loaded, and tries again', async () => {
+      ipc.listScores.mockRejectedValueOnce(new Error('the hub could not be reached'));
+      ipc.listScores.mockResolvedValueOnce([lasagna]);
+      const user = await openAdopt();
+
+      expect(await screen.findByText(/could not be reached/)).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('button', { name: 'Lasagna' })).toBeTruthy();
+    });
   });
 
   /**

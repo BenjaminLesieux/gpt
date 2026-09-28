@@ -20,7 +20,7 @@ use crate::config::Account;
 use crate::deep_link::SignedInLink;
 use crate::error::{Error, Result};
 use crate::events;
-use crate::hub::{self, Hub};
+use crate::hub::{self, Hub, RedeemedClaim};
 use crate::secrets;
 use crate::state::AppState;
 use crate::window;
@@ -197,6 +197,37 @@ pub async fn verify(state: &AppState) -> Result<bool> {
     Ok(refused)
 }
 
+/// The scores the account is a member of.
+pub async fn scores(state: &AppState) -> Result<Vec<hub::Score>> {
+    let (hub, token) = account(state)?;
+    let answer = hub.scores(&token).await;
+    signed_out_if_refused(state, answer)
+}
+
+/// A score token for one of them — adoption without the pasted triple.
+pub async fn score_token(state: &AppState, score: &str) -> Result<RedeemedClaim> {
+    let (hub, token) = account(state)?;
+    let answer = hub.score_token(&token, score).await;
+    signed_out_if_refused(state, answer)
+}
+
+/// A missing token reads as the hub's own `no_token`, so it signs the
+/// companion out like any other refusal.
+fn account(state: &AppState) -> Result<(Hub, String)> {
+    let no_token = || Error::Hub("no_token".to_owned(), "Sign in again.".to_owned());
+    let hub = state.config().account.clone().ok_or_else(no_token)?.hub;
+    let token = secrets::read(secrets::ACCOUNT)?.ok_or_else(no_token)?;
+    Ok((Hub::new(&hub)?, token))
+}
+
+/// What [`verify`] does on its schedule, done wherever else the hub says no.
+fn signed_out_if_refused<T>(state: &AppState, answer: Result<T>) -> Result<T> {
+    if is_refusal(&answer) {
+        sign_out(state)?;
+    }
+    answer
+}
+
 fn is_refusal<T>(answer: &Result<T>) -> bool {
     matches!(answer, Err(Error::Hub(code, _)) if REFUSED.contains(&code.as_str()))
 }
@@ -259,6 +290,14 @@ pub fn start(app: AppHandle) {
         }
         std::thread::sleep(RECHECK);
     });
+}
+
+/// Tells the windows when a refusal has just signed the companion out.
+pub fn told<T>(app: &AppHandle, answer: Result<T>) -> Result<T> {
+    if is_refusal(&answer) {
+        changed(app);
+    }
+    answer
 }
 
 pub fn changed(app: &AppHandle) {
@@ -540,6 +579,108 @@ mod tests {
             auth_state(&state),
             AuthState::SignedOut { hub: Some(hub), .. } if hub == EXAMPLE
         ));
+    }
+
+    fn signed_in(hub: &str) -> (tempfile::TempDir, AppState) {
+        let (dir, state) = signed_out();
+        state
+            .update(|config| {
+                config.account = Some(Account {
+                    hub: hub.to_owned(),
+                    email: "ben@example.com".to_owned(),
+                });
+                Ok(())
+            })
+            .unwrap();
+        (dir, state)
+    }
+
+    #[test]
+    fn the_scores_are_asked_for_with_the_account_token() {
+        let (origin, asked) = hub_answering(
+            "200 OK",
+            r#"[{"id":"k7m2x","name":"Blackbird","url":"https://hub.example.com/git/ben/k7m2x.git","createdAt":"2026-09-01T10:00:00.000Z"}]"#,
+        );
+
+        let scores =
+            tauri::async_runtime::block_on(Hub::new(&origin).unwrap().scores("acc0unt")).unwrap();
+
+        let request = asked.join().unwrap();
+        assert!(request.starts_with("GET /companion/scores "), "{request}");
+        assert!(
+            request
+                .to_lowercase()
+                .contains("authorization: bearer acc0unt"),
+            "{request}"
+        );
+        assert_eq!(scores.len(), 1);
+        assert_eq!(scores[0].id, "k7m2x");
+        assert_eq!(scores[0].url, "https://hub.example.com/git/ben/k7m2x.git");
+    }
+
+    /// The answer is `POST /scores/:id/token`'s, read into the claim's type,
+    /// so a picked score reaches `adopt_remote` with what a claim would give it.
+    #[test]
+    fn a_score_token_is_minted_for_the_picked_score() {
+        let (origin, asked) = hub_answering(
+            "201 Created",
+            r#"{"id":"k7m2x","name":"Blackbird","url":"https://hub.example.com/git/ben/k7m2x.git","username":"ben","token":"sc0re","tokenName":"studio-imac"}"#,
+        );
+
+        let minted = tauri::async_runtime::block_on(
+            Hub::new(&origin).unwrap().score_token("acc0unt", "k7m2x"),
+        )
+        .unwrap();
+
+        let request = asked.join().unwrap();
+        assert!(
+            request.starts_with("POST /companion/scores/k7m2x/token "),
+            "{request}"
+        );
+        assert!(
+            request
+                .to_lowercase()
+                .contains("authorization: bearer acc0unt"),
+            "{request}"
+        );
+        assert_eq!(minted.url, "https://hub.example.com/git/ben/k7m2x.git");
+        assert_eq!(minted.username, "ben");
+        assert_eq!(minted.token, "sc0re");
+    }
+
+    #[test]
+    fn a_score_id_carrying_path_syntax_is_refused_before_the_network() {
+        let hub = Hub::new(EXAMPLE).unwrap();
+
+        let refused =
+            tauri::async_runtime::block_on(hub.score_token("acc0unt", "../me")).unwrap_err();
+
+        assert!(matches!(refused, Error::Hub(ref code, _) if code == "no_such_score"));
+    }
+
+    #[test]
+    fn a_refused_account_token_signs_the_companion_out() {
+        let (origin, _asked) = hub_answering(
+            "401 Unauthorized",
+            r#"{"error":{"code":"token_revoked","message":"This device was disconnected from the hub."}}"#,
+        );
+        let (_dir, state) = signed_in(&origin);
+
+        let answer = tauri::async_runtime::block_on(Hub::new(&origin).unwrap().scores("acc0unt"));
+        let refused = signed_out_if_refused(&state, answer).unwrap_err();
+
+        assert!(matches!(refused, Error::Hub(ref code, _) if code == "token_revoked"));
+        assert!(state.config().account.is_none());
+    }
+
+    #[test]
+    fn a_hub_that_is_down_leaves_the_companion_signed_in() {
+        let (_dir, state) = signed_in(EXAMPLE);
+
+        let answer: Result<()> = Err(Error::HubUnreachable("offline".to_owned()));
+        assert!(signed_out_if_refused(&state, answer).is_err());
+
+        assert!(state.config().account.is_some());
     }
 
     #[test]

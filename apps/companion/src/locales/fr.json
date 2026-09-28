@@ -161,7 +161,15 @@
       "title": "Récupérer une partition depuis un dépôt",
       "description": "Colle le dépôt où la partition vit déjà. Ses versions nommées sont récupérées, et tu choisis où le fichier est enregistré.",
       "action": "Choisir où l'enregistrer…",
-      "adopted": "« {{file}} » est sur le disque et suivie."
+      "adopted": "« {{file}} » est sur le disque et suivie.",
+      "pick": "Choisis une de tes partitions. Ses versions nommées sont récupérées, et tu choisis où le fichier est enregistré.",
+      "differentHub": "Autre hub…",
+      "yourScores": "Tes partitions",
+      "tracked": "Sur cette machine",
+      "loadFailed": "Impossible de charger tes partitions",
+      "retry": "Réessayer",
+      "emptyTitle": "Aucune partition pour l'instant",
+      "emptyDescription": "Les partitions que tu crées ou rejoins sur le hub apparaissent ici."
     },
     "claim": {
       "title": "Ajouter « {{score}} » à cet ordinateur ?",

@@ -502,3 +502,27 @@ export function onAuthStateChanged(
     handler(payload),
   );
 }
+
+/** A score the signed-in account is a member of. */
+export interface Score {
+  id: string;
+  name: string;
+  url: string;
+  createdAt: string;
+}
+
+/** Rejects, and signs the companion out, when the hub refuses the account token. */
+export function listScores(): Promise<Score[]> {
+  return invoke('scores');
+}
+
+/**
+ * Asks where one of those scores should land, then mints its token and adopts
+ * it. `null` means the save dialog was cancelled, before anything was minted.
+ */
+export function adoptScore(
+  id: string,
+  name: string,
+): Promise<TrackedFile | null> {
+  return invoke('adopt_score', { id, name });
+}

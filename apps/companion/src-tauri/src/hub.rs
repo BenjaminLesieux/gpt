@@ -1,7 +1,9 @@
 //! Talking to a hub over its JSON API.
 //!
 //! The first HTTP this process has ever spoken that git2 did not speak for
-//! it: reading what a claim is about, spending it, and landing a branch.
+//! it: reading what a claim is about and spending it, landing a branch, and
+//! signing in — spending a sign-in code, and asking whose token this is; and,
+//! signed in, listing the account's scores and minting a token for one.
 //!
 //! The origin is not ours. It arrives in a `gitarpro://` link, which is to
 //! say it arrives from whatever put that link in front of the user — so it is
@@ -42,7 +44,7 @@ pub struct ClaimPeek {
 /// The response also carries the score's name; it is not read here, because
 /// by this point the save dialog has already been named from the peek and
 /// there is nothing left for a second copy to decide.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RedeemedClaim {
     pub url: String,
     pub username: String,
@@ -54,6 +56,16 @@ pub struct RedeemedClaim {
 pub struct CompanionToken {
     pub token: String,
     pub email: String,
+}
+
+/// A score the signed-in account is a member of.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Score {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -357,6 +369,40 @@ impl Hub {
         read::<Me>(response).await.map(|me| me.email)
     }
 
+    /// The scores the account is a member of.
+    pub async fn scores(&self, token: &str) -> Result<Vec<Score>> {
+        let response = self
+            .client
+            .get(self.endpoint("/companion/scores")?)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(unreachable_hub)?;
+
+        read(response).await
+    }
+
+    /// Mints a score token for one of them. The hub answers exactly what
+    /// `POST /scores/:id/token` answers, so it is read as the claim's answer
+    /// and adopted the same way.
+    pub async fn score_token(&self, token: &str, score: &str) -> Result<RedeemedClaim> {
+        if !is_code(score) {
+            return Err(Error::Hub(
+                "no_such_score".to_owned(),
+                "No score with that id.".to_owned(),
+            ));
+        }
+        let response = self
+            .client
+            .post(self.endpoint(&format!("/companion/scores/{score}/token"))?)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(unreachable_hub)?;
+
+        read(response).await
+    }
+
     fn endpoint(&self, path: &str) -> Result<Url> {
         self.origin
             .join(path)
@@ -368,16 +414,20 @@ impl Hub {
     /// cannot name a claim anyway, and refusing it here means nothing else
     /// downstream has to wonder what is in it.
     fn claim_url(&self, claim: &str) -> Result<Url> {
-        if claim.is_empty()
-            || !claim
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-        {
+        if !is_code(claim) {
             return Err(Error::InvalidClaim);
         }
 
         self.endpoint(&format!("/claims/{claim}"))
     }
+}
+
+/// The alphabet the hub mints codes and ids from.
+fn is_code(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 /// The hub's own error body, or the status on its own when the answer is not

@@ -389,15 +389,10 @@ pub async fn adopt_remote(
     .map_err(|err| Error::BackgroundTask(err.to_string()))?
 }
 
-/// Asks where the score should land, then adopts into it. A *save* dialog, not
-/// an open one: the file is what this is about to create.
-#[tauri::command]
-pub async fn pick_and_adopt_remote(
-    app: AppHandle,
-    url: String,
-    auth: Option<RemoteAuth>,
-    token: Option<String>,
-) -> Result<Option<TrackedFile>> {
+/// Where a score about to be created should land. A *save* dialog, not an
+/// open one: the file is what the caller is about to create. `None` is a
+/// cancel.
+async fn pick_save_path(app: &AppHandle, file_name: String) -> Result<Option<PathBuf>> {
     let picked = {
         // As in `pick_and_track_file`: a native dialog takes focus and the
         // panel dismisses itself when it loses it. Focus is not handed back
@@ -407,7 +402,7 @@ pub async fn pick_and_adopt_remote(
         app.dialog()
             .file()
             .add_filter("Guitar Pro", &GP_EXTENSIONS)
-            .set_file_name(adopt::suggested_file_name(&url))
+            .set_file_name(file_name)
             .save_file(move |picked| {
                 // Capacity 1 and a single send: this can never be full.
                 let _ = sender.try_send(picked);
@@ -415,12 +410,26 @@ pub async fn pick_and_adopt_remote(
         receiver.recv().await.flatten()
     };
 
-    let Some(picked) = picked else {
+    picked
+        .map(|picked| {
+            picked
+                .into_path()
+                .map_err(|err| Error::NotAFile(err.to_string()))
+        })
+        .transpose()
+}
+
+/// Asks where the score should land, then adopts into it.
+#[tauri::command]
+pub async fn pick_and_adopt_remote(
+    app: AppHandle,
+    url: String,
+    auth: Option<RemoteAuth>,
+    token: Option<String>,
+) -> Result<Option<TrackedFile>> {
+    let Some(path) = pick_save_path(&app, adopt::suggested_file_name(&url)).await? else {
         return Ok(None);
     };
-    let path = picked
-        .into_path()
-        .map_err(|err| Error::NotAFile(err.to_string()))?;
 
     adopt_remote(app, path, url, auth, token).await.map(Some)
 }
@@ -460,30 +469,11 @@ pub async fn adopt_claim(
     // through the webview is a value the webview could have changed.
     let peek = client.peek(&claim).await?;
 
-    let picked = {
-        // As in `pick_and_track_file`: a native dialog takes focus and the
-        // panel dismisses itself when it loses it.
-        let _hold = crate::panel::hold();
-        let (sender, mut receiver) = tauri::async_runtime::channel(1);
-        app.dialog()
-            .file()
-            .add_filter("Guitar Pro", &GP_EXTENSIONS)
-            .set_file_name(adopt::file_name_for(&peek.score_name))
-            .save_file(move |picked| {
-                // Capacity 1 and a single send: this can never be full.
-                let _ = sender.try_send(picked);
-            });
-        receiver.recv().await.flatten()
-    };
-
     // Nothing has been spent, so this is a cancel and not a failure — the
     // same link still works.
-    let Some(picked) = picked else {
+    let Some(path) = pick_save_path(&app, adopt::file_name_for(&peek.score_name)).await? else {
         return Ok(None);
     };
-    let path = picked
-        .into_path()
-        .map_err(|err| Error::NotAFile(err.to_string()))?;
 
     let redeemed = client.redeem(&claim, &hub::device_name()).await?;
     let auth = RemoteAuth::Token {
@@ -546,6 +536,32 @@ pub async fn set_ask_first(app: AppHandle, id: String, ask_first: bool) -> Resul
     client
         .set_ask_first(&score, &file.branch, ask_first, &auth)
         .await
+}
+
+/// The scores the signed-in account is a member of.
+#[tauri::command]
+pub async fn scores(app: AppHandle) -> Result<Vec<hub::Score>> {
+    let answer = auth::scores(&app.state::<AppState>()).await;
+    auth::told(&app, answer)
+}
+
+/// Adopts one of them. The token is minted after the save dialog, as a claim
+/// is redeemed after it, so cancelling leaves nothing on the hub.
+#[tauri::command]
+pub async fn adopt_score(app: AppHandle, id: String, name: String) -> Result<Option<TrackedFile>> {
+    let Some(path) = pick_save_path(&app, adopt::file_name_for(&name)).await? else {
+        return Ok(None);
+    };
+
+    let answer = auth::score_token(&app.state::<AppState>(), &id).await;
+    let minted = auth::told(&app, answer)?;
+    let auth = RemoteAuth::Token {
+        username: minted.username,
+    };
+
+    adopt_remote(app, path, minted.url, Some(auth), Some(minted.token))
+        .await
+        .map(Some)
 }
 
 #[tauri::command]
