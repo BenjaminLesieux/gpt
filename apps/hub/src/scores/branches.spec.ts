@@ -330,6 +330,23 @@ describe('a branch whose tip will not parse', () => {
   });
 });
 
+describe('a branch that left main at a version that will not parse', () => {
+  it('says nothing about what it touched, rather than that it touched everything', async () => {
+    const id = await createScore();
+    await version('saved from something we cannot read', Buffer.from('not a guitar pro file'));
+    await git('push', '--quiet', 'origin', 'main');
+
+    await git('checkout', '--quiet', '-b', 'bass-line');
+    await version('bass follows the kick now', edited(BASS));
+    await git('push', '--quiet', 'origin', 'bass-line');
+
+    const [branch] = (await branches(id)).json().branches;
+
+    expect(branch.ahead).toBe(1);
+    expect(branch.scope).toBeNull();
+  });
+});
+
 describe('someone who is not on the score', () => {
   it('gets the same answer as for a score that does not exist', async () => {
     const id = await createScore();

@@ -115,8 +115,15 @@ export async function branchScopes(
 
     // A branch sharing no history with main is the whole of its own tip, the
     // same reading the first version gets.
-    const base = branch.base ? await load(branch.base) : null;
-    scopes.set(branch.name, base ? against(base, tip) : whole(tip));
+    if (!branch.base) {
+      scopes.set(branch.name, whole(tip));
+      continue;
+    }
+
+    // A base the importer cannot read is no scope too. Reading it as *no base*
+    // would claim the branch touched every track.
+    const base = await load(branch.base);
+    if (base) scopes.set(branch.name, against(base, tip));
   }
 
   return scopes;
