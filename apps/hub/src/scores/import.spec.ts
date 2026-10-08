@@ -11,7 +11,7 @@ import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
 import { normalizeGp } from '../git/normalize';
-import { NAMED_REF, SCORE_ENTRY } from '../git/versions';
+import { MAIN_REF, SCORE_ENTRY } from '../git/versions';
 import { addScoreMember } from './members';
 
 const run = promisify(execFile);
@@ -99,7 +99,7 @@ async function storedScore(username: string, id: string): Promise<Buffer> {
   const repository = path.join(gitRoot, username, `${id}.git`);
   const { stdout } = await run(
     'git',
-    ['--git-dir', repository, 'cat-file', 'blob', `${NAMED_REF}:${SCORE_ENTRY}`],
+    ['--git-dir', repository, 'cat-file', 'blob', `${MAIN_REF}:${SCORE_ENTRY}`],
     { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 }
   );
   return stdout as unknown as Buffer;

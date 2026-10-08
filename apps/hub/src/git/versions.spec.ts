@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRepository } from './repositories';
-import { NAMED_REF, SCORE_ENTRY, writeFirstVersion } from './versions';
+import { MAIN_REF, SCORE_ENTRY, writeFirstVersion } from './versions';
 
 const run = promisify(execFile);
 
@@ -34,11 +34,11 @@ describe('writeFirstVersion', () => {
     // Given / When
     const written = await write();
 
-    // Then — companion's NAMED_REF, and the --initial-branch createRepository
+    // Then — companion's MAIN_BRANCH, and the --initial-branch createRepository
     // already sets. A tip anywhere else transfers on clone and checks out
     // nothing.
     expect(written).toEqual({ status: 'written', commit: expect.any(String) });
-    const { stdout } = await run('git', ['--git-dir', repository, 'rev-parse', NAMED_REF]);
+    const { stdout } = await run('git', ['--git-dir', repository, 'rev-parse', MAIN_REF]);
     expect(stdout.trim()).toBe(written.status === 'written' ? written.commit : '');
   });
 
@@ -47,7 +47,7 @@ describe('writeFirstVersion', () => {
     await write();
 
     // Then — the shape git.rs reads back: a single entry, mode 100644.
-    const { stdout } = await run('git', ['--git-dir', repository, 'ls-tree', NAMED_REF]);
+    const { stdout } = await run('git', ['--git-dir', repository, 'ls-tree', MAIN_REF]);
     const [line, ...rest] = stdout.trim().split('\n');
     expect(rest).toEqual([]);
     expect(line).toMatch(new RegExp(`^100644 blob [0-9a-f]{40}\\t${SCORE_ENTRY}$`));
@@ -63,7 +63,7 @@ describe('writeFirstVersion', () => {
     // Then
     const { stdout } = await run(
       'git',
-      ['--git-dir', repository, 'cat-file', 'blob', `${NAMED_REF}:${SCORE_ENTRY}`],
+      ['--git-dir', repository, 'cat-file', 'blob', `${MAIN_REF}:${SCORE_ENTRY}`],
       { encoding: 'buffer' }
     );
     expect(Buffer.compare(stdout as unknown as Buffer, score)).toBe(0);
@@ -77,7 +77,7 @@ describe('writeFirstVersion', () => {
     // never carries them, so a repository holding one did not come from a
     // client and would not behave like one.
     const { stdout } = await run('git', ['--git-dir', repository, 'for-each-ref', '--format=%(refname)']);
-    expect(stdout.trim().split('\n')).toEqual([NAMED_REF]);
+    expect(stdout.trim().split('\n')).toEqual([MAIN_REF]);
   });
 
   it('should give the commit no parent and the message it was handed', async () => {
@@ -90,7 +90,7 @@ describe('writeFirstVersion', () => {
       repository,
       'log',
       '--format=%P|%s',
-      NAMED_REF,
+      MAIN_REF,
     ]);
     expect(stdout.trim()).toBe('|Imported');
   });
@@ -105,7 +105,7 @@ describe('writeFirstVersion', () => {
     // Then — the guard is update-ref asserting the ref is unborn as it
     // writes, so two racing imports cannot both believe they won.
     expect(second).toEqual({ status: 'already_has_versions' });
-    const { stdout } = await run('git', ['--git-dir', repository, 'rev-parse', NAMED_REF]);
+    const { stdout } = await run('git', ['--git-dir', repository, 'rev-parse', MAIN_REF]);
     expect(stdout.trim()).toBe(first.status === 'written' ? first.commit : '');
   });
 
