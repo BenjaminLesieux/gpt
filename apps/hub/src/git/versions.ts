@@ -8,13 +8,15 @@ import { repositoryPath } from './repositories';
  *
  * The shape is not ours to choose — companion reads it back. A single blob at
  * the tree root named `score.gp`, mode 100644, with the tip on
- * `refs/heads/main`; see `SCORE_ENTRY` and `NAMED_REF` in
+ * `refs/heads/main`; see `SCORE_ENTRY` and `MAIN_BRANCH` in
  * `apps/companion/src-tauri/src/git.rs`. `refs/snapshots` is local scratch on
  * the companion side and a push never carries it, so an import must not
  * invent one.
  */
 export const SCORE_ENTRY = 'score.gp';
-export const NAMED_REF = 'refs/heads/main';
+/** Where a score's history starts. Other branches are pushed, never seeded. */
+export const MAIN_BRANCH = 'main';
+export const MAIN_REF = `refs/heads/${MAIN_BRANCH}`;
 
 const BLOB_MODE = '100644';
 
@@ -64,7 +66,7 @@ export async function writeFirstVersion(
   });
 
   try {
-    await git(repository, ['update-ref', NAMED_REF, commit, '']);
+    await git(repository, ['update-ref', MAIN_REF, commit, '']);
   } catch {
     // The only way this fails in practice: something else got there first.
     // The objects just written are unreachable, which is what `git gc` is

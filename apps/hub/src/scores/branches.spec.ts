@@ -11,7 +11,7 @@ import { app } from '../app/app';
 import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { NAMED_REF, SCORE_ENTRY } from '../git/versions';
+import { MAIN_REF, SCORE_ENTRY } from '../git/versions';
 
 /**
  * `GET /scores/:id/branches`, over real repositories reached the way companion
@@ -91,7 +91,7 @@ async function createScore(name = 'Nightswim'): Promise<string> {
   // Cloning a repository with no commits leaves the local branch named after
   // whatever this machine's `init.defaultBranch` is, which on a developer's
   // laptop is often not the one the hub serves.
-  await git('symbolic-ref', 'HEAD', NAMED_REF);
+  await git('symbolic-ref', 'HEAD', MAIN_REF);
 
   return id;
 }

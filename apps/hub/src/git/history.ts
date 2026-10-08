@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { repositoryPath } from './repositories';
-import { NAMED_REF, SCORE_ENTRY } from './versions';
+import { MAIN_BRANCH, SCORE_ENTRY } from './versions';
 
 const run = promisify(execFile);
 
@@ -125,14 +125,14 @@ export async function readHistory(
     git(repository, ['rev-list', '--all', '--count']),
   ]);
 
-  const main = refs.find((ref) => ref.name === mainName())?.tip ?? null;
+  const main = refs.find((ref) => ref.name === MAIN_BRANCH)?.tip ?? null;
 
   return {
     head: main,
     versions: parseLog(log),
     branches: await Promise.all(
       refs
-        .filter((ref) => ref.name !== mainName())
+        .filter((ref) => ref.name !== MAIN_BRANCH)
         .map(async (ref) => ({
           name: ref.name,
           tip: ref.tip,
@@ -193,7 +193,7 @@ export async function readBranchPoints(
   const repository = repositoryPath(root, accountId, scoreId);
   if (!repository) return null;
 
-  const refs = (await readBranches(repository)).filter((ref) => ref.name !== mainName());
+  const refs = (await readBranches(repository)).filter((ref) => ref.name !== MAIN_BRANCH);
 
   return Promise.all(
     refs.map(async (ref) => ({
@@ -204,11 +204,6 @@ export async function readBranchPoints(
       base: await mergeBase(repository, ref.name),
     }))
   );
-}
-
-/** The main line's ref, short. Kept in one place so the two readers agree. */
-function mainName(): string {
-  return NAMED_REF.replace('refs/heads/', '');
 }
 
 interface Ref {
@@ -241,7 +236,7 @@ async function readBranches(repository: string): Promise<Ref[]> {
  * *in flight* and *landed* and is not one we should re-derive.
  */
 async function countAhead(repository: string, name: string): Promise<number> {
-  const out = await git(repository, ['rev-list', '--count', `${mainName()}..${name}`]).catch(
+  const out = await git(repository, ['rev-list', '--count', `${MAIN_BRANCH}..${name}`]).catch(
     () => '0'
   );
   return Number.parseInt(out, 10) || 0;
@@ -258,7 +253,7 @@ async function countAhead(repository: string, name: string): Promise<number> {
  * that as "nothing to compare against", the same as the first version does.
  */
 async function mergeBase(repository: string, name: string): Promise<string | null> {
-  return git(repository, ['merge-base', mainName(), name])
+  return git(repository, ['merge-base', MAIN_BRANCH, name])
     .then((out) => out.trim() || null)
     .catch(() => null);
 }
