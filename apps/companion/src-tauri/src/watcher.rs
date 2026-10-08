@@ -122,7 +122,7 @@ fn capture(state: &AppState, path: &Path) -> Result<Option<events::FileSaved>> {
     }
 
     let repo = state.open_repo(&file.id)?;
-    let version = git::commit_snapshot(&repo, &normalize::normalize_gp(&bytes))?;
+    let version = git::commit_snapshot(&repo, &file.branch, &normalize::normalize_gp(&bytes))?;
     if version.is_some() {
         git::prune_snapshots(&repo, state.snapshot_policy())?;
     }

@@ -259,7 +259,10 @@ pub fn deliver(state: &AppState, id: &str) -> Result<()> {
 
     let token = secrets::for_remote(id, &remote_descriptor)?;
     let repo = state.open_repo(id)?;
-    remote::push(&repo, &remote_descriptor, token.as_deref())
+    // ponytail: pushes the branch current at delivery, so a commit made offline
+    // and then switched away from waits until its branch is current again.
+    // Queue (file, branch) pairs if that wait starts to matter.
+    remote::push(&repo, &file.branch, &remote_descriptor, token.as_deref())
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -281,7 +284,7 @@ mod tests {
 
     fn terminal() -> Error {
         Error::PushRejected {
-            refname: git::NAMED_REF.to_owned(),
+            refname: git::branch_ref(git::MAIN_BRANCH),
             reason: "the remote holds versions this score does not".to_owned(),
         }
     }
@@ -416,11 +419,17 @@ mod tests {
         let remote_repo = git::open_or_init(&remote_path).unwrap();
         point_at(&state, &id, remote_path);
 
-        git::commit_named(&state.open_repo(&id).unwrap(), b"riff", "Intro").unwrap();
+        git::commit_named(
+            &state.open_repo(&id).unwrap(),
+            git::MAIN_BRANCH,
+            b"riff",
+            "Intro",
+        )
+        .unwrap();
         deliver(&state, &id).unwrap();
 
         assert_eq!(
-            git::read_score(&remote_repo, git::NAMED_REF).unwrap(),
+            git::read_score(&remote_repo, &git::branch_ref(git::MAIN_BRANCH)).unwrap(),
             b"riff"
         );
     }
@@ -430,7 +439,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (state, id) = state_tracking(dir.path(), &dir.path().join("riff.gp"));
 
-        git::commit_named(&state.open_repo(&id).unwrap(), b"riff", "Intro").unwrap();
+        git::commit_named(
+            &state.open_repo(&id).unwrap(),
+            git::MAIN_BRANCH,
+            b"riff",
+            "Intro",
+        )
+        .unwrap();
 
         deliver(&state, &id).unwrap();
     }
@@ -441,7 +456,13 @@ mod tests {
         let (state, id) = state_tracking(dir.path(), &dir.path().join("riff.gp"));
         point_at(&state, &id, dir.path().join("not-a-repo"));
 
-        git::commit_named(&state.open_repo(&id).unwrap(), b"riff", "Intro").unwrap();
+        git::commit_named(
+            &state.open_repo(&id).unwrap(),
+            git::MAIN_BRANCH,
+            b"riff",
+            "Intro",
+        )
+        .unwrap();
 
         let err = deliver(&state, &id).unwrap_err();
         assert!(!is_terminal(&err), "{err}");

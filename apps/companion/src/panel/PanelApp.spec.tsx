@@ -37,6 +37,7 @@ const blackbird: TrackedFile = {
   path: '/Users/ben/Songs/Blackbird.gp',
   name: 'Blackbird',
   addedAt: NOW - 9000,
+  branch: 'main',
 };
 
 const riff: TrackedFile = {
@@ -44,6 +45,7 @@ const riff: TrackedFile = {
   path: '/Users/ben/Demos/Riff.gp',
   name: 'Riff',
   addedAt: NOW - 500,
+  branch: 'main',
 };
 
 const intro: Version = { id: 'v1', message: 'Intro reworked', at: new Date((NOW - 300) * 1000), kind: 'named' };

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
+use crate::git::MAIN_BRANCH;
 
 pub const CONFIG_FILE: &str = "config.json";
 pub const REPOS_DIR: &str = "repos";
@@ -52,6 +53,13 @@ pub struct TrackedFile {
     pub added_at: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<Remote>,
+    /// The branch commits land on and pushes follow.
+    #[serde(default = "main_branch")]
+    pub branch: String,
+}
+
+fn main_branch() -> String {
+    MAIN_BRANCH.to_owned()
 }
 
 /// Secrets are deliberately absent — `config.json` is plain text. M5 puts them
@@ -141,6 +149,7 @@ impl TrackedFile {
             path,
             added_at: now_seconds(),
             remote: None,
+            branch: main_branch(),
         }
     }
 }
@@ -224,5 +233,14 @@ mod tests {
         assert_eq!(reloaded.tracked_files.len(), 1);
         assert_eq!(reloaded.tracked_files[0].name, "riff");
         assert_eq!(reloaded.snapshot_policy.keep_count, 200);
+    }
+
+    #[test]
+    fn a_file_tracked_before_branches_existed_is_on_main() {
+        let file: TrackedFile = serde_json::from_str(
+            r#"{"id":"abc","path":"/songs/riff.gp","name":"riff","addedAt":0}"#,
+        )
+        .unwrap();
+        assert_eq!(file.branch, MAIN_BRANCH);
     }
 }
