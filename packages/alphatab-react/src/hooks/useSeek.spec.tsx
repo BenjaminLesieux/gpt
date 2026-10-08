@@ -67,16 +67,17 @@ beforeEach(() => {
   FakeApi.instances.length = 0;
 });
 
+function Probe({ into }: { into: { current: UseSeekResult | null } }) {
+  into.current = useSeek();
+  return null;
+}
+
 async function renderSeek() {
   const seek: { current: UseSeekResult | null } = { current: null };
-  function Probe() {
-    seek.current = useSeek();
-    return null;
-  }
   render(
     <Root src={new Uint8Array([1, 2, 3])}>
       <Viewport />
-      <Probe />
+      <Probe into={seek} />
     </Root>,
   );
   await waitFor(() => expect(FakeApi.instances.length).toBeGreaterThan(0));
