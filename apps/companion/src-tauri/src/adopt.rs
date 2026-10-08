@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::config::{self, is_guitar_pro_file, Remote, TrackedFile};
 use crate::error::{Error, Result};
 use crate::git;
-use crate::remote::{self, REMOTE_REF};
+use crate::remote::{self, remote_ref};
 use crate::secrets;
 use crate::state::AppState;
 
@@ -45,19 +45,21 @@ pub fn adopt(
     let repo = state.open_repo(&id)?;
     remote::fetch(&repo, &remote, token)?;
 
-    // `fetch` treats a remote with no `main` as an answer rather than an
-    // error, so a missing mirror here means an empty repo and not a failure.
-    let Ok(onto) = repo.refname_to_id(REMOTE_REF) else {
+    // ponytail: adoption always takes main; taking another branch needs the
+    // hub's peek to name one and the save dialog to say which it is.
+    let theirs = remote_ref(git::MAIN_BRANCH);
+    // A fetch that brought no main means an empty repo, not a failure.
+    let Ok(onto) = repo.refname_to_id(&theirs) else {
         return Err(Error::RemoteEmpty(remote.url));
     };
-    let arriving = git::read_score(&repo, REMOTE_REF)?;
+    let arriving = git::read_score(&repo, &theirs)?;
 
     // `repos/<id>/` may already hold history — untracking leaves it behind so
     // re-tracking finds it again — and that history could be ahead of the
     // remote. Advancing through `fast_forward_named` is what refuses to drop
     // it, and doing so before the file is written means a refusal cannot
     // leave a score lying at a path nothing tracks.
-    git::fast_forward_named(&repo, onto)?;
+    git::fast_forward_named(&repo, git::MAIN_BRANCH, onto)?;
 
     // Secret, then file, then config row. The first pair is the reasoning in
     // `set_remote`: a descriptor persisted against a token that never reached
@@ -156,7 +158,7 @@ pub fn file_name_for(score_name: &str) -> String {
 mod tests {
     use super::*;
     use crate::config::RemoteAuth;
-    use crate::git::NAMED_REF;
+    use crate::git::{branch_ref, MAIN_BRANCH};
     use crate::remote::SyncState;
 
     /// A bare repo on disk standing in for the server, a second repo playing
@@ -197,8 +199,8 @@ mod tests {
 
         /// The other machine commits and pushes.
         fn published(&self, bytes: &[u8], message: &str) {
-            git::commit_named(&self.elsewhere, bytes, message).unwrap();
-            remote::push(&self.elsewhere, &self.descriptor(), None).unwrap();
+            git::commit_named(&self.elsewhere, MAIN_BRANCH, bytes, message).unwrap();
+            remote::push(&self.elsewhere, MAIN_BRANCH, &self.descriptor(), None).unwrap();
         }
 
         fn adopt(&self) -> Result<TrackedFile> {
@@ -295,14 +297,14 @@ mod tests {
         let id =
             config::file_id(&config::canonical(f.score.parent().unwrap()).join("Blackbird.gp"));
         let orphaned = f.state.open_repo(&id).unwrap();
-        git::commit_named(&orphaned, b"riff, kept locally", "Mine").unwrap();
+        git::commit_named(&orphaned, MAIN_BRANCH, b"riff, kept locally", "Mine").unwrap();
 
         let refused = f.adopt().unwrap_err();
 
         assert!(matches!(refused, Error::NotFastForward), "{refused}");
         assert!(!f.score.exists());
         assert_eq!(
-            git::read_score(&orphaned, NAMED_REF).unwrap(),
+            git::read_score(&orphaned, &branch_ref(MAIN_BRANCH)).unwrap(),
             b"riff, kept locally"
         );
     }
@@ -328,10 +330,15 @@ mod tests {
 
         let repo = f.state.open_repo(&file.id).unwrap();
         assert_eq!(
-            remote::compare(&repo, file.remote.as_ref()).unwrap(),
+            remote::compare(&repo, MAIN_BRANCH, file.remote.as_ref()).unwrap(),
             SyncState::UpToDate
         );
-        assert_eq!(git::list(&repo, NAMED_REF, None).unwrap().len(), 1);
+        assert_eq!(
+            git::list(&repo, &branch_ref(MAIN_BRANCH), None)
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]

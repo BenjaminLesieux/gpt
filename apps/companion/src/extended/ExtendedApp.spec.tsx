@@ -50,6 +50,7 @@ const blackbird: TrackedFile = {
   path: '/Users/ben/Songs/Blackbird.gp',
   name: 'Blackbird',
   addedAt: NOW - 9000,
+  branch: 'main',
 };
 
 const bridge: Version = { id: 'v2', message: 'Bridge take 3', at: new Date((NOW - 90) * 1000), kind: 'named' };
@@ -338,6 +339,7 @@ describe('ExtendedApp', () => {
       path: '/Users/ben/Songs/Lasagna.gp',
       name: 'Lasagna',
       addedAt: NOW,
+      branch: 'main',
       remote: { url: 'https://hub.example.com/git/lasagna.git', auth: { kind: 'token', username: 'ben' } },
     });
     const user = userEvent.setup();
@@ -433,6 +435,7 @@ describe('ExtendedApp', () => {
       path: '/Users/ben/Songs/Lasagna.gp',
       name: 'Lasagna',
       addedAt: NOW,
+      branch: 'main',
       remote: {
         url: 'https://hub.example.com/git/ben/k7m2x.git',
         auth: { kind: 'token', username: 'ben' },

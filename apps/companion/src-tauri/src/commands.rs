@@ -9,7 +9,7 @@ use crate::adopt;
 use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTENSIONS};
 use crate::error::{Error, Result};
 use crate::events;
-use crate::git::{self, Version, NAMED_REF, SNAPSHOT_REF};
+use crate::git::{self, Version, SNAPSHOT_REF};
 use crate::hub;
 use crate::normalize::normalize_gp;
 use crate::pull::{self, Pulled};
@@ -84,7 +84,11 @@ fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile
     })?;
 
     let repo = state.open_repo(&file.id)?;
-    git::commit_snapshot(&repo, &normalize_gp(&std::fs::read(&file.path)?))?;
+    git::commit_snapshot(
+        &repo,
+        &file.branch,
+        &normalize_gp(&std::fs::read(&file.path)?),
+    )?;
 
     state.set_active(&file.id);
     state.watcher.resync(&state.tracked_paths())?;
@@ -135,11 +139,11 @@ pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> 
     let bytes = normalize_gp(&std::fs::read(&file.path)?);
     let repo = state.open_repo(&file.id)?;
 
-    if git::is_named_tip(&repo, &bytes)? {
+    if git::is_named_tip(&repo, &file.branch, &bytes)? {
         return Err(Error::NothingToName(file.name));
     }
 
-    let version = git::commit_named(&repo, &bytes, &message)?;
+    let version = git::commit_named(&repo, &file.branch, &bytes, &message)?;
     state.set_active(&file.id);
     // Queued, not sent. The version is already safe on disk, and nothing about
     // the network is allowed to reach back and spoil that.
@@ -153,7 +157,11 @@ pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> 
 pub fn has_pending_change(state: State<'_, AppState>, id: String) -> Result<bool> {
     let file = state.tracked(&id)?;
     let bytes = normalize_gp(&std::fs::read(&file.path)?);
-    Ok(!git::is_named_tip(&state.open_repo(&file.id)?, &bytes)?)
+    Ok(!git::is_named_tip(
+        &state.open_repo(&file.id)?,
+        &file.branch,
+        &bytes,
+    )?)
 }
 
 #[tauri::command]
@@ -162,8 +170,14 @@ pub fn list_versions(
     id: String,
     limit: Option<usize>,
 ) -> Result<Vec<Version>> {
-    git::list(&state.open_repo(&state.tracked(&id)?.id)?, NAMED_REF, limit)
+    let file = state.tracked(&id)?;
+    git::list(
+        &state.open_repo(&file.id)?,
+        &git::branch_ref(&file.branch),
+        limit,
+    )
 }
+
 
 #[tauri::command]
 pub fn list_snapshots(
@@ -203,7 +217,7 @@ pub fn restore_version(
     let restored = git::read_score(&repo, &rev)?;
 
     let safety = match std::fs::read(&file.path) {
-        Ok(current) => git::commit_snapshot(&repo, &normalize_gp(&current))?,
+        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
         // File gone — restoring is the recovery, nothing to preserve.
         Err(_) => None,
     };
@@ -284,7 +298,7 @@ pub fn push_status(state: State<'_, AppState>, id: String) -> Result<PushStatus>
 pub fn sync_state(state: State<'_, AppState>, id: String) -> Result<SyncState> {
     let file = state.tracked(&id)?;
     let repo = state.open_repo(&file.id)?;
-    remote::compare(&repo, file.remote.as_ref())
+    remote::compare(&repo, &file.branch, file.remote.as_ref())
 }
 
 /// Asks the remote what it has, then answers the same question as
@@ -305,7 +319,7 @@ pub async fn fetch_remote(app: AppHandle, id: String) -> Result<SyncState> {
         let token = secrets::for_remote(&id, descriptor)?;
         let repo = state.open_repo(&file.id)?;
         remote::fetch(&repo, descriptor, token.as_deref())?;
-        remote::compare(&repo, Some(descriptor))
+        remote::compare(&repo, &file.branch, Some(descriptor))
     })
     .await
     .map_err(|err| Error::BackgroundTask(err.to_string()))?
@@ -497,7 +511,7 @@ mod tests {
         let id = crate::config::file_id(file);
         let repo = git::open_or_init(&data_dir.join("repos").join(&id)).unwrap();
         let bytes = std::fs::read(file).unwrap();
-        let version = git::commit_snapshot(&repo, &normalize_gp(&bytes))
+        let version = git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&bytes))
             .unwrap()
             .unwrap();
         (id, version)
@@ -522,9 +536,11 @@ mod tests {
         assert_ne!(resaved, fixture);
         std::fs::write(&score, &resaved).unwrap();
 
-        assert!(git::commit_snapshot(&repo, &normalize_gp(&resaved))
-            .unwrap()
-            .is_none());
+        assert!(
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&resaved))
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(git::list(&repo, git::SNAPSHOT_REF, None).unwrap().len(), 1);
     }
 
@@ -533,8 +549,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repo = git::open_or_init(&dir.path().join("repo")).unwrap();
 
-        let first = git::commit_named(&repo, b"intro v1", "Intro").unwrap();
-        git::commit_named(&repo, b"intro v2", "Intro reworked").unwrap();
+        let first = git::commit_named(&repo, git::MAIN_BRANCH, b"intro v1", "Intro").unwrap();
+        git::commit_named(&repo, git::MAIN_BRANCH, b"intro v2", "Intro reworked").unwrap();
 
         assert_eq!(git::read_score(&repo, &first.id).unwrap(), b"intro v1");
     }
@@ -549,7 +565,8 @@ mod tests {
         };
 
         for take in 0..20 {
-            git::commit_snapshot(&repo, format!("take {take}").as_bytes()).unwrap();
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, format!("take {take}").as_bytes())
+                .unwrap();
             git::prune_snapshots(&repo, policy).unwrap();
         }
 

@@ -18,7 +18,7 @@ use serde::Serialize;
 use crate::error::{Error, Result};
 use crate::git::{self, Version};
 use crate::normalize::normalize_gp;
-use crate::remote::{self, SyncState, REMOTE_REF};
+use crate::remote::{self, remote_ref, SyncState};
 use crate::secrets;
 use crate::state::AppState;
 
@@ -46,7 +46,7 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
     let repo = state.open_repo(&file.id)?;
     remote::fetch(&repo, descriptor, token.as_deref())?;
 
-    let standing = remote::compare(&repo, Some(descriptor))?;
+    let standing = remote::compare(&repo, &file.branch, Some(descriptor))?;
     match standing {
         SyncState::Behind { .. } => {}
         SyncState::Diverged { ahead, behind } => {
@@ -63,11 +63,12 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
         }
     }
 
-    let onto = repo.refname_to_id(REMOTE_REF)?;
-    let arriving = git::read_score(&repo, REMOTE_REF)?;
+    let theirs = remote_ref(&file.branch);
+    let onto = repo.refname_to_id(&theirs)?;
+    let arriving = git::read_score(&repo, &theirs)?;
 
     let safety = match std::fs::read(&file.path) {
-        Ok(current) => git::commit_snapshot(&repo, &normalize_gp(&current))?,
+        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
         // The file is gone; the pull is the recovery, nothing to preserve.
         Err(_) => None,
     };
@@ -76,11 +77,11 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
     // as behind, and pulling again finishes the job; the other way round it
     // would read as up to date while holding the old music.
     std::fs::write(&file.path, &arriving)?;
-    let version = git::fast_forward_named(&repo, onto)?;
+    let version = git::fast_forward_named(&repo, &file.branch, onto)?;
 
     state.set_active(&file.id);
     Ok(Pulled {
-        state: remote::compare(&repo, Some(descriptor))?,
+        state: remote::compare(&repo, &file.branch, Some(descriptor))?,
         version: Some(version),
         safety,
     })
@@ -90,8 +91,11 @@ pub fn pull(state: &AppState, id: &str) -> Result<Pulled> {
 mod tests {
     use super::*;
     use crate::config::{Remote, RemoteAuth, TrackedFile};
-    use crate::git::NAMED_REF;
+    use crate::git::branch_ref;
     use std::path::PathBuf;
+
+    /// Not `main`, so nothing here passes by leaning on the default.
+    const BRANCH: &str = "bass-line";
 
     /// A tracked score with a bare repo standing in for the server, and a
     /// second repo playing the other machine.
@@ -118,6 +122,7 @@ mod tests {
         state
             .update(|config| {
                 let mut file = file;
+                file.branch = BRANCH.to_owned();
                 file.remote = Some(Remote {
                     url: remote_path.to_string_lossy().into_owned(),
                     auth: RemoteAuth::None,
@@ -152,16 +157,17 @@ mod tests {
 
         /// The other machine commits and pushes.
         fn published(&self, bytes: &[u8], message: &str) {
-            git::commit_named(&self.elsewhere, bytes, message).unwrap();
-            remote::push(&self.elsewhere, &self.descriptor(), None).unwrap();
+            git::commit_named(&self.elsewhere, BRANCH, bytes, message).unwrap();
+            remote::push(&self.elsewhere, BRANCH, &self.descriptor(), None).unwrap();
         }
 
         /// Adopts the remote's history, so later commits build on it rather
         /// than diverging from it.
         fn adopt_remote(&self, repo: &git2::Repository) {
             remote::fetch(repo, &self.descriptor(), None).unwrap();
-            let tip = repo.refname_to_id(REMOTE_REF).unwrap();
-            repo.reference(NAMED_REF, tip, true, "adopt").unwrap();
+            let tip = repo.refname_to_id(&remote_ref(BRANCH)).unwrap();
+            repo.reference(&branch_ref(BRANCH), tip, true, "adopt")
+                .unwrap();
         }
 
         fn on_disk(&self) -> Vec<u8> {
@@ -215,7 +221,7 @@ mod tests {
         let repo = f.repo();
         f.adopt_remote(&repo);
         // Both sides write a different bridge over the same intro.
-        git::commit_named(&repo, b"riff, my bridge", "My bridge").unwrap();
+        git::commit_named(&repo, BRANCH, b"riff, my bridge", "My bridge").unwrap();
         f.published(b"riff, their bridge", "Their bridge");
 
         let refused = pull(&f.state, &f.id).unwrap_err();
@@ -224,7 +230,7 @@ mod tests {
         // Refused means untouched: neither the file nor our history moved.
         assert_eq!(f.on_disk(), b"take one");
         assert_eq!(
-            git::read_score(&repo, NAMED_REF).unwrap(),
+            git::read_score(&repo, &branch_ref(BRANCH)).unwrap(),
             b"riff, my bridge"
         );
     }
@@ -233,7 +239,7 @@ mod tests {
     fn a_score_that_is_only_ahead_has_nothing_to_pull() {
         let f = fixture();
         let repo = f.repo();
-        git::commit_named(&repo, b"riff, mine alone", "Mine").unwrap();
+        git::commit_named(&repo, BRANCH, b"riff, mine alone", "Mine").unwrap();
 
         let pulled = pull(&f.state, &f.id).unwrap();
 

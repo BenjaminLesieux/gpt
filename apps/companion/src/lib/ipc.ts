@@ -44,6 +44,8 @@ export interface TrackedFile {
   /** Unix seconds. */
   addedAt: number;
   remote?: Remote;
+  /** Where named versions land and what a push sends. */
+  branch: string;
 }
 
 /**
