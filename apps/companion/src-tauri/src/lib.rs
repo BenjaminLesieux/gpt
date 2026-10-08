@@ -5,6 +5,7 @@
 //! TypeScript (`packages/gpt-core`).
 
 mod adopt;
+mod branch;
 mod commands;
 mod config;
 mod deep_link;
@@ -60,6 +61,8 @@ pub fn run() {
             commands::commit_named,
             commands::has_pending_change,
             commands::list_versions,
+            commands::list_branches,
+            commands::switch_branch,
             commands::list_snapshots,
             commands::get_version_blob,
             commands::restore_version,

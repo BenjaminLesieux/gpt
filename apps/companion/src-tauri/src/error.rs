@@ -68,6 +68,9 @@ pub enum Error {
     #[error("that would discard versions this score already has")]
     NotFastForward,
 
+    #[error("\"{0}\" cannot be used as a branch name")]
+    InvalidBranch(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

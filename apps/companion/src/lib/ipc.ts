@@ -199,6 +199,22 @@ export async function getVersionBlob(id: string, rev: string): Promise<Uint8Arra
   return new Uint8Array(await invoke<ArrayBuffer>('get_version_blob', { id, rev }));
 }
 
+// ── Branches ─────────────────────────────────────────────────────────────
+
+/** This score's branches, here and on its remote as of the last fetch. */
+export function listBranches(id: string): Promise<string[]> {
+  return invoke('list_branches', { id });
+}
+
+/**
+ * Moves the score onto `branch`, starting it from the current one if it exists
+ * nowhere yet. An existing branch replaces the file on disk; resolves with the
+ * safety snapshot taken first, if one was needed.
+ */
+export async function switchBranch(id: string, branch: string): Promise<Version | null> {
+  return maybeVersion(await invoke<WireVersion | null>('switch_branch', { id, branch }));
+}
+
 /** Resolves with the safety snapshot taken before overwriting, if any. */
 export async function restoreVersion(id: string, rev: string): Promise<Version | null> {
   return maybeVersion(await invoke<WireVersion | null>('restore_version', { id, rev }));

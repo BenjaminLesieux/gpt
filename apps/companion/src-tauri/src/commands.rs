@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::adopt;
+use crate::branch;
 use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTENSIONS};
 use crate::error::{Error, Result};
 use crate::events;
@@ -178,6 +179,25 @@ pub fn list_versions(
     )
 }
 
+/// Every branch this score has here or on its remote, as of the last fetch.
+#[tauri::command]
+pub fn list_branches(state: State<'_, AppState>, id: String) -> Result<Vec<String>> {
+    branch::list(&state, &id)
+}
+
+/// Moves the score onto another branch, starting it if it is new. Returns the
+/// safety snapshot taken before the file on disk was replaced, if one was.
+#[tauri::command]
+pub fn switch_branch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    branch: String,
+) -> Result<Option<Version>> {
+    let safety = branch::switch(&state, &id, branch.trim())?;
+    events::tracked_files_changed(&app, state.config().tracked_files.clone());
+    Ok(safety)
+}
 
 #[tauri::command]
 pub fn list_snapshots(
