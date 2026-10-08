@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Maximize2, X } from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import { hidePanel, openExtendedWindow } from '@/lib/ipc';
+import { BranchSwitcher } from './BranchSwitcher';
 import { CommitView } from './CommitView';
 import { FileSwitcher } from './FileSwitcher';
 import { PanelFooter, PanelHeader, PanelHint, PanelMark, PanelShell } from './PanelShell';
@@ -11,13 +12,14 @@ import { useEnterAnimation } from './useEnterAnimation';
 import { usePanelSession } from './usePanelSession';
 import { usePanelShown } from './usePanelShown';
 
-type Mode = 'commit' | 'switcher';
+type Mode = 'commit' | 'switcher' | 'branch';
 
 /**
  * Hotkey panel — the product's main gesture.
  *
- * Three mutually exclusive views, never mixed: nothing tracked yet, the commit
- * flow, or the file switcher. Escape always steps back one level and then out.
+ * Mutually exclusive views, never mixed: nothing tracked yet, the commit flow,
+ * the file switcher or the branch switcher. Escape always steps back one level
+ * and then out.
  */
 export function PanelApp() {
   const { t } = useTranslation();
@@ -42,13 +44,17 @@ export function PanelApp() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (mode === 'switcher') setMode('commit');
+        if (mode !== 'commit') setMode('commit');
         else void hidePanel();
         return;
       }
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         if (canSwitch) setMode((current) => (current === 'switcher' ? 'commit' : 'switcher'));
+      }
+      if (event.key.toLowerCase() === 'b' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        if (canSwitch) setMode((current) => (current === 'branch' ? 'commit' : 'branch'));
       }
     }
     window.addEventListener('keydown', onKeyDown);
@@ -81,19 +87,30 @@ export function PanelApp() {
           }}
           onAddFile={() => void session.addFile()}
         />
+      ) : mode === 'branch' ? (
+        <BranchSwitcher
+          fileId={session.active.id}
+          current={session.active.branch}
+          onSelect={(branch) => {
+            void session.switchBranch(branch);
+            setMode('commit');
+          }}
+          onError={session.reportError}
+        />
       ) : (
         <CommitView
           session={session}
           active={session.active}
           focusToken={shownAt}
           onOpenSwitcher={() => setMode('switcher')}
+          onOpenBranches={() => setMode('branch')}
         />
       )}
 
       <PanelFooter>
         <span className="flex items-center gap-3">
           {session.active !== null &&
-            (mode === 'switcher' ? (
+            (mode !== 'commit' ? (
               <>
                 <PanelHint keys="⏎">{t('panel.hint.select')}</PanelHint>
                 <PanelHint keys="esc">{t('panel.hint.back')}</PanelHint>
@@ -104,7 +121,7 @@ export function PanelApp() {
                 {canSwitch && <PanelHint keys="⌘K">{t('panel.hint.switch')}</PanelHint>}
               </>
             ))}
-          {mode !== 'switcher' && <PanelHint keys="esc">{t('panel.hint.close')}</PanelHint>}
+          {mode === 'commit' && <PanelHint keys="esc">{t('panel.hint.close')}</PanelHint>}
         </span>
 
         <Button

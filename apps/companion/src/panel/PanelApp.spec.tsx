@@ -23,6 +23,8 @@ vi.mock('@/lib/ipc', () => ({
   commitNamed: vi.fn(),
   hasPendingChange: vi.fn(),
   pushStatus: vi.fn(),
+  listBranches: vi.fn(),
+  switchBranch: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
@@ -174,6 +176,36 @@ describe('PanelApp', () => {
 
     expect(ipc.setActiveFile).toHaveBeenCalledWith('b2');
     expect(await screen.findByText('Riff')).toBeTruthy();
+  });
+
+  it('starts a branch from a name typed into the branch switcher', async () => {
+    ipc.listBranches.mockResolvedValue(['main', 'bass-line']);
+    ipc.switchBranch.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<PanelApp />);
+    await screen.findByText('Blackbird');
+
+    await user.click(screen.getByRole('button', { name: 'Switch branch' }));
+    expect(await screen.findByText('bass-line')).toBeTruthy();
+
+    await user.keyboard('new-chorus');
+    await user.click(await screen.findByText(/Start branch “new-chorus”/));
+
+    expect(ipc.switchBranch).toHaveBeenCalledWith('a1', 'new-chorus');
+    expect(await screen.findByLabelText('Version name')).toBeTruthy();
+  });
+
+  it('switches to a branch that already exists', async () => {
+    ipc.listBranches.mockResolvedValue(['main', 'bass-line']);
+    ipc.switchBranch.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<PanelApp />);
+    await screen.findByText('Blackbird');
+
+    await user.keyboard('{Meta>}b{/Meta}');
+    await user.click(await screen.findByText('bass-line'));
+
+    expect(ipc.switchBranch).toHaveBeenCalledWith('a1', 'bass-line');
   });
 
   it('refuses to name a file that holds nothing the newest version does not', async () => {

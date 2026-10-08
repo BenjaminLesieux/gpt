@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronsUpDown, CloudOff, CornerDownLeft, EyeOff, FileQuestion } from 'lucide-react';
+import {
+  Check,
+  ChevronsUpDown,
+  CloudOff,
+  CornerDownLeft,
+  EyeOff,
+  FileQuestion,
+  GitBranch,
+} from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import { Input } from '@gpt/ui/input';
 import { Kbd } from '@gpt/ui/kbd';
@@ -36,12 +44,14 @@ export function CommitView({
   active,
   focusToken,
   onOpenSwitcher,
+  onOpenBranches,
 }: {
   session: PanelSession;
   active: TrackedFile;
   /** Changes when the panel comes to the front — refocuses the input. */
   focusToken: number;
   onOpenSwitcher(): void;
+  onOpenBranches(): void;
 }) {
   const { t, i18n } = useTranslation();
   const [message, setMessage] = useState('');
@@ -100,18 +110,30 @@ export function CommitView({
   return (
     <PanelBody>
       <div className="shrink-0 px-3 pt-2.5 pb-3" data-panel-stagger="">
-        <button
-          type="button"
-          onClick={onOpenSwitcher}
-          className="group flex w-full items-center gap-2 text-left outline-none"
-          aria-label={t('panel.switchFile')}
-        >
-          <span className="h-4 w-[3px] shrink-0 bg-brand transition-all group-hover:h-5 group-focus-visible:h-5" />
-          <span className="truncate text-md leading-tight font-bold tracking-tight" title={active.path}>
-            {active.name}
-          </span>
-          <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSwitcher}
+            className="group flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
+            aria-label={t('panel.switchFile')}
+          >
+            <span className="h-4 w-[3px] shrink-0 bg-brand transition-all group-hover:h-5 group-focus-visible:h-5" />
+            <span className="truncate text-md leading-tight font-bold tracking-tight" title={active.path}>
+              {active.name}
+            </span>
+            <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
+          </button>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={onOpenBranches}
+            aria-label={t('panel.switchBranch')}
+            className="max-w-[40%] shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            <GitBranch data-icon="inline-start" />
+            <span className="truncate">{active.branch}</span>
+          </Button>
+        </div>
 
         <p className="mt-0.5 pl-[15px] font-mono text-[10px] text-muted-foreground">
           {session.lastChangeAt

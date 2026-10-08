@@ -13,6 +13,7 @@ import {
   pickAndTrackFile,
   pushStatus,
   setActiveFile,
+  switchBranch,
   type Binding,
   type PushStatus,
   type TrackedFile,
@@ -57,6 +58,7 @@ export interface PanelSession {
   reportError(message: string): void;
   clearError(): void;
   select(id: string): Promise<void>;
+  switchBranch(branch: string): Promise<void>;
   addFile(): Promise<void>;
   commit(id: string, message: string): Promise<Version>;
 }
@@ -179,6 +181,21 @@ export function usePanelSession(shownAt: number): PanelSession {
     }
   }, []);
 
+  // The roster catches up through `tracked-files-changed`; the history has to
+  // be asked for again because the file id it hangs off has not changed.
+  const switchTo = useCallback(
+    async (branch: string) => {
+      if (!activeId) return;
+      try {
+        await switchBranch(activeId, branch);
+        setLedgerNonce((nonce) => nonce + 1);
+      } catch (cause) {
+        setError(String(cause));
+      }
+    },
+    [activeId],
+  );
+
   // The host emits `tracked-files-changed`, which fills in the roster; this
   // only has to point the panel at what was just added.
   const addFile = useCallback(async () => {
@@ -222,6 +239,7 @@ export function usePanelSession(shownAt: number): PanelSession {
     reportError: setError,
     clearError,
     select,
+    switchBranch: switchTo,
     addFile,
     commit,
   };
