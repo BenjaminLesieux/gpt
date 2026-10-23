@@ -1,5 +1,7 @@
 # A score has members; a token names a person, not a machine
 
+> Membership moved from the score to the band in [ADR 0012](0012-a-band-owns-its-songs.md).
+
 A score belongs to one `accounts` row. It is reached with tokens, and a token
 names a device — `Ben's MacBook`, minted per machine because
 [cloning to a second computer cannot re-send the first one's credential](../clone-from-the-web-and-updating.md).
