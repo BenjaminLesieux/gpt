@@ -11,7 +11,13 @@ import {
 } from '@gpt/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
 import { TooltipProvider } from '@gpt/ui/tooltip';
-import { onClaimArrived, type ClaimArrivedEvent, type TrackedFile, type Version } from '@/lib/ipc';
+import {
+  onClaimArrived,
+  onScoreLinkOpened,
+  type ClaimArrivedEvent,
+  type TrackedFile,
+  type Version,
+} from '@/lib/ipc';
 import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
 import { AdoptDialog } from './AdoptDialog';
@@ -77,6 +83,29 @@ export function ExtendedApp() {
     const unlisten = onClaimArrived(setClaim);
     return () => void unlisten.then((stop) => stop());
   }, []);
+
+  // A `gitarpro://open` link the host has already acted on: the score is on
+  // its branch, or is not on this machine.
+  const { select: selectFile } = library;
+  const { reload } = history;
+  useEffect(() => {
+    const unlisten = onScoreLinkOpened((opened) => {
+      if (opened.error) {
+        setFailure(opened.error);
+      } else if (opened.id) {
+        selectFile(opened.id);
+        // Same file id, other branch: the history has to be asked for again.
+        reload();
+        setNotice({
+          about: opened.id,
+          message: t('extended.link.opened', { branch: opened.branch }),
+        });
+      } else {
+        setFailure(t('extended.link.notHere', { hub: opened.hub }));
+      }
+    });
+    return () => void unlisten.then((stop) => stop());
+  }, [selectFile, reload, t]);
 
   const entries = useMemo(
     () => [...history.versions, ...history.snapshots],

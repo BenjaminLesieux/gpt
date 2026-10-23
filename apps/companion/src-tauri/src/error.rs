@@ -71,6 +71,12 @@ pub enum Error {
     #[error("\"{0}\" cannot be used as a branch name")]
     InvalidBranch(String),
 
+    #[error("{0} has no branch \"{1}\" here or on its hub")]
+    UnknownBranch(String, String),
+
+    #[error("{0} is not connected to a Gitarpro hub")]
+    NotOnHub(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

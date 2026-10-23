@@ -215,6 +215,43 @@ export async function switchBranch(id: string, branch: string): Promise<Version 
   return maybeVersion(await invoke<WireVersion | null>('switch_branch', { id, branch }));
 }
 
+/** One conflicting spot, as the hub's merge named it. */
+export interface Conflict {
+  /** 1-based; `null` for something that is not a bar, such as the tempo. */
+  bar: number | null;
+  /** `null` for every track at once. */
+  track: string | null;
+  /** The merge engine's own words — for a hover, never the headline. */
+  description: string;
+}
+
+/** What pressing land did. `main_moved`: someone landed at the same moment. */
+export type LandOutcome =
+  | { status: 'landed'; commit: string }
+  | { status: 'clean' }
+  | { status: 'waiting' }
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[] }
+  | { status: 'unreadable' }
+  | { status: 'up_to_date' }
+  | { status: 'main_moved' };
+
+/**
+ * Lands the file's current branch on main. Pushes it first, so what lands is
+ * the newest version named here.
+ */
+export function landBranch(id: string): Promise<LandOutcome> {
+  return invoke('land_branch', { id });
+}
+
+export function askFirst(id: string): Promise<boolean> {
+  return invoke('ask_first', { id });
+}
+
+/** Resolves with what the hub now holds. */
+export function setAskFirst(id: string, askFirst: boolean): Promise<boolean> {
+  return invoke('set_ask_first', { id, askFirst });
+}
+
 /** Resolves with the safety snapshot taken before overwriting, if any. */
 export async function restoreVersion(id: string, rev: string): Promise<Version | null> {
   return maybeVersion(await invoke<WireVersion | null>('restore_version', { id, rev }));
@@ -345,6 +382,23 @@ export function onClaimArrived(
   handler: (event: ClaimArrivedEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<ClaimArrivedEvent>('claim-arrived', ({ payload }) => handler(payload));
+}
+
+/**
+ * What a `gitarpro://open` link came to. `id` is the tracked file, now on
+ * `branch`; neither `id` nor `error` means this machine does not have the score.
+ */
+export interface ScoreLinkOpenedEvent {
+  hub: string;
+  branch: string;
+  id: string | null;
+  error: string | null;
+}
+
+export function onScoreLinkOpened(
+  handler: (event: ScoreLinkOpenedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ScoreLinkOpenedEvent>('score-link-opened', ({ payload }) => handler(payload));
 }
 
 /** What a claim is about, read from the hub before anything is spent. */

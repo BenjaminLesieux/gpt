@@ -1,8 +1,7 @@
 //! Talking to a hub over its JSON API.
 //!
 //! The first HTTP this process has ever spoken that git2 did not speak for
-//! it, and it exists for exactly two calls: reading what a claim is about,
-//! and spending it.
+//! it: reading what a claim is about, spending it, and landing a branch.
 //!
 //! The origin is not ours. It arrives in a `gitarpro://` link, which is to
 //! say it arrives from whatever put that link in front of the user — so it is
@@ -62,6 +61,102 @@ struct HubErrorFields {
     message: String,
 }
 
+/// What pressing land did. `MainMoved` is the hub's 409: someone else landed
+/// between its read of main and its write.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum LandOutcome {
+    Landed {
+        commit: String,
+    },
+    /// Would land, but the hub is in dry run and wrote nothing.
+    Clean,
+    Waiting,
+    Conflicts {
+        clean_bars: u32,
+        conflicts: Vec<Conflict>,
+    },
+    Unreadable,
+    UpToDate,
+    MainMoved,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Conflict {
+    pub bar: Option<u32>,
+    pub track: Option<String>,
+    pub description: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AskFirst {
+    ask_first: bool,
+}
+
+#[derive(Deserialize)]
+struct Branches {
+    branches: Vec<ListedBranch>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListedBranch {
+    name: String,
+    ask_first: bool,
+}
+
+/// A score's own remote, read as the hub that serves it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HubScore {
+    pub origin: Url,
+    pub score: String,
+}
+
+/// `<hub>/git/<owner>/<score>.git`, or `None` for a remote that is not a hub.
+pub fn hub_score(remote_url: &str) -> Option<HubScore> {
+    let url = Url::parse(remote_url).ok()?;
+    let segments: Vec<&str> = url.path_segments()?.collect();
+    let ["git", owner, repo] = segments.as_slice() else {
+        return None;
+    };
+    let score = repo.strip_suffix(".git")?;
+    if owner.is_empty() || score.is_empty() {
+        return None;
+    }
+
+    let mut origin = url.clone();
+    origin.set_path("");
+    origin.set_query(None);
+    origin.set_fragment(None);
+    let _ = origin.set_username("");
+    let _ = origin.set_password(None);
+    Some(HubScore {
+        origin,
+        score: score.to_owned(),
+    })
+}
+
+/// Whether `remote_url` is `score` on the hub at `hub`. Compared by origin, so
+/// a link naming the right score on another host matches nothing.
+pub fn is_score_remote(remote_url: &str, hub: &str, score: &str) -> bool {
+    let (Some(remote), Ok(hub)) = (hub_score(remote_url), Url::parse(hub)) else {
+        return false;
+    };
+    remote.score == score && remote.origin.origin() == hub.origin()
+}
+
+/// The account and token a score's git remote already authenticates with.
+pub struct ScoreAuth {
+    pub username: String,
+    pub token: String,
+}
+
 #[derive(Debug)]
 pub struct Hub {
     origin: Url,
@@ -119,6 +214,103 @@ impl Hub {
             .map_err(unreachable_hub)?;
 
         read(response).await
+    }
+
+    /// Lands `branch` on main. Whatever the merge says is an answer, not an
+    /// error — including losing a race to someone else's landing.
+    pub async fn land(&self, score: &str, branch: &str, auth: &ScoreAuth) -> Result<LandOutcome> {
+        let request = self.branch_request(
+            reqwest::Method::POST,
+            score,
+            branch,
+            "land",
+            auth,
+            serde_json::json!({}),
+        )?;
+        let response = self
+            .client
+            .execute(request)
+            .await
+            .map_err(unreachable_hub)?;
+
+        match read(response).await {
+            Err(Error::Hub(code, _)) if code == "main_moved" => Ok(LandOutcome::MainMoved),
+            other => other,
+        }
+    }
+
+    /// Returns what the hub now holds, which is what the toggle shows.
+    pub async fn set_ask_first(
+        &self,
+        score: &str,
+        branch: &str,
+        ask_first: bool,
+        auth: &ScoreAuth,
+    ) -> Result<bool> {
+        let request = self.branch_request(
+            reqwest::Method::PUT,
+            score,
+            branch,
+            "ask-first",
+            auth,
+            serde_json::json!({ "askFirst": ask_first }),
+        )?;
+        let response = self
+            .client
+            .execute(request)
+            .await
+            .map_err(unreachable_hub)?;
+
+        Ok(read::<AskFirst>(response).await?.ask_first)
+    }
+
+    /// Whether `branch` asks the band first. A branch the hub has not seen
+    /// yet does not.
+    pub async fn ask_first(&self, score: &str, branch: &str, auth: &ScoreAuth) -> Result<bool> {
+        let mut url = self.origin.clone();
+        url.path_segments_mut()
+            .map_err(|_| Error::InvalidHub(self.origin.to_string()))?
+            .clear()
+            .extend(["scores", score, "branches"]);
+
+        let response = self
+            .client
+            .get(url)
+            .basic_auth(&auth.username, Some(&auth.token))
+            .send()
+            .await
+            .map_err(unreachable_hub)?;
+
+        Ok(read::<Branches>(response)
+            .await?
+            .branches
+            .into_iter()
+            .any(|listed| listed.name == branch && listed.ask_first))
+    }
+
+    /// `/scores/<score>/branches/<branch>/<action>`, each pushed as one
+    /// segment so a `/` in a branch name is escaped rather than followed.
+    fn branch_request(
+        &self,
+        method: reqwest::Method,
+        score: &str,
+        branch: &str,
+        action: &str,
+        auth: &ScoreAuth,
+        body: serde_json::Value,
+    ) -> Result<reqwest::Request> {
+        let mut url = self.origin.clone();
+        url.path_segments_mut()
+            .map_err(|_| Error::InvalidHub(self.origin.to_string()))?
+            .clear()
+            .extend(["scores", score, "branches", branch, action]);
+
+        self.client
+            .request(method, url)
+            .basic_auth(&auth.username, Some(&auth.token))
+            .json(&body)
+            .build()
+            .map_err(unreachable_hub)
     }
 
     /// The code goes in a path segment, so it is checked against the alphabet
@@ -274,6 +466,116 @@ mod tests {
             hub.claim_url("abc").unwrap().as_str(),
             "https://hub.example.com/claims/abc"
         );
+    }
+
+    #[test]
+    fn a_land_request_names_the_branch_in_one_segment_and_carries_the_git_credential() {
+        let hub = Hub::new("https://hub.example.com/ignored/path").unwrap();
+        let auth = ScoreAuth {
+            username: "acct_1".to_owned(),
+            token: "secret".to_owned(),
+        };
+
+        let request = hub
+            .branch_request(
+                reqwest::Method::POST,
+                "k7m2x",
+                "ideas/new chorus",
+                "land",
+                &auth,
+                serde_json::json!({}),
+            )
+            .unwrap();
+
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://hub.example.com/scores/k7m2x/branches/ideas%2Fnew%20chorus/land"
+        );
+        // base64("acct_1:secret")
+        assert_eq!(
+            request.headers()[reqwest::header::AUTHORIZATION],
+            "Basic YWNjdF8xOnNlY3JldA=="
+        );
+        assert_eq!(request.body().unwrap().as_bytes().unwrap(), b"{}");
+    }
+
+    #[test]
+    fn every_outcome_the_hub_can_send_reads_back() {
+        let read = |json: &str| serde_json::from_str::<LandOutcome>(json).unwrap();
+
+        assert_eq!(
+            read(r#"{"status":"landed","commit":"abc","dryRun":false}"#),
+            LandOutcome::Landed {
+                commit: "abc".to_owned()
+            }
+        );
+        assert_eq!(
+            read(r#"{"status":"clean","dryRun":true}"#),
+            LandOutcome::Clean
+        );
+        assert_eq!(read(r#"{"status":"waiting"}"#), LandOutcome::Waiting);
+        assert_eq!(read(r#"{"status":"unreadable"}"#), LandOutcome::Unreadable);
+        assert_eq!(read(r#"{"status":"up_to_date"}"#), LandOutcome::UpToDate);
+        assert_eq!(
+            read(
+                r#"{"status":"conflicts","cleanBars":6,"conflicts":[{"bar":19,"track":"Guitar 1","description":"both changed"},{"bar":null,"track":null,"description":"tempo"}]}"#
+            ),
+            LandOutcome::Conflicts {
+                clean_bars: 6,
+                conflicts: vec![
+                    Conflict {
+                        bar: Some(19),
+                        track: Some("Guitar 1".to_owned()),
+                        description: "both changed".to_owned(),
+                    },
+                    Conflict {
+                        bar: None,
+                        track: None,
+                        description: "tempo".to_owned(),
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn a_hub_remote_names_its_score_and_origin() {
+        let parsed = hub_score("https://ben@hub.example.com:8443/git/acct_1/k7m2x.git").unwrap();
+
+        assert_eq!(parsed.score, "k7m2x");
+        assert_eq!(parsed.origin.as_str(), "https://hub.example.com:8443/");
+    }
+
+    #[test]
+    fn a_remote_that_is_not_a_hub_has_no_score() {
+        for url in [
+            "https://github.com/ben/blackbird.git",
+            "https://hub.example.com/git/acct_1/k7m2x",
+            "https://hub.example.com/elsewhere/git/acct_1/k7m2x.git",
+            "https://hub.example.com/git//k7m2x.git",
+            "https://hub.example.com/git/acct_1/.git",
+            "/Users/ben/remote",
+        ] {
+            assert_eq!(hub_score(url), None, "{url}");
+        }
+    }
+
+    #[test]
+    fn a_link_matches_its_score_on_the_same_origin_only() {
+        let remote = "https://hub.example.com/git/acct_1/k7m2x.git";
+
+        assert!(is_score_remote(remote, "https://hub.example.com", "k7m2x"));
+        assert!(is_score_remote(remote, "https://hub.example.com/", "k7m2x"));
+        assert!(!is_score_remote(remote, "https://hub.example.com", "other"));
+        assert!(!is_score_remote(remote, "http://hub.example.com", "k7m2x"));
+        assert!(!is_score_remote(
+            remote,
+            "https://hub.example.com:8443",
+            "k7m2x"
+        ));
+        assert!(!is_score_remote(remote, "https://evil.example", "k7m2x"));
+        assert!(!is_score_remote(remote, "not a url", "k7m2x"));
     }
 
     #[test]

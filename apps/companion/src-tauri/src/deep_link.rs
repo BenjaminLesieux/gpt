@@ -1,10 +1,14 @@
 //! `gitarpro://` — the hub handing a score to this machine.
 //!
-//! One shape, and deliberately only one:
+//! Two shapes:
 //!
 //! ```text
 //! gitarpro://adopt?hub=https://hub.example.com&claim=<code>
+//! gitarpro://open?hub=https://hub.example.com&score=<id>&branch=<name>
 //! ```
+//!
+//! `open` carries no secret at all and buys nothing: it points at a score this
+//! machine may already track, and is never a reason to adopt one.
 //!
 //! What travels here is a claim, never a credential. A custom-scheme URL is
 //! handed to LaunchServices, which is not an access log but is not nothing
@@ -23,18 +27,26 @@
 //! app has to be bundled and run from `/Applications`.
 
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 use url::Url;
 
+use crate::branch;
+use crate::error::{Error, Result};
 use crate::events;
+use crate::hub;
+use crate::remote;
+use crate::secrets;
+use crate::state::AppState;
 use crate::window;
 
 pub const SCHEME: &str = "gitarpro";
-/// The only action the scheme carries. Anything else is ignored rather than
+/// The actions the scheme carries. Anything else is ignored rather than
 /// reported: an unknown link is not this app's business.
 const ADOPT: &str = "adopt";
+const OPEN: &str = "open";
 
 /// A link asking for one score.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +57,14 @@ pub struct AdoptLink {
     pub claim: String,
 }
 
+/// A link asking to see one score on one branch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenLink {
+    pub hub: String,
+    pub score: String,
+    pub branch: String,
+}
+
 /// The last claim handed to the window.
 ///
 /// A cold launch delivers the URL twice: once through `get_current`, which is
@@ -52,6 +72,11 @@ pub struct AdoptLink {
 /// event that carries it. Both are real and neither can be dropped on its own
 /// — so the second one for the same code is dropped instead.
 static LAST_CLAIM: Mutex<Option<String>> = Mutex::new(None);
+
+/// The same double delivery for `open`. Unlike a claim, the same link clicked
+/// again later is a real request, so only a repeat close behind is dropped.
+static LAST_OPEN: Mutex<Option<(OpenLink, Instant)>> = Mutex::new(None);
+const REPEAT_WINDOW: Duration = Duration::from_secs(5);
 
 /// Wires the scheme up. Called from `setup`, before the run loop, so the
 /// launch that opened the app is not missed.
@@ -78,6 +103,9 @@ pub fn init(app: &AppHandle) {
 /// works once, and spending it to fill a dialog would waste it on every
 /// cancel.
 fn deliver(app: &AppHandle, url: &Url) {
+    if let Some(link) = parse_open(url) {
+        return deliver_open(app, link);
+    }
     let Some(link) = parse(url) else { return };
 
     {
@@ -95,20 +123,108 @@ fn deliver(app: &AppHandle, url: &Url) {
     events::claim_arrived(app, &link);
 }
 
+/// Brings the window forward at once, then finds the score, fetches and
+/// switches off the main thread: the fetch waits on the network.
+fn deliver_open(app: &AppHandle, link: OpenLink) {
+    {
+        let mut last = LAST_OPEN.lock().unwrap();
+        if matches!(&*last, Some((seen, at)) if *seen == link && at.elapsed() < REPEAT_WINDOW) {
+            return;
+        }
+        *last = Some((link.clone(), Instant::now()));
+    }
+
+    if let Err(err) = window::open_extended(app) {
+        eprintln!("[gitarpro] could not open the window for a link: {err}");
+        return;
+    }
+
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let opened = open(&state, &link);
+        if matches!(opened, Ok(Some(_))) {
+            events::tracked_files_changed(&app, state.config().tracked_files.clone());
+        }
+        events::score_link_opened(&app, &link, opened);
+    });
+}
+
+/// The tracked file `link` names, now on its branch; `None` when this machine
+/// does not track that score. Never starts a branch: a name the score does not
+/// have, even after a fetch, is refused.
+fn open(state: &AppState, link: &OpenLink) -> Result<Option<String>> {
+    let file = state
+        .config()
+        .tracked_files
+        .iter()
+        .find(|file| {
+            file.remote
+                .as_ref()
+                .is_some_and(|remote| hub::is_score_remote(&remote.url, &link.hub, &link.score))
+        })
+        .cloned();
+    let Some(file) = file else { return Ok(None) };
+    let descriptor = file.remote.as_ref().expect("matched on its remote");
+
+    // The file's own remote and credential, never anything from the link.
+    let token = secrets::for_remote(&file.id, descriptor)?;
+    remote::fetch(&state.open_repo(&file.id)?, descriptor, token.as_deref())?;
+
+    if !branch::list(state, &file.id)?.contains(&link.branch) {
+        return Err(Error::UnknownBranch(file.name, link.branch.clone()));
+    }
+    branch::switch(state, &file.id, &link.branch)?;
+    // Also when it was already on that branch: a window opened by this link
+    // seeds its selection from the active file.
+    state.set_active(&file.id);
+    Ok(Some(file.id))
+}
+
+/// `gitarpro://adopt?…` puts `adopt` in the host for a scheme with an
+/// authority, and in the path for one without. Accept either rather than
+/// depending on which shape the browser normalised to.
+fn action(url: &Url) -> Option<&str> {
+    if url.scheme() != SCHEME {
+        return None;
+    }
+    Some(
+        url.host_str()
+            .unwrap_or_else(|| url.path().trim_matches('/')),
+    )
+}
+
+/// `None` for anything that is not an open link with all three values.
+pub fn parse_open(url: &Url) -> Option<OpenLink> {
+    if action(url)? != OPEN {
+        return None;
+    }
+
+    let (mut hub, mut score, mut branch) = (None, None, None);
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "hub" => hub = Some(value.into_owned()),
+            "score" => score = Some(value.into_owned()),
+            "branch" => branch = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    let present = |value: Option<String>| value.filter(|value| !value.is_empty());
+    Some(OpenLink {
+        hub: present(hub)?,
+        score: present(score)?,
+        branch: present(branch)?,
+    })
+}
+
 /// `None` for anything that is not an adopt link with both values present.
 ///
 /// The query is read through `url`'s own parser rather than split by hand:
 /// the hub origin is percent-encoded on the way in and a `&` inside it must
 /// not be able to introduce a second `claim`.
 pub fn parse(url: &Url) -> Option<AdoptLink> {
-    if url.scheme() != SCHEME {
-        return None;
-    }
-    // `gitarpro://adopt?…` puts `adopt` in the host for a scheme with an
-    // authority, and in the path for one without. Accept either rather than
-    // depending on which shape the browser normalised to.
-    let action = url.host_str().unwrap_or_else(|| url.path().trim_matches('/'));
-    if action != ADOPT {
+    if action(url)? != ADOPT {
         return None;
     }
 
@@ -176,5 +292,84 @@ mod tests {
         assert_eq!(link("gitarpro://adopt?hub=https%3A%2F%2Fh.example"), None);
         assert_eq!(link("gitarpro://adopt?claim=abc"), None);
         assert_eq!(link("gitarpro://adopt?hub=&claim=abc"), None);
+    }
+
+    fn open_link(raw: &str) -> Option<OpenLink> {
+        parse_open(&Url::parse(raw).unwrap())
+    }
+
+    #[test]
+    fn an_open_link_carries_a_hub_a_score_and_a_branch() {
+        let parsed = open_link(
+            "gitarpro://open?hub=https%3A%2F%2Fhub.example.com&score=k7m2x&branch=new-chorus",
+        )
+        .unwrap();
+
+        assert_eq!(
+            parsed,
+            OpenLink {
+                hub: "https://hub.example.com".to_owned(),
+                score: "k7m2x".to_owned(),
+                branch: "new-chorus".to_owned(),
+            }
+        );
+    }
+
+    /// `URLSearchParams` encodes a `/` in a branch name; it comes back whole.
+    #[test]
+    fn an_encoded_branch_name_is_decoded_once() {
+        let parsed = open_link(
+            "gitarpro://open?branch=ideas%2Fnew+chorus&score=k7m2x&hub=https%3A%2F%2Fhub.example.com",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.branch, "ideas/new chorus");
+    }
+
+    #[test]
+    fn an_encoded_ampersand_in_the_origin_cannot_change_the_branch() {
+        let parsed = open_link(
+            "gitarpro://open?hub=https%3A%2F%2Fevil.example%2F%3Fbranch%3Dtheirs&score=k7m2x&branch=mine",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.branch, "mine");
+        assert_eq!(parsed.hub, "https://evil.example/?branch=theirs");
+    }
+
+    #[test]
+    fn an_open_link_missing_or_emptying_any_value_is_not_a_link() {
+        assert_eq!(
+            open_link("gitarpro://open?hub=https%3A%2F%2Fh.example&score=k7m2x"),
+            None
+        );
+        assert_eq!(
+            open_link("gitarpro://open?hub=https%3A%2F%2Fh.example&branch=b"),
+            None
+        );
+        assert_eq!(open_link("gitarpro://open?score=k7m2x&branch=b"), None);
+        assert_eq!(
+            open_link("gitarpro://open?hub=https%3A%2F%2Fh.example&score=&branch=b"),
+            None
+        );
+        assert_eq!(
+            open_link("gitarpro://open?hub=https%3A%2F%2Fh.example&score=k7m2x&branch="),
+            None
+        );
+    }
+
+    /// The two actions never stand in for each other: an open link is not a
+    /// claim, and a claim does not open anything.
+    #[test]
+    fn open_and_adopt_are_different_links() {
+        let open = "gitarpro://open?hub=https%3A%2F%2Fh.example&score=k7m2x&branch=b&claim=abc";
+        let adopt = "gitarpro://adopt?hub=https%3A%2F%2Fh.example&claim=abc&score=k7m2x&branch=b";
+
+        assert_eq!(link(open), None);
+        assert_eq!(open_link(adopt), None);
+        assert_eq!(
+            open_link("https://open?hub=https%3A%2F%2Fh.example&score=s&branch=b"),
+            None
+        );
     }
 }

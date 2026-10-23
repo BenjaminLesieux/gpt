@@ -75,6 +75,9 @@ pub fn run() {
             commands::pick_and_adopt_remote,
             commands::peek_claim,
             commands::adopt_claim,
+            commands::land_branch,
+            commands::set_ask_first,
+            commands::ask_first,
         ])
         .setup(|app| {
             // The resting state: menu-bar resident, no dock icon of its own.

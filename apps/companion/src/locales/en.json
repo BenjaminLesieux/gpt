@@ -44,6 +44,18 @@
     "push": {
       "sending": "sending…",
       "failed": "Couldn't send this score to its remote"
+    },
+    "land": {
+      "action": "Land on main",
+      "askFirst": "Ask the band first",
+      "landed": "Landed on main",
+      "clean": "Would land cleanly — landing is in dry run on this hub",
+      "waiting": "Waiting — the band is asked first",
+      "conflicts_one": "{{count}} bar needs a decision — see the hub",
+      "conflicts_other": "{{count}} bars need a decision — see the hub",
+      "unreadable": "The hub couldn't read this branch — nothing landed",
+      "upToDate": "Nothing to land — main already has this",
+      "mainMoved": "Someone landed at the same time — try again"
     }
   },
   "extended": {
@@ -158,6 +170,10 @@
       "bringIn": "Bring them in",
       "broughtIn": "“{{version}}” is now the score on disk.",
       "broughtInWithSafety": "“{{version}}” is now the score on disk — what was there was snapshotted."
+    },
+    "link": {
+      "opened": "Now on branch “{{branch}}”.",
+      "notHere": "That score isn't on this computer. Open it on {{hub}} and press Clone."
     }
   }
 }

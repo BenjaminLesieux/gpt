@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { TrackedFile, Version } from '@/lib/ipc';
+import type { LandOutcome, TrackedFile, Version } from '@/lib/ipc';
 import i18n from '@/lib/i18n';
 import { PanelApp } from './PanelApp';
 
@@ -25,6 +25,9 @@ vi.mock('@/lib/ipc', () => ({
   pushStatus: vi.fn(),
   listBranches: vi.fn(),
   switchBranch: vi.fn(),
+  landBranch: vi.fn(),
+  setAskFirst: vi.fn(),
+  askFirst: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
@@ -290,5 +293,109 @@ describe('PanelApp', () => {
 
     expect(ipc.pickAndTrackFile).toHaveBeenCalled();
     expect(await screen.findByLabelText('Version name')).toBeTruthy();
+  });
+
+  /** On a branch of a score the hub serves — the only place landing makes sense. */
+  describe('landing a branch', () => {
+    const onHub: TrackedFile = {
+      ...blackbird,
+      branch: 'new-chorus',
+      remote: {
+        url: 'https://hub.example.com/git/acct_1/k7m2x.git',
+        auth: { kind: 'token', username: 'acct_1' },
+      },
+    };
+
+    beforeEach(() => {
+      ipc.listTrackedFiles.mockResolvedValue([onHub, riff]);
+      ipc.getActiveFile.mockResolvedValue(onHub);
+      ipc.askFirst.mockResolvedValue(false);
+    });
+
+    it('is not offered on main, nor on a score with no hub', async () => {
+      ipc.listTrackedFiles.mockResolvedValue([{ ...onHub, branch: 'main' }]);
+      ipc.getActiveFile.mockResolvedValue({ ...onHub, branch: 'main' });
+      const { unmount } = render(<PanelApp />);
+      await screen.findByText('Blackbird');
+      expect(screen.queryByRole('button', { name: /Land on main/ })).toBeNull();
+      unmount();
+
+      ipc.getActiveFile.mockResolvedValue({
+        ...blackbird,
+        branch: 'new-chorus',
+      });
+      render(<PanelApp />);
+      await screen.findByText('Blackbird');
+      expect(screen.queryByRole('button', { name: /Land on main/ })).toBeNull();
+    });
+
+    it.each<[LandOutcome, RegExp]>([
+      [{ status: 'landed', commit: 'abc' }, /Landed on main/],
+      [{ status: 'clean' }, /would land cleanly — landing is in dry run/i],
+      [{ status: 'waiting' }, /band is asked first/],
+      [
+        {
+          status: 'conflicts',
+          cleanBars: 6,
+          conflicts: [
+            { bar: 19, track: 'Guitar 1', description: 'both changed' },
+            { bar: 19, track: 'Bass', description: 'both changed' },
+            { bar: 23, track: 'Guitar 1', description: 'both changed' },
+          ],
+        },
+        /2 bars need a decision — see the hub/,
+      ],
+      [{ status: 'unreadable' }, /couldn't read/],
+      [{ status: 'up_to_date' }, /Nothing to land/],
+      [{ status: 'main_moved' }, /Someone landed at the same time — try again/],
+    ])('lands in one tap and says what came of it: %o', async (outcome, says) => {
+      ipc.landBranch.mockResolvedValue(outcome);
+      const user = userEvent.setup();
+      render(<PanelApp />);
+
+      await user.click(await screen.findByRole('button', { name: /Land on main/ }));
+
+      expect(ipc.landBranch).toHaveBeenCalledWith('a1');
+      expect((await screen.findByText(says)).getAttribute('role')).toBe('status');
+      expect(ipc.hidePanel).not.toHaveBeenCalled();
+    });
+
+    it('shows the band is asked once the hub says the branch is waiting', async () => {
+      ipc.landBranch.mockResolvedValue({ status: 'waiting' });
+      const user = userEvent.setup();
+      render(<PanelApp />);
+      const askFirst = await screen.findByRole('button', {
+        name: /Ask the band first/,
+      });
+      expect(askFirst.getAttribute('aria-pressed')).toBe('false');
+
+      await user.click(screen.getByRole('button', { name: /Land on main/ }));
+
+      await waitFor(() => expect(askFirst.getAttribute('aria-pressed')).toBe('true'));
+    });
+
+    it('asks the band first at a tap, and shows what the hub kept', async () => {
+      ipc.setAskFirst.mockResolvedValue(true);
+      const user = userEvent.setup();
+      render(<PanelApp />);
+
+      const askFirst = await screen.findByRole('button', {
+        name: /Ask the band first/,
+      });
+      await user.click(askFirst);
+
+      expect(ipc.setAskFirst).toHaveBeenCalledWith('a1', true);
+      await waitFor(() => expect(askFirst.getAttribute('aria-pressed')).toBe('true'));
+    });
+
+    it('surfaces a land that could not reach the hub', async () => {
+      ipc.landBranch.mockRejectedValue(new Error('could not reach the hub: timed out'));
+      const user = userEvent.setup();
+      render(<PanelApp />);
+
+      await user.click(await screen.findByRole('button', { name: /Land on main/ }));
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/could not reach the hub/);
+    });
   });
 });

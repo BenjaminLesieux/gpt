@@ -44,6 +44,18 @@
     "push": {
       "sending": "envoi…",
       "failed": "Impossible d'envoyer cette partition vers son dépôt distant"
+    },
+    "land": {
+      "action": "Intégrer dans main",
+      "askFirst": "Demander au groupe d'abord",
+      "landed": "Intégrée dans main",
+      "clean": "S’intégrerait sans conflit — ce hub est en essai à blanc",
+      "waiting": "En attente — le groupe est consulté d'abord",
+      "conflicts_one": "{{count}} mesure demande une décision — voir le hub",
+      "conflicts_other": "{{count}} mesures demandent une décision — voir le hub",
+      "unreadable": "Le hub n'a pas pu lire cette branche — rien n'a été intégré",
+      "upToDate": "Rien à intégrer — main l'a déjà",
+      "mainMoved": "Quelqu'un a intégré en même temps — réessaie"
     }
   },
   "extended": {
@@ -158,6 +170,10 @@
       "bringIn": "Les récupérer",
       "broughtIn": "« {{version}} » est maintenant la partition sur le disque.",
       "broughtInWithSafety": "« {{version}} » est maintenant la partition sur le disque — le contenu précédent a été mis en instantané."
+    },
+    "link": {
+      "opened": "Sur la branche « {{branch}} ».",
+      "notHere": "Cette partition n'est pas sur cet ordinateur. Ouvre-la sur {{hub}} et clique sur Cloner."
     }
   }
 }

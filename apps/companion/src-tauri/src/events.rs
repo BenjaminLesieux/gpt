@@ -6,7 +6,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::config::TrackedFile;
-use crate::deep_link::AdoptLink;
+use crate::deep_link::{AdoptLink, OpenLink};
+use crate::error::Result;
 use crate::git::Version;
 use crate::push::PushStatus;
 
@@ -14,6 +15,7 @@ pub const FILE_SAVED: &str = "file-saved";
 pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
 pub const CLAIM_ARRIVED: &str = "claim-arrived";
+pub const SCORE_LINK_OPENED: &str = "score-link-opened";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,6 +68,33 @@ pub fn claim_arrived(app: &AppHandle, link: &AdoptLink) {
         ClaimArrived {
             hub: link.hub.clone(),
             claim: link.claim.clone(),
+        },
+    );
+}
+
+/// What a `gitarpro://open` link came to: `id` is the tracked file now on
+/// `branch`, `None` with no `error` means this machine does not have the score.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoreLinkOpened {
+    pub hub: String,
+    pub branch: String,
+    pub id: Option<String>,
+    pub error: Option<String>,
+}
+
+pub fn score_link_opened(app: &AppHandle, link: &OpenLink, opened: Result<Option<String>>) {
+    let (id, error) = match opened {
+        Ok(id) => (id, None),
+        Err(err) => (None, Some(err.to_string())),
+    };
+    let _ = app.emit(
+        SCORE_LINK_OPENED,
+        ScoreLinkOpened {
+            hub: link.hub.clone(),
+            branch: link.branch.clone(),
+            id,
+            error,
         },
     );
 }

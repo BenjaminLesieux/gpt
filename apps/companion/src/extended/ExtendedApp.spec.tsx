@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TrackedFile, Version } from '@/lib/ipc';
 import i18n from '@/lib/i18n';
@@ -23,6 +23,7 @@ vi.mock('@/lib/ipc', () => ({
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
   onClaimArrived: vi.fn(() => Promise.resolve(() => {})),
+  onScoreLinkOpened: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -515,6 +516,59 @@ describe('ExtendedApp', () => {
 
       expect(await screen.findByText(/not an https address/)).toBeTruthy();
       expect(ipc.adoptClaim).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * `gitarpro://open` — the host has already found the score and switched it
+   * by the time this window hears about it. Nothing here adopts or redeems.
+   */
+  describe('a score opened from a gitarpro://open link', () => {
+    function opened(event: { id: string | null; error: string | null }) {
+      const [handler] = ipc.onScoreLinkOpened.mock.lastCall!;
+      act(() =>
+        handler({
+          hub: 'https://hub.example.com',
+          branch: 'new-chorus',
+          ...event,
+        }),
+      );
+    }
+
+    it('shows the score on its branch, history read again', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      const reads = ipc.listVersions.mock.calls.length;
+
+      opened({ id: 'a1', error: null });
+
+      expect(await screen.findByText(/Now on branch “new-chorus”/)).toBeTruthy();
+      await waitFor(() => expect(ipc.listVersions.mock.calls.length).toBeGreaterThan(reads));
+      expect(ipc.adoptClaim).not.toHaveBeenCalled();
+    });
+
+    it('says the score is not on this computer and points at the hub', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      opened({ id: null, error: null });
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(
+        /isn't on this computer. Open it on https:\/\/hub.example.com and press Clone/,
+      );
+      expect(ipc.peekClaim).not.toHaveBeenCalled();
+    });
+
+    it('says why the branch could not be opened', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      opened({
+        id: null,
+        error: 'Blackbird has no branch "new-chorus" here or on its hub',
+      });
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/has no branch "new-chorus"/);
     });
   });
 

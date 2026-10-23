@@ -491,6 +491,59 @@ pub async fn adopt_claim(
         .map(Some)
 }
 
+/// The hub a file's remote lives on, the score it is there, and the
+/// credential its git remote already uses — landing is that score's own
+/// business, so it needs no other.
+fn on_hub(state: &AppState, id: &str) -> Result<(TrackedFile, hub::Hub, String, hub::ScoreAuth)> {
+    let file = state.tracked(id)?;
+    let not_on_hub = || Error::NotOnHub(file.name.clone());
+    let remote = file.remote.as_ref().ok_or_else(not_on_hub)?;
+    let RemoteAuth::Token { username } = &remote.auth else {
+        return Err(not_on_hub());
+    };
+    let found = hub::hub_score(&remote.url).ok_or_else(not_on_hub)?;
+    let auth = hub::ScoreAuth {
+        username: username.clone(),
+        token: secrets::read(&file.id)?.ok_or_else(not_on_hub)?,
+    };
+
+    let client = hub::Hub::new(found.origin.as_str())?;
+    Ok((file, client, found.score, auth))
+}
+
+/// The deliberate act: lands the file's current branch on main.
+///
+/// Pushes first, because the hub can only land the tip it has seen — pressing
+/// land straight after naming a version would otherwise land the one before.
+#[tauri::command]
+pub async fn land_branch(app: AppHandle, id: String) -> Result<hub::LandOutcome> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+
+    let pusher = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::push::deliver(&pusher.state::<AppState>(), &id)
+    })
+    .await
+    .map_err(|err| Error::BackgroundTask(err.to_string()))??;
+
+    client.land(&score, &file.branch, &auth).await
+}
+
+#[tauri::command]
+pub async fn ask_first(app: AppHandle, id: String) -> Result<bool> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+    client.ask_first(&score, &file.branch, &auth).await
+}
+
+/// Ask the band first: a clean landing waits for someone on the web.
+#[tauri::command]
+pub async fn set_ask_first(app: AppHandle, id: String, ask_first: bool) -> Result<bool> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+    client
+        .set_ask_first(&score, &file.branch, ask_first, &auth)
+        .await
+}
+
 /// What the active file is anchored to. Read from the host's cache — the
 /// accessibility lookup itself runs on the way to showing the panel, so this
 /// stays a plain memory read.
