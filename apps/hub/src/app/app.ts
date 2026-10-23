@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
+import { bandRoutes } from '../bands/routes';
 import { companionRoutes } from '../companion/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
@@ -43,6 +44,7 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
 
   await fastify.register(health);
   await fastify.register(authRoutes, { ...opts, prefix: '/auth' });
+  await fastify.register(bandRoutes, { ...opts, prefix: '/bands' });
   await fastify.register(scoreRoutes, { ...opts, prefix: '/scores' });
 
   // Same prefix, separate scope: importing a score sends a file, and the

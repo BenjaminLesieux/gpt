@@ -96,11 +96,11 @@ const MAX_BUFFER = 16 * 1024 * 1024;
  */
 export async function readHistory(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   page: { limit?: number; skip?: number } = {}
 ): Promise<History | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
 
   const refs = await readBranches(repository);
@@ -157,11 +157,11 @@ export async function readHistory(
  */
 export async function readVersionScore(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   commit: string
 ): Promise<Buffer | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
   if (!/^[0-9a-f]{7,64}$/.test(commit)) return null;
 
@@ -191,10 +191,10 @@ export async function readVersionScore(
  */
 export async function readBranchPoints(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string
 ): Promise<BranchPoint[] | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
 
   const refs = (await readBranches(repository)).filter((ref) => ref.name !== MAIN_BRANCH);
@@ -222,11 +222,11 @@ export interface BranchAgainstMain {
 /** Null for a bad id, for a branch that does not exist, and for main itself. */
 export async function readBranchAgainstMain(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   name: string
 ): Promise<BranchAgainstMain | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository || name === MAIN_BRANCH) return null;
 
   const refs = await readBranches(repository);

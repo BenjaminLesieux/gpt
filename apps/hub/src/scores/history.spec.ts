@@ -44,7 +44,7 @@ let handle: HubDatabaseHandle;
 let server: FastifyInstance;
 let gitRoot: string;
 let session: string;
-let accountId: string;
+let bandId: string;
 let work: string;
 let sample: Buffer;
 
@@ -72,7 +72,7 @@ function history(id: string, query = ''): Promise<LightMyRequestResponse> {
  * would test a state the hub cannot actually be in.
  */
 async function clone(scoreId: string): Promise<void> {
-  const bare = path.join(gitRoot, accountId, `${scoreId}.git`);
+  const bare = path.join(gitRoot, bandId, `${scoreId}.git`);
   await run('git', ['clone', '--quiet', bare, work]);
   await run('git', ['-C', work, 'config', 'user.email', 'ben.lesieux@gmail.com']);
   await run('git', ['-C', work, 'config', 'user.name', 'Ben']);
@@ -132,7 +132,12 @@ beforeEach(async () => {
   const cookie = signup.cookies.find((c) => c.name === SESSION_COOKIE);
   if (!cookie) throw new Error('signup issued no session cookie');
   session = cookie.value;
-  accountId = signup.json().id;
+  const bands = await server.inject({
+    method: 'GET',
+    url: '/bands',
+    cookies: { [SESSION_COOKIE]: session },
+  });
+  bandId = bands.json()[0].id;
 });
 
 afterEach(async () => {

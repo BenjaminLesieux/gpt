@@ -27,7 +27,7 @@ export function resolveHttpBackend(): string {
 }
 
 export interface GitBackendRequest {
-  /** Directory holding `<account>/<score>.git`. */
+  /** Directory holding `<band>/<score>.git`. */
   projectRoot: string;
   /** Path below the mount point, e.g. `/acct/score.git/info/refs`. */
   pathInfo: string;

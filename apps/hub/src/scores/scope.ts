@@ -50,7 +50,7 @@ export interface VersionScope {
 export async function scopesFor(
   db: HubDatabase,
   gitRoot: string,
-  ownerId: string,
+  bandId: string,
   scoreId: string,
   versions: { id: string; parents: string[] }[]
 ): Promise<Map<string, VersionScope>> {
@@ -59,7 +59,7 @@ export async function scopesFor(
   const missing = versions.filter((version) => !scopes.has(version.id));
   if (missing.length === 0) return scopes;
 
-  const load = parser(gitRoot, ownerId, scoreId);
+  const load = parser(gitRoot, bandId, scoreId);
 
   for (const version of missing) {
     const head = await load(version.id);
@@ -97,14 +97,14 @@ export async function scopesFor(
  */
 export async function branchScopes(
   gitRoot: string,
-  ownerId: string,
+  bandId: string,
   scoreId: string,
   branches: { name: string; base: string | null; tip: string }[]
 ): Promise<Map<string, VersionScope>> {
   const scopes = new Map<string, VersionScope>();
   if (branches.length === 0) return scopes;
 
-  const load = parser(gitRoot, ownerId, scoreId);
+  const load = parser(gitRoot, bandId, scoreId);
 
   for (const branch of branches) {
     const tip = await load(branch.tip);
@@ -139,14 +139,14 @@ export async function branchScopes(
  */
 export function parser(
   gitRoot: string,
-  ownerId: string,
+  bandId: string,
   scoreId: string
 ): (commit: string) => Promise<Score | null> {
   const parsed = new Map<string, Score | null>();
 
   return async (commit: string) => {
     if (!parsed.has(commit)) {
-      const bytes = await readVersionScore(gitRoot, ownerId, scoreId, commit);
+      const bytes = await readVersionScore(gitRoot, bandId, scoreId, commit);
       parsed.set(commit, bytes ? parse(bytes) : null);
     }
     return parsed.get(commit) ?? null;

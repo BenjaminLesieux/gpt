@@ -1,37 +1,31 @@
 /**
- * Who may touch a score.
+ * Who may touch a score: the members of the band that owns it.
  *
- * Every score route used to ask `scores.account_id = me`, which made a score
- * the property of one person forever. It now asks this module, and the answer
- * is a join against `score_members`. The point of putting it behind two
- * functions rather than repeating the join is that a call site that forgets is
- * a score someone loses or one they gain, and both are silent.
+ * Every score route asks this module rather than repeating the join, because a
+ * call site that forgets is a score someone loses or one they gain, and both
+ * are silent.
  *
- * A read returns [`MemberScore`], which carries the *owner's* account id under
- * a name that cannot be mistaken for the caller's. The repository lives at
- * `<owner-account>/<score>.git` and stays there when the score is shared, so
- * the clone URL a member is handed is built from `ownerId` and never from the
- * session they are holding.
+ * A read returns [`MemberScore`], which carries the band's id — the first
+ * segment of the repository path, `<band>/<score>.git` — so every path and
+ * clone URL is built from the score and never from the session holding it.
  */
 
 import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import type { BandRole } from '../bands/bands';
+import { listBandMembers } from '../bands/bands';
 import type { HubDatabase } from '../db/client';
-import { accounts, scoreInvites, scoreMembers, scores } from '../db/schema';
-import { newId } from '../ids';
+import { accounts, bandMembers, scoreInvites, scores } from '../db/schema';
 
-export type ScoreRole = 'owner' | 'member';
+export type ScoreRole = BandRole;
 
 /** A score as one of its members sees it. */
 export interface MemberScore {
   id: string;
   name: string;
   createdAt: Date;
-  /**
-   * The account whose namespace holds the repository — not necessarily the
-   * caller. Everything that builds a path or a clone URL wants this one.
-   */
-  ownerId: string;
-  /** What this caller is to this score. */
+  /** The band that owns it. Everything that builds a path or a clone URL wants this. */
+  bandId: string;
+  /** What this caller is to the band. */
   role: ScoreRole;
 }
 
@@ -39,8 +33,8 @@ const columns = {
   id: scores.id,
   name: scores.name,
   createdAt: scores.createdAt,
-  ownerId: scores.accountId,
-  role: scoreMembers.role,
+  bandId: scores.bandId,
+  role: bandMembers.role,
 };
 
 /**
@@ -55,9 +49,12 @@ export function readMemberScore(
 ): MemberScore | null {
   const row = db
     .select(columns)
-    .from(scoreMembers)
-    .innerJoin(scores, eq(scoreMembers.scoreId, scores.id))
-    .where(and(eq(scoreMembers.scoreId, scoreId), eq(scoreMembers.accountId, accountId)))
+    .from(scores)
+    .innerJoin(
+      bandMembers,
+      and(eq(bandMembers.bandId, scores.bandId), eq(bandMembers.accountId, accountId))
+    )
+    .where(eq(scores.id, scoreId))
     .get();
 
   return row ?? null;
@@ -67,35 +64,18 @@ export function readMemberScore(
 export function listMemberScores(db: HubDatabase, accountId: string): MemberScore[] {
   return db
     .select(columns)
-    .from(scoreMembers)
-    .innerJoin(scores, eq(scoreMembers.scoreId, scores.id))
-    .where(eq(scoreMembers.accountId, accountId))
+    .from(scores)
+    .innerJoin(bandMembers, eq(bandMembers.bandId, scores.bandId))
+    .where(eq(bandMembers.accountId, accountId))
     .orderBy(desc(scores.createdAt))
     .all();
-}
-
-/**
- * Writes a membership. The unique index on `(score_id, account_id)` means a
- * second call for the same pair throws rather than quietly making a person a
- * member twice — there is no caller yet for which that would be ordinary.
- */
-export function addScoreMember(
-  db: HubDatabase,
-  scoreId: string,
-  accountId: string,
-  role: ScoreRole,
-  now: Date = new Date()
-): void {
-  db.insert(scoreMembers)
-    .values({ id: newId(), scoreId, accountId, role, createdAt: now })
-    .run();
 }
 
 /**
  * A member, as the score page names them — or a link held out to somebody who
  * has not arrived yet.
  *
- * The second case is why this is a union rather than a row of `score_members`.
+ * The second case is why this is a union rather than a row of `band_members`.
  * An invited person has no membership at all until they accept, so a list of
  * memberships draws them as *absent* — the same conflation of "issued" with
  * "in use" that the token activity fix removed one layer down, reintroduced
@@ -124,28 +104,18 @@ export type ScoreMemberEntry =
   | { status: 'invited'; id: string; invitedBy: string; expiresAt: Date };
 
 /**
- * Everyone on a score, oldest first — the owner leads, and the invites nobody
- * has opened yet come after the people who are actually here.
+ * Everyone on a score's band, oldest first — the owner leads, and the invites
+ * to this score nobody has opened yet come after the people who are here.
  *
  * Two queries rather than a union: the two halves carry different columns,
  * and an invite has no account to join to.
  */
 export function listScoreMembers(
   db: HubDatabase,
-  scoreId: string,
+  score: Pick<MemberScore, 'id' | 'bandId'>,
   now: Date = new Date()
 ): ScoreMemberEntry[] {
-  const joined = db
-    .select({
-      id: scoreMembers.accountId,
-      email: accounts.email,
-      role: scoreMembers.role,
-    })
-    .from(scoreMembers)
-    .innerJoin(accounts, eq(scoreMembers.accountId, accounts.id))
-    .where(eq(scoreMembers.scoreId, scoreId))
-    .orderBy(scoreMembers.createdAt)
-    .all();
+  const joined = listBandMembers(db, score.bandId);
 
   // Unaccepted and unexpired only. An invite that has been spent is the
   // membership row above it, and a dead one is a person who never came.
@@ -159,7 +129,7 @@ export function listScoreMembers(
     .innerJoin(accounts, eq(scoreInvites.invitedBy, accounts.id))
     .where(
       and(
-        eq(scoreInvites.scoreId, scoreId),
+        eq(scoreInvites.scoreId, score.id),
         isNull(scoreInvites.acceptedAt),
         gt(scoreInvites.expiresAt, now)
       )

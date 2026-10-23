@@ -44,12 +44,12 @@ export type FirstVersion =
  */
 export async function writeFirstVersion(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   score: Uint8Array,
   message: string
 ): Promise<FirstVersion> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return { status: 'invalid_id' };
 
   const commit = await commitScore(repository, score, [], message);
@@ -78,11 +78,11 @@ export type WrittenLanding = { status: 'written'; commit: string } | { status: '
  */
 export async function writeLanding(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   landing: { from: string | null; tip: string; merged: Uint8Array | null; message: string }
 ): Promise<WrittenLanding> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return { status: 'main_moved' };
 
   const { from, tip, merged, message } = landing;
