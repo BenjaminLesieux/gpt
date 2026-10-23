@@ -137,7 +137,7 @@ export async function branchScopes(
  * down, and every branch off main shares one merge-base. Parsing is the
  * expensive half by a wide margin, so it happens once per commit.
  */
-function parser(
+export function parser(
   gitRoot: string,
   ownerId: string,
   scoreId: string
@@ -153,7 +153,7 @@ function parser(
   };
 }
 
-function parse(bytes: Buffer): Score | null {
+export function parse(bytes: Uint8Array): Score | null {
   try {
     return importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(bytes));
   } catch {

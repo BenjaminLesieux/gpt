@@ -31,6 +31,13 @@ const schema = z.object({
    * their own bucket by sending a header.
    */
   TRUST_PROXY: z.stringbool().default(false),
+
+  /**
+   * Whether landing a branch writes to main. Off, a landing computes the whole
+   * merge and reports what it would do. ADR 0008: the first production use of
+   * the merge engine is a dry run, checked against real sessions first.
+   */
+  MERGE_WRITES: z.stringbool().default(false),
 }).superRefine((env, ctx) => {
   // Defaulting PUBLIC_URL is what lets someone try the hub without reading
   // anything. Shipping that default is what would hand every one of their

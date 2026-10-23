@@ -52,18 +52,7 @@ export async function writeFirstVersion(
   const repository = repositoryPath(root, accountId, scoreId);
   if (!repository) return { status: 'invalid_id' };
 
-  const blob = await git(repository, ['hash-object', '-w', '--stdin'], score);
-  const tree = await git(
-    repository,
-    ['mktree'],
-    `${BLOB_MODE} blob ${blob}\t${SCORE_ENTRY}\n`
-  );
-  const commit = await git(repository, ['commit-tree', tree, '-m', message], undefined, {
-    GIT_AUTHOR_NAME: AUTHOR.name,
-    GIT_AUTHOR_EMAIL: AUTHOR.email,
-    GIT_COMMITTER_NAME: AUTHOR.name,
-    GIT_COMMITTER_EMAIL: AUTHOR.email,
-  });
+  const commit = await commitScore(repository, score, [], message);
 
   try {
     await git(repository, ['update-ref', MAIN_REF, commit, '']);
@@ -75,6 +64,64 @@ export async function writeFirstVersion(
   }
 
   return { status: 'written', commit };
+}
+
+export type WrittenLanding = { status: 'written'; commit: string } | { status: 'main_moved' };
+
+/**
+ * Moves main onto a landed branch: to `tip` itself when main is behind it, or
+ * to a new two-parent version holding `merged`.
+ *
+ * `from` is the main tip the merge was computed against, and `update-ref`
+ * refuses unless main is still there. Two landings racing produce one landing
+ * and one refusal, exactly as two imports do above.
+ */
+export async function writeLanding(
+  root: string,
+  accountId: string,
+  scoreId: string,
+  landing: { from: string | null; tip: string; merged: Uint8Array | null; message: string }
+): Promise<WrittenLanding> {
+  const repository = repositoryPath(root, accountId, scoreId);
+  if (!repository) return { status: 'main_moved' };
+
+  const { from, tip, merged, message } = landing;
+  const commit = merged
+    ? await commitScore(repository, merged, from ? [from, tip] : [tip], message)
+    : tip;
+
+  try {
+    await git(repository, ['update-ref', MAIN_REF, commit, from ?? '']);
+  } catch {
+    return { status: 'main_moved' };
+  }
+
+  return { status: 'written', commit };
+}
+
+async function commitScore(
+  repository: string,
+  score: Uint8Array,
+  parents: string[],
+  message: string
+): Promise<string> {
+  const blob = await git(repository, ['hash-object', '-w', '--stdin'], score);
+  const tree = await git(
+    repository,
+    ['mktree'],
+    `${BLOB_MODE} blob ${blob}\t${SCORE_ENTRY}\n`
+  );
+  return git(
+    repository,
+    ['commit-tree', tree, ...parents.flatMap((parent) => ['-p', parent]), '-m', message],
+    undefined,
+    {
+      GIT_AUTHOR_NAME: AUTHOR.name,
+      GIT_AUTHOR_EMAIL: AUTHOR.email,
+      GIT_COMMITTER_NAME: AUTHOR.name,
+      GIT_COMMITTER_EMAIL: AUTHOR.email,
+    }
+  );
 }
 
 /**

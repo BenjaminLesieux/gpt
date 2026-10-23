@@ -94,7 +94,7 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
   });
 }
 
-function basicAuthPassword(header: string | undefined): string | null {
+export function basicAuthPassword(header: string | undefined): string | null {
   const basic = /^Basic (.+)$/.exec(header ?? '');
   if (!basic) return null;
 

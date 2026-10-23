@@ -206,6 +206,45 @@ export async function readBranchPoints(
   );
 }
 
+/** One branch measured against main by sha, so a landing writes against exactly what it read. */
+export interface BranchAgainstMain {
+  /** Main's tip, or null before anything has landed on it. */
+  main: string | null;
+  tip: string;
+  base: string | null;
+  ahead: number;
+}
+
+/** Null for a bad id, for a branch that does not exist, and for main itself. */
+export async function readBranchAgainstMain(
+  root: string,
+  accountId: string,
+  scoreId: string,
+  name: string
+): Promise<BranchAgainstMain | null> {
+  const repository = repositoryPath(root, accountId, scoreId);
+  if (!repository || name === MAIN_BRANCH) return null;
+
+  const refs = await readBranches(repository);
+  const tip = refs.find((ref) => ref.name === name)?.tip;
+  if (!tip) return null;
+
+  const main = refs.find((ref) => ref.name === MAIN_BRANCH)?.tip ?? null;
+  if (!main) {
+    const ahead = await git(repository, ['rev-list', '--count', tip]);
+    return { main, tip, base: null, ahead: Number(ahead) };
+  }
+
+  const [base, ahead] = await Promise.all([
+    git(repository, ['merge-base', main, tip])
+      .then((out) => out.trim() || null)
+      .catch(() => null),
+    git(repository, ['rev-list', '--count', `${main}..${tip}`]),
+  ]);
+
+  return { main, tip, base, ahead: Number(ahead) };
+}
+
 interface Ref {
   name: string;
   tip: string;

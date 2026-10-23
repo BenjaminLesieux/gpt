@@ -15,6 +15,8 @@ describe('loadEnv', () => {
     expect(env.GIT_ROOT).toBe('./git-repos');
     expect(env.PUBLIC_URL).toBe('http://localhost:3000');
     expect(env.TRUST_PROXY).toBe(false);
+    // A merge engine nobody has trusted yet does not write by default.
+    expect(env.MERGE_WRITES).toBe(false);
   });
 
   it('should coerce PORT to a number when it arrives as a string', () => {

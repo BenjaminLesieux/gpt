@@ -19,6 +19,8 @@ export interface AppOptions {
   gitRoot: string;
   /** The origin clone URLs are built from. */
   publicUrl: string;
+  /** `MERGE_WRITES`. Off unless set: a landing reports and writes nothing. */
+  mergeWrites?: boolean;
   /**
    * Built hub-web bundle. Optional: the hub is a working git remote and JSON
    * API without a UI, and every test builds it that way.

@@ -6,10 +6,11 @@ import { scopesFor } from './scope';
 /**
  * The boundary ADR 0008 draws around AlphaTab, asserted rather than assumed.
  *
- * AlphaTab's **importer** runs under Node with no DOM. Its **renderer** does
- * not. Everything the hub does with a score — what a version touched, what a
- * branch touched, and eventually whether one can land — is importing, and the
- * hub draws no notes at all.
+ * AlphaTab's **importer** and **exporter** run under Node with no DOM. Its
+ * **renderer** does not. Everything the hub does with a score — what a version
+ * touched, what a branch touched, whether one can land — is importing, and
+ * landing one writes the merged score back out through the Guitar Pro
+ * exporter. The hub draws no notes at all.
  *
  * Nothing stopped that from drifting. `history.spec.ts` and `branches.spec.ts`
  * parse real files under Node and would fail loudly the day a DOM were
@@ -41,7 +42,7 @@ async function sources(dir: string): Promise<string[]> {
 }
 
 describe('the hub and AlphaTab', () => {
-  it('reaches the importer and nothing else', async () => {
+  it('reaches the importer and the exporter and nothing else', async () => {
     const files = await sources(HUB_SRC);
     expect(files.length).toBeGreaterThan(10);
 
@@ -65,10 +66,12 @@ describe('the hub and AlphaTab', () => {
       expect(source).not.toMatch(/import\s+(\w+|\*\s+as\s+\w+)\s+from\s+'@coderline\/alphatab/);
     }
 
-    // One namespace, and it is the one the ADR authorises. The day
-    // `rendering`, `platform` or `synth` appears here, a renderer, a canvas or
-    // a synthesiser has been given a server process to run in.
-    expect([...namespaces].filter((entry) => !entry.endsWith(': importer'))).toEqual([]);
+    // Reading a file and writing one, which is what ADR 0008 authorises. The
+    // day `rendering`, `platform` or `synth` appears here, a renderer, a canvas
+    // or a synthesiser has been given a server process to run in.
+    expect(
+      [...namespaces].filter((entry) => !/: (importer|exporter)$/.test(entry))
+    ).toEqual([]);
     expect(namespaces.size).toBeGreaterThan(0);
   });
 

@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import rateLimit from '@fastify/rate-limit';
 import { eq } from 'drizzle-orm';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { errorBody } from '../app/errors';
 import { requireAccount } from '../auth/session-guard';
@@ -10,10 +10,12 @@ import { scores } from '../db/schema';
 import { PAGE, readBranchPoints, readHistory, readVersionScore } from '../git/history';
 import { lastPushByRef } from '../git/pushes';
 import { createRepository } from '../git/repositories';
+import { basicAuthPassword } from '../git/routes';
 import { newId } from '../ids';
 import { createCloneClaim } from './claims';
 import { cloneUrl } from './clone-url';
 import { createScoreInvite } from './invites';
+import { land, landingsFor, setAskFirst } from './land';
 import {
   addScoreMember,
   listMemberScores,
@@ -21,7 +23,13 @@ import {
   readMemberScore,
 } from './members';
 import { branchScopes, scopesFor } from './scope';
-import { DEFAULT_TOKEN_NAME, deviceName, listScoreTokens, mintScoreToken } from './tokens';
+import {
+  DEFAULT_TOKEN_NAME,
+  deviceName,
+  listScoreTokens,
+  mintScoreToken,
+  readScoreToken,
+} from './tokens';
 
 export interface ScoreRoutesOptions {
   db: HubDatabase;
@@ -29,6 +37,8 @@ export interface ScoreRoutesOptions {
   gitRoot: string;
   /** The origin clone URLs are built from. */
   publicUrl: string;
+  /** `MERGE_WRITES`: whether landing a branch writes to main or only reports. */
+  mergeWrites?: boolean;
 }
 
 /**
@@ -64,8 +74,11 @@ const newScore = z.object({
     .pipe(z.string().min(1).max(200)),
 });
 
+const landRequest = z.object({ override: z.boolean().optional().default(false) });
+const askFirstRequest = z.object({ askFirst: z.boolean() });
+
 export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOptions) {
-  const { db, cookieSecure, gitRoot, publicUrl } = opts;
+  const { db, cookieSecure, gitRoot, publicUrl, mergeWrites = false } = opts;
 
   await fastify.register(rateLimit, {
     global: false,
@@ -343,17 +356,11 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
    * a silently empty diff — see ADR 0008.
    */
   fastify.get('/:id/branches', async (request, reply) => {
-    const account = requireAccount(db, request, reply, cookieSecure);
-    if (!account) return reply;
-
     const { id } = request.params as { id: string };
 
-    const score = readMemberScore(db, id, account.id);
-
-    // Same answer for "no such score" and "not yours", as everywhere else.
-    if (!score) {
-      return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
-    }
+    // The companion reads `askFirst` here with its score token.
+    const score = requireScoreAccess(db, request, reply, cookieSecure, id);
+    if (!score) return reply;
 
     // Built from the owner: the repository did not move when the score was
     // shared, so a member reads it out of somebody else's namespace.
@@ -364,6 +371,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
 
     const scopes = await branchScopes(gitRoot, score.ownerId, score.id, branches);
     const pushes = lastPushByRef(db, score.id);
+    const landings = landingsFor(db, score.id);
 
     return reply.send({
       branches: branches.map((branch) => ({
@@ -376,8 +384,75 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         // and for one that reached the repository some other way.
         pushedBy: pushes.get(`refs/heads/${branch.name}`)?.email ?? null,
         scope: scopes.get(branch.name) ?? null,
+        askFirst: landings.get(branch.name)?.askFirst ?? false,
+        // A branch that landed some other way — merged on a laptop and pushed —
+        // leaves its last report behind, and it no longer means anything.
+        landing: branch.ahead === 0 ? null : (landings.get(branch.name)?.landing ?? null),
       })),
     });
+  });
+
+  /**
+   * Lands a branch on main. Pressed in the panel with the score token, or on
+   * the web with a session — the same act either way.
+   */
+  fastify.post('/:id/branches/:name/land', async (request, reply) => {
+    const { id, name } = request.params as { id: string; name: string };
+
+    const score = requireScoreAccess(db, request, reply, cookieSecure, id);
+    if (!score) return reply;
+
+    const body = landRequest.safeParse(request.body ?? {});
+    if (!body.success) {
+      const issue = body.error.issues[0];
+      return reply
+        .code(400)
+        .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
+    }
+
+    const outcome = await land({
+      db,
+      gitRoot,
+      ownerId: score.ownerId,
+      scoreId: score.id,
+      branch: name,
+      override: body.data.override,
+      writes: mergeWrites,
+    });
+
+    if (outcome.status === 'no_such_branch') {
+      return reply.code(404).send(errorBody('no_such_branch', 'No branch with that name.'));
+    }
+    if (outcome.status === 'main_moved') {
+      return reply
+        .code(409)
+        .send(errorBody('main_moved', 'Main moved while this was landing. Try again.'));
+    }
+
+    return reply.send(outcome);
+  });
+
+  fastify.put('/:id/branches/:name/ask-first', async (request, reply) => {
+    const { id, name } = request.params as { id: string; name: string };
+
+    const score = requireScoreAccess(db, request, reply, cookieSecure, id);
+    if (!score) return reply;
+
+    const body = askFirstRequest.safeParse(request.body);
+    if (!body.success) {
+      const issue = body.error.issues[0];
+      return reply
+        .code(400)
+        .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
+    }
+
+    const branches = await readBranchPoints(gitRoot, score.ownerId, score.id);
+    if (!branches?.some((branch) => branch.name === name)) {
+      return reply.code(404).send(errorBody('no_such_branch', 'No branch with that name.'));
+    }
+
+    setAskFirst(db, score.id, name, body.data.askFirst);
+    return reply.send({ askFirst: body.data.askFirst });
   });
 
   /**
@@ -455,4 +530,43 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       }))
     );
   });
+}
+
+/**
+ * The browser's session, or the score token the companion already sends to
+ * git. A token answers for its own score only, and a wrong one gets the same
+ * 404 as a score that is not yours.
+ */
+function requireScoreAccess(
+  db: HubDatabase,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  cookieSecure: boolean,
+  id: string
+): { id: string; ownerId: string } | null {
+  const { authorization } = request.headers;
+
+  if (authorization) {
+    const password = basicAuthPassword(authorization);
+    const bearer = password ? readScoreToken(db, password) : null;
+    if (!bearer) {
+      reply.code(401).send(errorBody('invalid_token', 'That token is not valid.'));
+      return null;
+    }
+    if (bearer.scoreId !== id) {
+      reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+      return null;
+    }
+    return { id: bearer.scoreId, ownerId: bearer.ownerId };
+  }
+
+  const account = requireAccount(db, request, reply, cookieSecure);
+  if (!account) return null;
+
+  const score = readMemberScore(db, id, account.id);
+  if (!score) {
+    reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
+    return null;
+  }
+  return score;
 }

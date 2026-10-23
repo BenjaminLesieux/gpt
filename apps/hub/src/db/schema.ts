@@ -298,6 +298,31 @@ export const scorePushes = sqliteTable(
   ]
 );
 
+/**
+ * What happened the last time somebody pressed *land* on a branch, and whether
+ * it asks the band first. Keyed by name rather than by tip: `ask first` belongs
+ * to the line of work, and the report carries the tip it was computed for so a
+ * reader can tell it has gone stale.
+ */
+export const branchLandings = sqliteTable(
+  'branch_landings',
+  {
+    scoreId: text('score_id')
+      .notNull()
+      .references(() => scores.id, { onDelete: 'cascade' }),
+    branch: text('branch').notNull(),
+    askFirst: integer('ask_first', { mode: 'boolean' }).notNull().default(false),
+    /** `conflicts`, `waiting` or `unreadable`; null once landed or never pressed. */
+    status: text('status', { enum: ['conflicts', 'waiting', 'unreadable'] }),
+    tip: text('tip'),
+    /** JSON `Conflict[]`, only for `conflicts`. */
+    conflicts: text('conflicts'),
+    cleanBars: integer('clean_bars'),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.scoreId, table.branch] })]
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;
@@ -307,3 +332,4 @@ export type CloneClaim = typeof cloneClaims.$inferSelect;
 export type ScoreInvite = typeof scoreInvites.$inferSelect;
 export type VersionScope = typeof versionScopes.$inferSelect;
 export type ScorePush = typeof scorePushes.$inferSelect;
+export type BranchLanding = typeof branchLandings.$inferSelect;
