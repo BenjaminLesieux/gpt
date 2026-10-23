@@ -34,42 +34,29 @@ export const sessions = sqliteTable(
   (table) => [index('sessions_account_id_idx').on(table.accountId)]
 );
 
-export const scores = sqliteTable(
-  'scores',
-  {
-    /** Also the repository's directory name, which is why it is opaque. */
-    id: text('id').primaryKey(),
-    /**
-     * Whose namespace the repository sits in — `<account>/<score>.git` — and
-     * nothing more. This column stopped being the answer to "may this person
-     * touch this score?" when `score_members` arrived; it stayed because the
-     * path it builds is already written into every working clone's config.
-     */
-    accountId: text('account_id')
-      .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
-    /** What the musician typed. It never reaches a URL or a path. */
-    name: text('name').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  },
-  (table) => [index('scores_account_id_idx').on(table.accountId)]
-);
+/**
+ * The people who make music together, and what they own. Solo work is a band
+ * of one, made at signup, so a score always has a band to sit under.
+ */
+export const bands = sqliteTable('bands', {
+  /** Also the first segment of every repository path, which is why it is opaque. */
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
 
 /**
- * Who may touch a score. A band is more than one person, and until this table
- * existed the hub could not say so: a score had one account and every push was
- * attributed to them forever.
- *
- * Roles are `owner | member`. `owner` buys removing people and deleting the
- * score, and nothing else — resist a third until something needs one.
+ * Who is in a band, and so who may touch every score it owns. Roles are
+ * `owner | member`. `owner` buys removing people and deleting scores, and
+ * nothing else — resist a third until something needs one.
  */
-export const scoreMembers = sqliteTable(
-  'score_members',
+export const bandMembers = sqliteTable(
+  'band_members',
   {
     id: text('id').primaryKey(),
-    scoreId: text('score_id')
+    bandId: text('band_id')
       .notNull()
-      .references(() => scores.id, { onDelete: 'cascade' }),
+      .references(() => bands.id, { onDelete: 'cascade' }),
     accountId: text('account_id')
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
@@ -77,12 +64,31 @@ export const scoreMembers = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (table) => [
-    // One membership per person per score, and the lookup every score route
-    // now makes before it answers anything.
-    uniqueIndex('score_members_score_id_account_id_idx').on(table.scoreId, table.accountId),
-    // `GET /scores` reads the same table the other way round.
-    index('score_members_account_id_idx').on(table.accountId),
+    // One membership per person per band, and the lookup every score route
+    // makes before it answers anything.
+    uniqueIndex('band_members_band_id_account_id_idx').on(table.bandId, table.accountId),
+    // `GET /scores` and `GET /bands` read the same table the other way round.
+    index('band_members_account_id_idx').on(table.accountId),
   ]
+);
+
+export const scores = sqliteTable(
+  'scores',
+  {
+    /** Also the repository's directory name, which is why it is opaque. */
+    id: text('id').primaryKey(),
+    /**
+     * The band that owns it, and the repository's first path segment —
+     * `<band>/<score>.git`. A score never changes band, so the path never moves.
+     */
+    bandId: text('band_id')
+      .notNull()
+      .references(() => bands.id, { onDelete: 'cascade' }),
+    /** What the musician typed. It never reaches a URL or a path. */
+    name: text('name').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('scores_band_id_idx').on(table.bandId)]
 );
 
 export const scoreTokens = sqliteTable(
@@ -94,9 +100,8 @@ export const scoreTokens = sqliteTable(
       .notNull()
       .references(() => scores.id, { onDelete: 'cascade' }),
     /**
-     * Whose credential this is — not whose namespace holds the repository.
-     * For a shared score those are two different accounts, and the git route
-     * is the place that must never confuse them.
+     * Whose credential this is — a person, where the repository is stored
+     * under a band. The git route is the place that must never confuse them.
      *
      * It is what makes a push attributable to a person rather than to the
      * owner forever, which is the whole reason `score_pushes` can exist.
@@ -128,7 +133,7 @@ export const scoreTokens = sqliteTable(
   },
   (table) => [
     index('score_tokens_score_id_idx').on(table.scoreId),
-    // Every git request joins this column against `score_members`, and the
+    // Every git request joins this column against `band_members`, and the
     // cascade behind an account delete would otherwise be a full table scan.
     index('score_tokens_account_id_idx').on(table.accountId),
   ]
@@ -373,7 +378,8 @@ export const companionTokens = sqliteTable(
 export type Account = typeof accounts.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Score = typeof scores.$inferSelect;
-export type ScoreMember = typeof scoreMembers.$inferSelect;
+export type Band = typeof bands.$inferSelect;
+export type BandMember = typeof bandMembers.$inferSelect;
 export type ScoreToken = typeof scoreTokens.$inferSelect;
 export type CloneClaim = typeof cloneClaims.$inferSelect;
 export type ScoreInvite = typeof scoreInvites.$inferSelect;

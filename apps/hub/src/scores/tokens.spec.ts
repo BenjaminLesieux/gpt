@@ -4,7 +4,8 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scoreMembers, scoreTokens, scores } from '../db/schema';
+import { addBandMember } from '../bands/bands';
+import { accounts, bandMembers, bands, scoreTokens, scores } from '../db/schema';
 import {
   listScoreTokens,
   mintScoreToken,
@@ -28,21 +29,29 @@ describe('score tokens', () => {
       passwordHash: 'not-a-real-hash',
       createdAt: new Date(),
     }).run();
+    // A token only resolves while its holder is in the score's band, so the
+    // fixture has to say that they are — signup writes this row.
+    handle.db.insert(bands).values({ id: 'band1', name: 'player', createdAt: new Date() }).run();
+    addBandMember(handle.db, 'band1', 'acc1', 'owner');
     handle.db.insert(scores).values([
-      { id: 'sc1', accountId: 'acc1', name: 'Bridge rewrite', createdAt: new Date() },
-      { id: 'sc2', accountId: 'acc1', name: 'Untitled riff', createdAt: new Date() },
-    ]).run();
-    // A token only resolves while its holder is on the score, so the fixture
-    // has to say that they are — `POST /scores` writes this row inline.
-    handle.db.insert(scoreMembers).values([
-      { id: 'm1', scoreId: 'sc1', accountId: 'acc1', role: 'owner', createdAt: new Date() },
-      { id: 'm2', scoreId: 'sc2', accountId: 'acc1', role: 'owner', createdAt: new Date() },
+      { id: 'sc1', bandId: 'band1', name: 'Bridge rewrite', createdAt: new Date() },
+      { id: 'sc2', bandId: 'band1', name: 'Untitled riff', createdAt: new Date() },
     ]).run();
   });
 
   afterEach(() => {
     handle?.close();
   });
+
+  function addDrummer() {
+    handle.db.insert(accounts).values({
+      id: 'acc2',
+      email: 'drummer@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    }).run();
+    addBandMember(handle.db, 'band1', 'acc2', 'member');
+  }
 
   it('should store the hash of the token and not the token when minting', () => {
     // Given / When
@@ -74,7 +83,7 @@ describe('score tokens', () => {
     expect(first.id).not.toBe(second.id);
   });
 
-  it('should resolve the score and its account when the token is current', () => {
+  it('should resolve the score, its band and its holder when the token is current', () => {
     // Given
     const { id, token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
@@ -86,65 +95,50 @@ describe('score tokens', () => {
     expect(bearer).toEqual({
       tokenId: id,
       scoreId: 'sc1',
-      // Two accounts under two names. Here they are the same person, which is
-      // exactly why they have to be told apart before one is shared.
-      ownerId: 'acc1',
+      bandId: 'band1',
       holderId: 'acc1',
       lastUsedAt: null,
     });
   });
 
-  it('should keep the owner and the holder apart once a score is shared', () => {
-    // Given a second person on the score, with their own credential
-    handle.db.insert(accounts).values({
-      id: 'acc2',
-      email: 'drummer@example.com',
-      passwordHash: 'not-a-real-hash',
-      createdAt: new Date(),
-    }).run();
-    handle.db.insert(scoreMembers).values({
-      id: 'm3',
-      scoreId: 'sc1',
-      accountId: 'acc2',
-      role: 'member',
-      createdAt: new Date(),
-    }).run();
+  it('should resolve a second band member with the band and themselves as holder', () => {
+    // Given a second person in the band, with their own credential
+    addDrummer();
     const { token } = mintScoreToken(handle.db, 'sc1', 'acc2', "Sam's ThinkPad");
 
     // When
     const bearer = readScoreToken(handle.db, token);
 
-    // Then — the repository is still in the owner's namespace and the
-    // credential is somebody else's. The git route needs both, and needs them
-    // under names it cannot swap by accident.
-    expect(bearer?.ownerId).toBe('acc1');
+    // Then — the repository is in the band's namespace and the credential is
+    // the drummer's. The git route needs both, under names it cannot swap.
+    expect(bearer?.bandId).toBe('band1');
     expect(bearer?.holderId).toBe('acc2');
   });
 
-  it('should resolve nothing for a token whose holder has left the score', () => {
+  it('should resolve nothing for a token whose holder has left the band', () => {
     // Given
-    handle.db.insert(accounts).values({
-      id: 'acc2',
-      email: 'drummer@example.com',
-      passwordHash: 'not-a-real-hash',
-      createdAt: new Date(),
-    }).run();
-    handle.db.insert(scoreMembers).values({
-      id: 'm3',
-      scoreId: 'sc1',
-      accountId: 'acc2',
-      role: 'member',
-      createdAt: new Date(),
-    }).run();
+    addDrummer();
     const { token } = mintScoreToken(handle.db, 'sc1', 'acc2', "Sam's ThinkPad");
 
     // When the membership goes and the token row stays
-    handle.db.delete(scoreMembers).where(eq(scoreMembers.id, 'm3')).run();
+    handle.db.delete(bandMembers).where(eq(bandMembers.accountId, 'acc2')).run();
 
     // Then — a credential is only ever as good as the membership behind it,
     // and this is the only place that is enforced.
     expect(readScoreToken(handle.db, token)).toBeNull();
     expect(handle.db.select().from(scoreTokens).all()).toHaveLength(1);
+  });
+
+  it("should resolve nothing for a token whose holder is in another band", () => {
+    // Given a second band with its own score, and a token on it held by
+    // somebody who is not in it
+    addDrummer();
+    handle.db.insert(bands).values({ id: 'band2', name: 'other', createdAt: new Date() }).run();
+    handle.db.insert(scores).values({ id: 'sc3', bandId: 'band2', name: 'Theirs', createdAt: new Date() }).run();
+    const { token } = mintScoreToken(handle.db, 'sc3', 'acc2', "Sam's ThinkPad");
+
+    // When / Then — being in a band says nothing about any other band's scores.
+    expect(readScoreToken(handle.db, token)).toBeNull();
   });
 
   it('should resolve nothing when the token was never issued', () => {
@@ -153,7 +147,7 @@ describe('score tokens', () => {
   });
 
   it('should resolve only the score it was minted for', () => {
-    // Given a token for one score and a second score in the same account
+    // Given a token for one score and a second score in the same band
     const { token } = mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
 
     // When
@@ -290,16 +284,28 @@ describe('score tokens', () => {
     expect(summaries.find((t) => t.name === 'Studio iMac')?.lastUsedAt).toBeNull();
   });
 
-  it('should drop the scores and their tokens when the account is deleted', () => {
+  it('should drop the scores and their tokens when the band is deleted', () => {
     // Given
     mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
     mintScoreToken(handle.db, 'sc2', 'acc1', 'companion');
 
     // When
-    handle.db.delete(accounts).run();
+    handle.db.delete(bands).run();
 
     // Then
     expect(handle.db.select().from(scores).all()).toHaveLength(0);
+    expect(handle.db.select().from(scoreTokens).all()).toHaveLength(0);
+  });
+
+  it("should drop an account's tokens and leave the band's scores when the account is deleted", () => {
+    // Given
+    mintScoreToken(handle.db, 'sc1', 'acc1', 'companion');
+
+    // When
+    handle.db.delete(accounts).run();
+
+    // Then — the scores are the band's, the credentials were the person's.
+    expect(handle.db.select().from(scores).all()).toHaveLength(2);
     expect(handle.db.select().from(scoreTokens).all()).toHaveLength(0);
   });
 });

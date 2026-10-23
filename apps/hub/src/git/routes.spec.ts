@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app/app';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { accounts, scoreMembers, scorePushes, scoreTokens, scores } from '../db/schema';
+import { addBandMember } from '../bands/bands';
+import { accounts, bandMembers, bands, scorePushes, scoreTokens, scores } from '../db/schema';
 import { mintScoreToken } from '../scores/tokens';
 import { createRepository } from './repositories';
 
@@ -18,10 +19,16 @@ const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
 
 const ACCOUNT = 'aaaabbbbccccdddd';
-/** A second person, on SCORE_A only. The drummer of ADR 0007. */
+/** A second person in the same band. The drummer of ADR 0007. */
 const DRUMMER = 'ddddrrrruuuummmm';
+/** Somebody in another band entirely. */
+const STRANGER = 'ssssttttrrrraaaa';
+const BAND = 'bbbbaaaannnnaaaa';
+const OTHER_BAND = 'bbbbaaaannnnoooo';
 const SCORE_A = 'sssseeeeaaaaoooo';
 const SCORE_B = 'ttttffffbbbbpppp';
+/** The other band's score. */
+const SCORE_C = 'ccccoooottttheee';
 
 /**
  * Real git against real bare repositories in a tempdir, over a real socket.
@@ -42,9 +49,9 @@ async function git(cwd: string, ...args: string[]) {
   });
 }
 
-function cloneUrl(token: string, account = ACCOUNT, score = SCORE_A) {
+function cloneUrl(token: string, band = BAND, score = SCORE_A) {
   const { host } = new URL(origin);
-  return `http://token:${token}@${host}/git/${account}/${score}.git`;
+  return `http://token:${token}@${host}/git/${band}/${score}.git`;
 }
 
 /** The activity stamps, read straight from the row the route writes. */
@@ -89,21 +96,29 @@ beforeEach(async () => {
       passwordHash: 'not-a-real-hash',
       createdAt: new Date(),
     },
+    {
+      id: STRANGER,
+      email: 'kim@example.com',
+      passwordHash: 'not-a-real-hash',
+      createdAt: new Date(),
+    },
   ]).run();
+  handle.db.insert(bands).values([
+    { id: BAND, name: 'The band', createdAt: new Date() },
+    { id: OTHER_BAND, name: 'Another band', createdAt: new Date() },
+  ]).run();
+  addBandMember(handle.db, BAND, ACCOUNT, 'owner');
+  addBandMember(handle.db, BAND, DRUMMER, 'member');
+  addBandMember(handle.db, OTHER_BAND, STRANGER, 'owner');
   handle.db.insert(scores).values([
-    { id: SCORE_A, accountId: ACCOUNT, name: 'Bridge rewrite', createdAt: new Date() },
-    { id: SCORE_B, accountId: ACCOUNT, name: 'Untitled riff', createdAt: new Date() },
-  ]).run();
-  handle.db.insert(scoreMembers).values([
-    { id: 'mem-a', scoreId: SCORE_A, accountId: ACCOUNT, role: 'owner', createdAt: new Date() },
-    { id: 'mem-b', scoreId: SCORE_B, accountId: ACCOUNT, role: 'owner', createdAt: new Date() },
-    // Shared: one score of the two, so the sibling is reachable by path and
-    // not by membership.
-    { id: 'mem-d', scoreId: SCORE_A, accountId: DRUMMER, role: 'member', createdAt: new Date() },
+    { id: SCORE_A, bandId: BAND, name: 'Bridge rewrite', createdAt: new Date() },
+    { id: SCORE_B, bandId: BAND, name: 'Untitled riff', createdAt: new Date() },
+    { id: SCORE_C, bandId: OTHER_BAND, name: 'Their song', createdAt: new Date() },
   ]).run();
 
-  await createRepository(gitRoot, ACCOUNT, SCORE_A);
-  await createRepository(gitRoot, ACCOUNT, SCORE_B);
+  await createRepository(gitRoot, BAND, SCORE_A);
+  await createRepository(gitRoot, BAND, SCORE_B);
+  await createRepository(gitRoot, OTHER_BAND, SCORE_C);
 
   server = Fastify();
   await server.register(app, {
@@ -127,7 +142,7 @@ describe('the git endpoint', () => {
   it('should challenge for credentials when none arrive', async () => {
     // Given / When
     const response = await fetch(
-      `${origin}/git/${ACCOUNT}/${SCORE_A}.git/info/refs?service=git-upload-pack`
+      `${origin}/git/${BAND}/${SCORE_A}.git/info/refs?service=git-upload-pack`
     );
 
     // Then — without the challenge git gives up rather than asking.
@@ -138,7 +153,7 @@ describe('the git endpoint', () => {
   it('should refuse a token that was never issued', async () => {
     // Given / When
     const response = await fetch(
-      `${origin}/git/${ACCOUNT}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
+      `${origin}/git/${BAND}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
       { headers: { Authorization: `Basic ${Buffer.from('token:made-up').toString('base64')}` } }
     );
 
@@ -161,7 +176,7 @@ describe('the git endpoint', () => {
     await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
 
     // Then
-    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
+    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, BAND, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
     expect(stdout).toContain('refs/heads/main');
   });
 
@@ -176,7 +191,7 @@ describe('the git endpoint', () => {
     await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/snapshots/latest');
 
     // Then
-    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
+    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, BAND, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
     expect(stdout).toContain('refs/snapshots/latest');
   });
 
@@ -238,8 +253,8 @@ describe('the git endpoint', () => {
     // Given a token minted for one score
     const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
 
-    // When it is pointed at a sibling in the same account
-    const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, ACCOUNT, SCORE_B), 'nope')
+    // When it is pointed at a sibling in the same band
+    const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, BAND, SCORE_B), 'nope')
       .catch((error: Error) => error);
 
     // Then
@@ -247,12 +262,11 @@ describe('the git endpoint', () => {
     expect(String(failure)).toMatch(/403/);
   });
 
-  it("should let a member push to a score kept in the owner's namespace", async () => {
-    // Given a credential belonging to the second person on a shared score
+  it("should let a second member of the band push to the band's score", async () => {
+    // Given the drummer's own credential for a score the band owns
     const { id, token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
 
-    // When they clone and push through the owner's path, which is the only
-    // path the repository has ever had
+    // When they clone and push through the band's path
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
     const clone = path.join(workspace, 'score');
     await writeFile(path.join(clone, 'score.gp'), 'drums');
@@ -260,42 +274,72 @@ describe('the git endpoint', () => {
     await git(clone, '-c', 'user.email=sam@example.com', '-c', 'user.name=Sam', 'commit', '-qm', 'drums');
     await git(clone, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
 
-    // Then — the path segment is the owner's and the token is somebody
-    // else's, and both are true at once.
-    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
+    // Then — nobody shared the score with them; being in the band is enough.
+    const { stdout } = await git(gitRoot, '--git-dir', path.join(gitRoot, BAND, `${SCORE_A}.git`), 'for-each-ref', '--format=%(refname)');
     expect(stdout).toContain('refs/heads/main');
     expect(readToken(id)?.lastPushedAt).toBeInstanceOf(Date);
   });
 
-  it("should refuse a member of one score at the owner's sibling score", async () => {
-    // Given the drummer's token for the score they are on
-    const { token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
+  it("should refuse a band's token at another band's repository", async () => {
+    // Given a valid token for a score in the band
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
 
-    // When it is pointed at the owner's other score, whose path segment is
-    // the same account
-    const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, ACCOUNT, SCORE_B), 'nope')
+    // When it is pointed at the other band's score
+    const failure = await git(workspace, 'clone', '--quiet', cloneUrl(token, OTHER_BAND, SCORE_C), 'nope')
       .catch((error: Error) => error);
 
-    // Then — the path check and the membership check are about two different
-    // accounts, and collapsing them back into one is either this clone
-    // succeeding or the test above failing.
+    // Then
     expect(failure).toBeInstanceOf(Error);
     expect(String(failure)).toMatch(/403/);
   });
 
-  it('should stop honouring a token once its holder is off the score', async () => {
+  it("should refuse a path whose first segment is not the score's band", async () => {
+    // Given a valid token, and its own score under segments that are not its band
+    const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
+    const auth = { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` };
+
+    // When the segment is the holder's account, or a band the score is not in
+    const statuses = await Promise.all(
+      [ACCOUNT, OTHER_BAND].map(async (segment) => {
+        const response = await fetch(
+          `${origin}/git/${segment}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
+          { headers: auth }
+        );
+        return response.status;
+      })
+    );
+
+    // Then — the path is where the band keeps the repository, not who is asking.
+    expect(statuses).toEqual([403, 403]);
+  });
+
+  it("should refuse a token whose holder is not in the score's band", async () => {
+    // Given a token for the other band's score, held by someone outside it
+    const { token } = mintScoreToken(handle.db, SCORE_C, ACCOUNT, 'companion');
+
+    // When it is used on the very repository it names
+    const response = await fetch(
+      `${origin}/git/${OTHER_BAND}/${SCORE_C}.git/info/refs?service=git-upload-pack`,
+      { headers: { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` } }
+    );
+
+    // Then — the row exists, and without the membership behind it it is no
+    // credential at all.
+    expect(response.status).toBe(401);
+  });
+
+  it('should stop honouring a token once its holder leaves the band', async () => {
     // Given a credential that worked
     const { token } = mintScoreToken(handle.db, SCORE_A, DRUMMER, "Sam's laptop");
 
     // When the membership goes
-    handle.db.delete(scoreMembers).where(eq(scoreMembers.id, 'mem-d')).run();
+    handle.db.delete(bandMembers).where(eq(bandMembers.accountId, DRUMMER)).run();
 
-    // Then it is not a credential any more — the token row is still there,
-    // and it authorises nothing without the membership behind it. Asserted
-    // over fetch rather than through git, which reports a URL's rejected
-    // credentials as its own message and never shows the status.
+    // Then it is not a credential any more. Asserted over fetch rather than
+    // through git, which reports a URL's rejected credentials as its own
+    // message and never shows the status.
     const response = await fetch(
-      `${origin}/git/${ACCOUNT}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
+      `${origin}/git/${BAND}/${SCORE_A}.git/info/refs?service=git-upload-pack`,
       { headers: { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` } }
     );
     expect(response.status).toBe(401);
@@ -360,7 +404,7 @@ describe('the git endpoint', () => {
 
   it('should write no history for a push receive-pack refuses', async () => {
     // Given a landed version, and a repository that will not rewind a branch
-    const bare = path.join(gitRoot, ACCOUNT, `${SCORE_A}.git`);
+    const bare = path.join(gitRoot, BAND, `${SCORE_A}.git`);
     const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
     await git(workspace, 'clone', '--quiet', cloneUrl(token), 'score');
     const clone = path.join(workspace, 'score');
@@ -392,7 +436,7 @@ describe('the git endpoint', () => {
     const { token } = mintScoreToken(handle.db, SCORE_A, ACCOUNT, 'companion');
 
     // When
-    const response = await fetch(`${origin}/git/${ACCOUNT}/..%2f..%2fetc.git/info/refs`, {
+    const response = await fetch(`${origin}/git/${BAND}/..%2f..%2fetc.git/info/refs`, {
       headers: { Authorization: `Basic ${Buffer.from(`token:${token}`).toString('base64')}` },
     });
 

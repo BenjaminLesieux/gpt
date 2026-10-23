@@ -11,8 +11,8 @@ import { app } from '../app/app';
 import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { scoreMembers, scoreTokens } from '../db/schema';
-import { addScoreMember } from './members';
+import { addBandMember } from '../bands/bands';
+import { bandMembers, scoreTokens } from '../db/schema';
 
 const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
@@ -23,18 +23,32 @@ let handle: HubDatabaseHandle;
 let server: FastifyInstance;
 let gitRoot: string;
 let session: string;
+let playerId: string;
 
-async function createScore(name = 'Bridge rewrite'): Promise<LightMyRequestResponse> {
+async function createScore(
+  name = 'Bridge rewrite',
+  { bandId, cookie = session }: { bandId?: string; cookie?: string } = {}
+): Promise<LightMyRequestResponse> {
   return server.inject({
     method: 'POST',
     url: '/scores',
-    payload: { name },
-    cookies: { [SESSION_COOKIE]: session },
+    payload: { name, bandId },
+    cookies: { [SESSION_COOKIE]: cookie },
   });
 }
 
-/** A second person, with their account id and a session to act as them. */
-async function signUp(email: string): Promise<{ id: string; session: string }> {
+/** The band signup made for whoever holds this session. */
+async function bandOf(cookie: string): Promise<string> {
+  const response = await server.inject({
+    method: 'GET',
+    url: '/bands',
+    cookies: { [SESSION_COOKIE]: cookie },
+  });
+  return response.json()[0].id;
+}
+
+/** A second person, with their account id, a session to act as them, and their band of one. */
+async function signUp(email: string): Promise<{ id: string; session: string; bandId: string }> {
   const response = await server.inject({
     method: 'POST',
     url: '/auth/signup',
@@ -42,7 +56,7 @@ async function signUp(email: string): Promise<{ id: string; session: string }> {
   });
   const cookie = response.cookies.find((c) => c.name === SESSION_COOKIE);
   if (!cookie) throw new Error('signup issued no session cookie');
-  return { id: response.json().id, session: cookie.value };
+  return { id: response.json().id, session: cookie.value, bandId: await bandOf(cookie.value) };
 }
 
 beforeEach(async () => {
@@ -68,6 +82,7 @@ beforeEach(async () => {
   const cookie = signup.cookies.find((c) => c.name === SESSION_COOKIE);
   if (!cookie) throw new Error('signup issued no session cookie');
   session = cookie.value;
+  playerId = signup.json().id;
 });
 
 afterEach(async () => {
@@ -153,20 +168,49 @@ describe('POST /scores', () => {
     expect(await readdir(gitRoot)).toEqual([]);
   });
 
-  it('should make its creator a member of what they made', async () => {
+  it('should put the score in its creator’s band when none is named', async () => {
     // Given / When
     const created = (await createScore()).json();
 
-    // Then — without the membership row the score is invisible to everyone,
-    // its creator included: `scores.account_id` is the repository's namespace
-    // now, not permission to be there.
-    const members = handle.db.select().from(scoreMembers).all();
-    expect(members).toHaveLength(1);
-    expect(members[0]).toMatchObject({
-      scoreId: created.id,
-      accountId: created.username,
-      role: 'owner',
+    // Then — the repository lives under the band, not the person, so it stays
+    // put whoever joins or leaves.
+    const bandId = await bandOf(session);
+    expect(created.username).toBe(bandId);
+    expect(created.url).toBe(`${PUBLIC_URL}/git/${bandId}/${created.id}.git`);
+  });
+
+  it('should put the score in the band it names, when the caller is in it', async () => {
+    // Given a player who has joined a drummer's band
+    const drummer = await signUp('drummer@example.com');
+    addBandMember(handle.db, drummer.bandId, playerId, 'member');
+
+    // When
+    const created = (await createScore('Band song', { bandId: drummer.bandId })).json();
+
+    // Then — it is the band's, so the drummer has it too.
+    expect(created.username).toBe(drummer.bandId);
+    const theirs = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: drummer.session },
     });
+    expect(theirs.json().map((s: { id: string }) => s.id)).toEqual([created.id]);
+  });
+
+  it('should refuse a band the caller is not in, as if it did not exist', async () => {
+    // Given somebody else's band
+    const stranger = await signUp('stranger@example.com');
+
+    // When
+    const theirs = await createScore('Not mine', { bandId: stranger.bandId });
+    const missing = await createScore('Not mine', { bandId: 'nosuchbandid' });
+
+    // Then
+    expect(theirs.statusCode).toBe(404);
+    expect(theirs.json().error.code).toBe('no_such_band');
+    expect(theirs.json()).toEqual(missing.json());
+    // And nothing was provisioned on the way to refusing it.
+    expect(await readdir(gitRoot)).toEqual([]);
   });
 
   it('should give each score its own repository and its own token', async () => {
@@ -479,19 +523,17 @@ describe('minting a token for a score that already exists', () => {
 });
 
 /**
- * There is no way to be added to somebody else's score from outside yet — the
- * invite link is its own piece of work — so these write the membership row the
- * way that endpoint eventually will, and ask what every score route does with
- * it once it is there.
+ * These write the band membership directly, as accepting an invite does, and
+ * ask what every score route does with it once it is there.
  */
 describe('a score shared with a second person', () => {
-  let drummer: { id: string; session: string };
+  let drummer: { id: string; session: string; bandId: string };
   let shared: { id: string; username: string; url: string };
 
   beforeEach(async () => {
     drummer = await signUp('drummer@example.com');
     shared = (await createScore()).json();
-    addScoreMember(handle.db, shared.id, drummer.id, 'member');
+    addBandMember(handle.db, await bandOf(session), drummer.id, 'member');
   });
 
   it('should list it for the person it was shared with', async () => {
@@ -507,7 +549,7 @@ describe('a score shared with a second person', () => {
     expect(listed.json()[0]).toMatchObject({ id: shared.id, name: 'Bridge rewrite' });
   });
 
-  it('should hand a member a clone url in the owner’s namespace', async () => {
+  it('should hand a member a clone url in the band’s namespace', async () => {
     // Given / When
     const listed = await server.inject({
       method: 'GET',
@@ -515,16 +557,17 @@ describe('a score shared with a second person', () => {
       cookies: { [SESSION_COOKIE]: drummer.session },
     });
 
-    // Then — the repository did not move when the drummer was added to the
-    // score. A url built from their own id names a directory that is not
-    // there, which is a clone that fails on the first fetch.
+    // Then — the repository did not move when the drummer joined the band. A
+    // url built from their own id, or their own band's, names a directory that
+    // is not there, which is a clone that fails on the first fetch.
     expect(listed.json()[0].url).toBe(shared.url);
     expect(listed.json()[0].url).not.toContain(drummer.id);
+    expect(listed.json()[0].url).not.toContain(drummer.bandId);
     const repository = path.join(gitRoot, shared.username, `${shared.id}.git`);
     expect((await stat(repository)).isDirectory()).toBe(true);
   });
 
-  it('should mint a member their own token, against the owner’s repository', async () => {
+  it('should mint a member their own token, against the band’s repository', async () => {
     // Given / When
     const minted = await server.inject({
       method: 'POST',
@@ -565,9 +608,9 @@ describe('a score shared with a second person', () => {
       cookies: { [SESSION_COOKIE]: drummer.session },
     });
 
-    // Then — the repository is the owner's and the credential is not. This
-    // column is what a push can be attributed to a person by; written with
-    // the owner's id it would name the wrong person forever.
+    // Then — the repository is the band's and the credential is the member's.
+    // This column is what a push can be attributed to a person by; written
+    // with the creator's id it would name the wrong person forever.
     const row = handle.db
       .select()
       .from(scoreTokens)
@@ -592,7 +635,7 @@ describe('a score shared with a second person', () => {
     });
 
     // Then — the claim is the only thing that knew who this machine is
-    // acting for, and the owner is the wrong answer.
+    // acting for, and the score's creator is the wrong answer.
     expect(redeemed.statusCode).toBe(201);
     const row = handle.db
       .select()
@@ -616,8 +659,8 @@ describe('a score shared with a second person', () => {
   });
 });
 
-describe('a score somebody is not a member of', () => {
-  /** Every route that takes a score id in its path. */
+describe('a score in a band somebody is not in', () => {
+  /** Every POST route that takes a score id in its path. */
   const routes = ['token', 'clone-claims'] as const;
 
   it.each(routes)('should answer /scores/:id/%s as if the score did not exist', async (route) => {
@@ -643,23 +686,62 @@ describe('a score somebody is not a member of', () => {
     expect(theirs.json()).toEqual(missing.json());
   });
 
-  it('should not list it for them', async () => {
-    // Given a score whose membership names somebody else entirely
+  it('should keep a member of one band out of another band’s score', async () => {
+    // Given band A, with a score of its own, and a score in band B
+    const bandA = await signUp('bandA@example.com');
+    const ownScore = (await createScore('Ours', { cookie: bandA.session })).json();
+    const bandBScore = (await createScore()).json();
+
+    // When band A's member reaches for band B's score
+    const answers = await Promise.all(
+      [
+        { method: 'GET' as const, url: `/scores/${bandBScore.id}/history` },
+        { method: 'POST' as const, url: `/scores/${bandBScore.id}/token` },
+        { method: 'GET' as const, url: '/scores/nosuchscoreid/history' },
+        { method: 'POST' as const, url: '/scores/nosuchscoreid/token' },
+      ].map((request) =>
+        server.inject({ ...request, cookies: { [SESSION_COOKIE]: bandA.session } })
+      )
+    );
+
+    // Then — being in *a* band is not being in this one.
+    const [history, token, noHistory, noToken] = answers;
+    expect(history.statusCode).toBe(404);
+    expect(history.json()).toEqual(noHistory.json());
+    expect(token.statusCode).toBe(404);
+    expect(token.json()).toEqual(noToken.json());
+    // And their own band's score is still theirs.
+    const own = await server.inject({
+      method: 'GET',
+      url: `/scores/${ownScore.id}/history`,
+      cookies: { [SESSION_COOKIE]: bandA.session },
+    });
+    expect(own.statusCode).toBe(200);
+  });
+
+  it('should stop listing it for somebody who left the band', async () => {
+    // Given a score whose band no longer has its creator in it
     const created = (await createScore()).json();
     const stranger = await signUp('stranger@example.com');
-    handle.db.delete(scoreMembers).where(eq(scoreMembers.scoreId, created.id)).run();
-    addScoreMember(handle.db, created.id, stranger.id, 'member');
+    const bandId = await bandOf(session);
+    handle.db.delete(bandMembers).where(eq(bandMembers.bandId, bandId)).run();
+    addBandMember(handle.db, bandId, stranger.id, 'member');
 
-    // When the owner of the *row* — who is no longer a member — asks
-    const listed = await server.inject({
+    // When
+    const creator = await server.inject({
       method: 'GET',
       url: '/scores',
       cookies: { [SESSION_COOKIE]: session },
     });
+    const member = await server.inject({
+      method: 'GET',
+      url: '/scores',
+      cookies: { [SESSION_COOKIE]: stranger.session },
+    });
 
-    // Then — membership decides, not `scores.account_id`. A score still in
-    // someone's namespace is not a score they may read.
-    expect(listed.json()).toEqual([]);
+    // Then — band membership decides, not who made it.
+    expect(creator.json()).toEqual([]);
+    expect(member.json().map((s: { id: string }) => s.id)).toEqual([created.id]);
   });
 });
 

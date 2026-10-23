@@ -82,11 +82,11 @@ export async function importRoutes(fastify: FastifyInstance, opts: ImportRoutesO
     // save look like a musical change. See docs/normalize-gp.md.
     const normalized = normalizeGp(body);
 
-    // The owner's segment, not the caller's: this writes into the repository
-    // the score already lives in, which does not move when it is shared.
+    // The band's segment, not the caller's: this writes into the repository
+    // the score already lives in.
     const written = await writeFirstVersion(
       gitRoot,
-      score.ownerId,
+      score.bandId,
       score.id,
       normalized,
       FIRST_VERSION_MESSAGE

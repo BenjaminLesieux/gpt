@@ -18,21 +18,21 @@ const OPAQUE_ID = /^[a-z2-7]{8,64}$/;
  */
 export function repositoryPath(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string
 ): string | null {
-  if (!OPAQUE_ID.test(accountId) || !OPAQUE_ID.test(scoreId)) return null;
-  return path.join(root, accountId, `${scoreId}.git`);
+  if (!OPAQUE_ID.test(bandId) || !OPAQUE_ID.test(scoreId)) return null;
+  return path.join(root, bandId, `${scoreId}.git`);
 }
 
 export async function createRepository(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string
 ): Promise<string> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) {
-    throw new Error(`Refusing to create a repository at ${accountId}/${scoreId}`);
+    throw new Error(`Refusing to create a repository at ${bandId}/${scoreId}`);
   }
 
   await mkdir(path.dirname(repository), { recursive: true });

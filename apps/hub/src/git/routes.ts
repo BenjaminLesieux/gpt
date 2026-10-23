@@ -8,7 +8,7 @@ import { repositoryPath } from './repositories';
 
 export interface GitRoutesOptions {
   db: HubDatabase;
-  /** Directory holding `<account>/<score>.git`. */
+  /** Directory holding `<band>/<score>.git`. */
   gitRoot: string;
 }
 
@@ -21,8 +21,8 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
     done(null, payload)
   );
 
-  fastify.all('/:account/:repo/*', async (request, reply) => {
-    const { account, repo } = request.params as { account: string; repo: string };
+  fastify.all('/:band/:repo/*', async (request, reply) => {
+    const { band, repo } = request.params as { band: string; repo: string };
 
     const password = basicAuthPassword(request.headers.authorization);
     if (!password) {
@@ -40,22 +40,16 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
       return;
     }
 
-    // Two facts, not one comparison, and they are about two different
-    // accounts. The path is where the repository is *stored* — the owner's
-    // namespace, fixed at creation and unmoved when the score was shared — so
-    // it is checked against the owner. That this token's holder may be here at
-    // all is the other fact, and `readScoreToken` has already made it by
-    // joining `score_members`: a credential belonging to someone no longer on
-    // the score never resolves.
-    //
-    // Comparing the path against the *holder* instead is a 403 on every shared
-    // score; dropping the path comparison is somebody else's repository.
-    if (account !== bearer.ownerId || repo !== `${bearer.scoreId}.git`) {
+    // Two facts. The path is where the repository is stored, so it is checked
+    // against the token's band; that the holder may be here at all
+    // `readScoreToken` has already made by joining `band_members`. Dropping the
+    // path comparison is somebody else's repository.
+    if (band !== bearer.bandId || repo !== `${bearer.scoreId}.git`) {
       reply.code(403).send(errorBody('wrong_repository', 'That token is for another score.'));
       return;
     }
 
-    const repository = repositoryPath(gitRoot, bearer.ownerId, bearer.scoreId);
+    const repository = repositoryPath(gitRoot, bearer.bandId, bearer.scoreId);
     if (!repository) {
       reply.code(404).send(errorBody('not_found', 'No such repository.'));
       return;
@@ -78,7 +72,7 @@ export async function gitRoutes(fastify: FastifyInstance, opts: GitRoutesOptions
 
     proxyToGit(request, reply, {
       projectRoot: gitRoot,
-      pathInfo: `/${account}/${repo}/${rest}`,
+      pathInfo: `/${band}/${repo}/${rest}`,
       remoteUser: bearer.tokenId,
       onFinished: before
         ? () => {

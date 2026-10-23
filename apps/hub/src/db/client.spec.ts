@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrateToLatest, openDatabase } from './client';
 import type { HubDatabaseHandle } from './client';
-import { accounts, scoreTokens, sessions } from './schema';
+import { accounts, scores, scoreTokens, sessions } from './schema';
 
 const MIGRATIONS = path.join(import.meta.dirname, 'migrations');
 
@@ -97,9 +97,10 @@ describe('the hub database', () => {
     // Given a database as it stood before a token named a person, holding a
     // score and a credential for it
     handle.close();
-    const folder = await migrationsBefore('0007_tokens_name_a_person');
+    const before = await migrationsBefore('0007_tokens_name_a_person');
+    const through = await migrationsBefore('0008_score_pushes');
     handle = openDatabase(':memory:');
-    migrateToLatest(handle.db, folder);
+    migrateToLatest(handle.db, before);
     handle.db.run(sql`
       INSERT INTO accounts (id, email, password_hash, created_at)
       VALUES ('acc1', 'player@example.com', 'not-a-real-hash', 0)
@@ -113,15 +114,48 @@ describe('the hub database', () => {
       VALUES ('tok1', 'sc1', 'companion', 'hash1', 0, 1, 2)
     `);
 
+    // When 0007 runs, and nothing after it: 0011 deletes every score
+    migrateToLatest(handle.db, through);
+    await rm(before, { recursive: true, force: true });
+    await rm(through, { recursive: true, force: true });
+
+    // Then — the only person a score has ever had is its owner, and the
+    // activity stamps survive the table being rebuilt underneath them.
+    const row = handle.db.get<{ account_id: string; last_pushed_at: number }>(
+      sql`SELECT account_id, last_pushed_at FROM score_tokens WHERE id = 'tok1'`
+    );
+    expect(row?.account_id).toBe('acc1');
+    expect(row?.last_pushed_at).toBe(2);
+  });
+
+  it('should drop every score that has no band, and its tokens with it', async () => {
+    // Given a database as it stood before bands, holding a score and a token
+    handle.close();
+    const folder = await migrationsBefore('0011_bands');
+    handle = openDatabase(':memory:');
+    migrateToLatest(handle.db, folder);
+    handle.db.run(sql`
+      INSERT INTO accounts (id, email, password_hash, created_at)
+      VALUES ('acc1', 'player@example.com', 'not-a-real-hash', 0)
+    `);
+    handle.db.run(sql`
+      INSERT INTO scores (id, account_id, name, created_at)
+      VALUES ('sc1', 'acc1', 'Blackbird', 0)
+    `);
+    handle.db.run(sql`
+      INSERT INTO score_tokens (id, score_id, account_id, name, token_hash, created_at)
+      VALUES ('tok1', 'sc1', 'acc1', 'companion', 'hash1', 0)
+    `);
+
     // When
     migrateToLatest(handle.db, MIGRATIONS);
     await rm(folder, { recursive: true, force: true });
 
-    // Then — the only person a score has ever had is its owner, and the
-    // activity stamps survive the table being rebuilt underneath them.
-    const row = handle.db.select().from(scoreTokens).where(eq(scoreTokens.id, 'tok1')).get();
-    expect(row?.accountId).toBe('acc1');
-    expect(row?.lastPushedAt).toEqual(new Date(2));
+    // Then — nothing is deployed, so there is no band to move a score to
+    // (ADR 0012). The account stays.
+    expect(handle.db.select().from(scores).all()).toEqual([]);
+    expect(handle.db.select().from(scoreTokens).all()).toEqual([]);
+    expect(handle.db.select().from(accounts).all()).toHaveLength(1);
   });
 
   it('should refuse a session that points at no account', () => {

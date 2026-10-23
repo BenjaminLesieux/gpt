@@ -9,6 +9,7 @@ import type { HubDatabase } from '../db/client';
 import { scores } from '../db/schema';
 import { PAGE, readBranchPoints, readHistory, readVersionScore } from '../git/history';
 import { lastPushByRef } from '../git/pushes';
+import { listMemberBands, readMemberBand } from '../bands/bands';
 import { createRepository } from '../git/repositories';
 import { basicAuthPassword } from '../git/routes';
 import { newId } from '../ids';
@@ -16,12 +17,7 @@ import { createCloneClaim } from './claims';
 import { cloneUrl } from './clone-url';
 import { createScoreInvite } from './invites';
 import { land, landingsFor, setAskFirst } from './land';
-import {
-  addScoreMember,
-  listMemberScores,
-  listScoreMembers,
-  readMemberScore,
-} from './members';
+import { listMemberScores, listScoreMembers, readMemberScore } from './members';
 import { branchScopes, scopesFor } from './scope';
 import {
   DEFAULT_TOKEN_NAME,
@@ -72,6 +68,8 @@ const newScore = z.object({
     .string()
     .transform((value) => value.trim())
     .pipe(z.string().min(1).max(200)),
+  /** The caller's first band when left out, until the web can pick one (#41). */
+  bandId: z.string().optional(),
 });
 
 const landRequest = z.object({ override: z.boolean().optional().default(false) });
@@ -96,31 +94,37 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     const parsed = newScore.safeParse(request.body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
-      return reply.code(400).send(errorBody('invalid_request', `name: ${issue.message}`));
+      return reply
+        .code(400)
+        .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
+    }
+
+    const { bandId } = parsed.data;
+    const band = bandId
+      ? readMemberBand(db, bandId, account.id)
+      : (listMemberBands(db, account.id)[0] ?? null);
+    // Same answer for "no such band" and "not yours", as with scores.
+    if (!band) {
+      return reply.code(404).send(errorBody('no_such_band', 'No band with that id.'));
     }
 
     const id = newId();
-    const repository = await createRepository(gitRoot, account.id, id);
+    const repository = await createRepository(gitRoot, band.id, id);
 
     try {
       const createdAt = new Date();
 
       db.insert(scores)
-        .values({ id, accountId: account.id, name: parsed.data.name, createdAt })
+        .values({ id, bandId: band.id, name: parsed.data.name, createdAt })
         .run();
-
-      // Without this the creator is not a member of what they just made, and
-      // the score is invisible to everyone including them: `scores.account_id`
-      // is the repository's namespace now, not permission to be here.
-      addScoreMember(db, id, account.id, 'owner', createdAt);
 
       const token = mintScoreToken(db, id, account.id, DEFAULT_TOKEN_NAME);
 
       return reply.code(201).send({
         id,
         name: parsed.data.name,
-        url: cloneUrl(publicUrl, account.id, id),
-        username: account.id,
+        url: cloneUrl(publicUrl, band.id, id),
+        username: band.id,
         // The only time this value exists outside companion's keychain.
         token: token.token,
         tokenName: token.name,
@@ -129,8 +133,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       // Every write here is local and can only collide on an id, so this is
       // very nearly unreachable — but a directory with no row is unreferenced
       // forever, and a score with no token is the half-provisioned state the
-      // whole design is meant not to have. Deleting the score takes its
-      // membership with it, on the cascade.
+      // whole design is meant not to have.
       db.delete(scores).where(eq(scores.id, id)).run();
       await rm(repository, { recursive: true, force: true });
       throw error;
@@ -165,8 +168,8 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
-    // The caller's account, not the owner's: a second person on a shared
-    // score takes it onto their own machine with their own credential.
+    // The caller's account: each member takes a score onto their own machine
+    // with their own credential.
     const token = mintScoreToken(
       db,
       score.id,
@@ -177,10 +180,9 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     return reply.code(201).send({
       id: score.id,
       name: score.name,
-      // The owner's id, not the caller's: the repository did not move when
-      // this person was added to the score.
-      url: cloneUrl(publicUrl, score.ownerId, score.id),
-      username: score.ownerId,
+      // The band's id, not the caller's: the repository is stored under it.
+      url: cloneUrl(publicUrl, score.bandId, score.id),
+      username: score.bandId,
       token: token.token,
       tokenName: token.name,
     });
@@ -274,10 +276,10 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     return reply.send({
       id: score.id,
       name: score.name,
-      url: cloneUrl(publicUrl, score.ownerId, score.id),
+      url: cloneUrl(publicUrl, score.bandId, score.id),
       createdAt: score.createdAt.toISOString(),
       role: score.role,
-      members: listScoreMembers(db, score.id).map((member) =>
+      members: listScoreMembers(db, score).map((member) =>
         member.status === 'invited'
           ? { ...member, expiresAt: member.expiresAt.toISOString() }
           : member
@@ -315,14 +317,12 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
     }
 
-    // Built from the owner: the repository did not move when the score was
-    // shared, so a member reads it out of somebody else's namespace.
-    const history = await readHistory(gitRoot, score.ownerId, score.id, query.data);
+    const history = await readHistory(gitRoot, score.bandId, score.id, query.data);
     if (!history) {
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
-    const scopes = await scopesFor(db, gitRoot, score.ownerId, score.id, history.versions);
+    const scopes = await scopesFor(db, gitRoot, score.bandId, score.id, history.versions);
 
     return reply.send({
       head: history.head,
@@ -362,14 +362,12 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     const score = requireScoreAccess(db, request, reply, cookieSecure, id);
     if (!score) return reply;
 
-    // Built from the owner: the repository did not move when the score was
-    // shared, so a member reads it out of somebody else's namespace.
-    const branches = await readBranchPoints(gitRoot, score.ownerId, score.id);
+    const branches = await readBranchPoints(gitRoot, score.bandId, score.id);
     if (!branches) {
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
-    const scopes = await branchScopes(gitRoot, score.ownerId, score.id, branches);
+    const scopes = await branchScopes(gitRoot, score.bandId, score.id, branches);
     const pushes = lastPushByRef(db, score.id);
     const landings = landingsFor(db, score.id);
 
@@ -413,7 +411,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
     const outcome = await land({
       db,
       gitRoot,
-      ownerId: score.ownerId,
+      bandId: score.bandId,
       scoreId: score.id,
       branch: name,
       override: body.data.override,
@@ -446,7 +444,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
         .send(errorBody('invalid_request', `${issue.path.join('.')}: ${issue.message}`));
     }
 
-    const branches = await readBranchPoints(gitRoot, score.ownerId, score.id);
+    const branches = await readBranchPoints(gitRoot, score.bandId, score.id);
     if (!branches?.some((branch) => branch.name === name)) {
       return reply.code(404).send(errorBody('no_such_branch', 'No branch with that name.'));
     }
@@ -476,7 +474,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       return reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
     }
 
-    const bytes = await readVersionScore(gitRoot, score.ownerId, score.id, commit);
+    const bytes = await readVersionScore(gitRoot, score.bandId, score.id, commit);
     if (!bytes) {
       return reply
         .code(404)
@@ -509,8 +507,7 @@ export async function scoreRoutes(fastify: FastifyInstance, opts: ScoreRoutesOpt
       rows.map((row) => ({
         id: row.id,
         name: row.name,
-        // Built from the owner, which for a shared score is somebody else.
-        url: cloneUrl(publicUrl, row.ownerId, row.id),
+        url: cloneUrl(publicUrl, row.bandId, row.id),
         createdAt: row.createdAt.toISOString(),
         // Names, ids and dates only. The values do not exist any more, and a
         // row that implied otherwise would be a lie the user acts on.
@@ -543,7 +540,7 @@ function requireScoreAccess(
   reply: FastifyReply,
   cookieSecure: boolean,
   id: string
-): { id: string; ownerId: string } | null {
+): { id: string; bandId: string } | null {
   const { authorization } = request.headers;
 
   if (authorization) {
@@ -557,7 +554,7 @@ function requireScoreAccess(
       reply.code(404).send(errorBody('no_such_score', 'No score with that id.'));
       return null;
     }
-    return { id: bearer.scoreId, ownerId: bearer.ownerId };
+    return { id: bearer.scoreId, bandId: bearer.bandId };
   }
 
   const account = requireAccount(db, request, reply, cookieSecure);

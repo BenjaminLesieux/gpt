@@ -78,6 +78,13 @@
       "when": 1792775523219,
       "tag": "0010_companion_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792776238539,
+      "tag": "0011_bands",
+      "breakpoints": true
     }
   ]
 }
