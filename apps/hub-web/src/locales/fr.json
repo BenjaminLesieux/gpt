@@ -164,9 +164,6 @@
     "branches_other": "{{count}} branches",
     "readFailed": "Impossible de lire cet historique.",
     "branchesLabel": "Branches",
-    "inFlight": "En cours",
-    "ahead_one": "{{count}} version d'avance sur la ligne principale.",
-    "ahead_other": "{{count}} versions d'avance sur la ligne principale.",
     "empty": {
       "title": "Aucune version pour l'instant.",
       "body": "Ouvre la partition dans Guitar Pro, appuie sur <kbd>⌥⌘G</kbd>, écris ce que tu as changé et valide avec Entrée. Elle apparaît ici tout de suite."
@@ -223,5 +220,31 @@
     "loop": "Boucle",
     "speed": "Vitesse de lecture",
     "allTracks": "Toutes les pistes"
+  },
+  "branches": {
+    "noVersions": "Pas encore de version à elle",
+    "touches": "touche {{tracks}}",
+    "touchesNoBars": "ne change aucune mesure",
+    "settings": "réglages de la partition",
+    "unreadable": "Impossible de lire celle-ci — ouvre-la dans l’app",
+    "askFirst": "Demander au groupe d’abord",
+    "disjoint": "Elles ne se chevauchent pas — elles fusionneront proprement.",
+    "sharedTwo": "{{branches}} touchent toutes les deux {{track}}.",
+    "sharedMany": "{{branches}} touchent toutes {{track}}.",
+    "readFailed": "Impossible de lire les branches.",
+    "cleanBars_one": "{{count}} mesure fusionne proprement",
+    "cleanBars_other": "{{count}} mesures fusionnent proprement",
+    "needsYou_zero": "À toi de voir :",
+    "needsYou_one": "{{count}} mesure a besoin de toi :",
+    "needsYou_other": "{{count}} mesures ont besoin de toi :",
+    "bar": "mesure {{bar}}",
+    "everyTrack": "toutes les pistes",
+    "open": "Ouvrir dans Gitarpro",
+    "waiting": "Fusionne proprement — en attente du groupe.",
+    "land": "La fusionner",
+    "landing": "Fusion…",
+    "stale": "Cette branche a changé depuis la vérification — fusionne-la à nouveau pour voir où elle en est.",
+    "dryRun": "Elle fusionnerait proprement, mais la fusion est désactivée sur ce hub — rien n’a été écrit.",
+    "mainMoved": "Quelqu’un a fusionné quelque chose au même moment — réessaie."
   }
 }

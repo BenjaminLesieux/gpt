@@ -142,4 +142,14 @@ describe('request', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe('/scores/..%2Fauth%2Fme/token');
   });
+
+  it('escapes a branch name and lands with the override', async () => {
+    fetchMock.mockResolvedValue(respond(200, { status: 'waiting' }));
+    await api.landBranch('abc', 'sam/new chorus');
+
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe('/scores/abc/branches/sam%2Fnew%20chorus/land');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ override: true });
+  });
 });

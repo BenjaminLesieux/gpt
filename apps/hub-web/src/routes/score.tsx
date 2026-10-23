@@ -3,7 +3,6 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
-import { Badge } from '@gpt/ui/badge';
 import { Button } from '@gpt/ui/button';
 import { Kbd } from '@gpt/ui/kbd';
 import { dateLocale, since } from '@gpt/ui/lib/time';
@@ -13,6 +12,7 @@ import {
   LoadMore,
   type HistoryLabels,
 } from '@gpt/ui/score/history';
+import { Branches } from '@/components/branches';
 import { InviteDialog } from '@/components/invite-dialog';
 import { MemberAvatars } from '@/components/member-avatars';
 import { VersionInspector } from '@/components/version-inspector';
@@ -142,7 +142,7 @@ function ScorePage() {
           </div>
         </header>
 
-        {branches.length > 0 && <Branches branches={branches} />}
+        <Branches scoreId={scoreId} />
 
         <div className="flex h-8 flex-none items-center justify-between border-b border-border pr-4 @min-[800px]:pr-6">
           <h2 className="flex items-center text-xs tracking-widest text-muted-foreground uppercase">
@@ -265,46 +265,6 @@ function count(total: number, branches: number, t: TFunction): string {
   const versions = t('score.versions', { count: total });
   if (branches === 0) return `${versions} · main`;
   return `${versions} · main + ${t('score.branches', { count: branches })}`;
-}
-
-/**
- * The branches, said in words above the graph. *Ben is on Bass, Sam is on
- * Drums, these don't overlap* is the whole value of branching, and it has to
- * be readable without tracing two lines in a gutter.
- */
-function Branches({ branches }: { branches: Branch[] }) {
-  const { t } = useTranslation();
-  const flight = branches.filter((branch) => branch.ahead > 0);
-  if (flight.length === 0) return null;
-
-  return (
-    <section
-      aria-label={t('score.branchesLabel')}
-      className="flex flex-none flex-col gap-2 px-4 pb-4 wide:px-6"
-    >
-      <ul className="grid gap-3 wide:grid-cols-2">
-        {flight.map((branch) => (
-          <li
-            key={branch.name}
-            className="flex flex-col gap-2 border border-border bg-card px-3.5 py-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate font-mono text-sm text-foreground">{branch.name}</span>
-              <Badge
-                variant="outline"
-                className="shrink-0 rounded-sm border-border text-xs font-normal text-muted-foreground"
-              >
-                {t('score.inFlight')}
-              </Badge>
-            </div>
-            <p className="text-sm leading-normal text-muted-foreground">
-              {t('score.ahead', { count: branch.ahead })}
-            </p>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
 }
 
 /**

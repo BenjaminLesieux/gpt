@@ -164,9 +164,6 @@
     "branches_other": "{{count}} branches",
     "readFailed": "Could not read this history.",
     "branchesLabel": "Branches",
-    "inFlight": "In flight",
-    "ahead_one": "{{count}} version ahead of the main line.",
-    "ahead_other": "{{count}} versions ahead of the main line.",
     "empty": {
       "title": "No versions yet.",
       "body": "Open the score in Guitar Pro, press <kbd>⌥⌘G</kbd>, type what you changed and hit Enter. It shows up here straight away."
@@ -223,5 +220,31 @@
     "loop": "Loop",
     "speed": "Playback speed",
     "allTracks": "All tracks"
+  },
+  "branches": {
+    "noVersions": "No versions of its own yet",
+    "touches": "touches {{tracks}}",
+    "touchesNoBars": "changes no bars",
+    "settings": "score settings",
+    "unreadable": "Can’t read this one — open it in the app",
+    "askFirst": "Ask the band first",
+    "disjoint": "These don’t overlap — they will merge cleanly.",
+    "sharedTwo": "{{branches}} both touch {{track}}.",
+    "sharedMany": "{{branches}} all touch {{track}}.",
+    "readFailed": "Could not read the branches.",
+    "cleanBars_one": "{{count}} bar merges cleanly",
+    "cleanBars_other": "{{count}} bars merge cleanly",
+    "needsYou_zero": "Needs you:",
+    "needsYou_one": "{{count}} bar needs you:",
+    "needsYou_other": "{{count}} bars need you:",
+    "bar": "bar {{bar}}",
+    "everyTrack": "all tracks",
+    "open": "Open in Gitarpro",
+    "waiting": "Merges cleanly — waiting for the band.",
+    "land": "Land it",
+    "landing": "Landing…",
+    "stale": "This branch changed since it was checked — land it again to see where it stands.",
+    "dryRun": "It would land cleanly, but this hub has landing switched off — nothing was written.",
+    "mainMoved": "Someone landed something at the same time — try again."
   }
 }

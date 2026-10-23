@@ -99,6 +99,42 @@ export interface Branch {
   ahead: number;
 }
 
+/** One place two lines of work both changed. */
+export interface Conflict {
+  /** 1-based; null when it is not a bar at all — tempo, title. */
+  bar: number | null;
+  /** Null when it is every track. */
+  track: string | null;
+  /** The merge's own words. A tooltip, never the headline. */
+  description: string;
+}
+
+/** What the last press of *land* found. `tip` is the tip it was worked out for. */
+export type Landing =
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[]; tip: string }
+  | { status: 'waiting'; tip: string }
+  | { status: 'unreadable'; tip: string };
+
+export type LandOutcome =
+  | { status: 'landed'; commit: string; dryRun: false }
+  | { status: 'clean'; dryRun: true }
+  | { status: 'waiting' }
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[] }
+  | { status: 'unreadable' }
+  | { status: 'up_to_date' };
+
+/** A branch as the score page lists it, with who put it there and what it touches. */
+export interface BranchDetail extends Branch {
+  /** ISO of the tip. */
+  at: string;
+  /** Email of whoever pushed it; null when nobody can be named. */
+  pushedBy: string | null;
+  scope: VersionScope | null;
+  askFirst: boolean;
+  /** Null until someone pressed land, and again once it has. */
+  landing: Landing | null;
+}
+
 export interface History {
   /** The main line's tip, or null when nothing has been pushed yet. */
   head: string | null;
@@ -271,6 +307,22 @@ export const api = {
    */
   readHistory: (id: string, skip = 0) =>
     request<History>(`/scores/${encodeURIComponent(id)}/history?skip=${skip}`),
+
+  readBranches: (id: string) =>
+    request<{ branches: BranchDetail[] }>(`/scores/${encodeURIComponent(id)}/branches`),
+
+  /** `override` lands a clean branch the band was asked about first. */
+  landBranch: (id: string, branch: string) =>
+    request<LandOutcome>(
+      `/scores/${encodeURIComponent(id)}/branches/${encodeURIComponent(branch)}/land`,
+      { method: 'POST', body: JSON.stringify({ override: true }) }
+    ),
+
+  setAskFirst: (id: string, branch: string, askFirst: boolean) =>
+    request<{ askFirst: boolean }>(
+      `/scores/${encodeURIComponent(id)}/branches/${encodeURIComponent(branch)}/ask-first`,
+      { method: 'PUT', body: JSON.stringify({ askFirst }) }
+    ),
 
   /**
    * Mints the claim behind the Clone button. The response carries no

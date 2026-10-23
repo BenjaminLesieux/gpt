@@ -22,6 +22,12 @@ export function cloneLink(hubOrigin: string, code: string): string {
   return `${CLONE_SCHEME}://adopt?${query.toString()}`;
 }
 
+/** Puts the app on one score's branch. Names it and nothing else — no credential. */
+export function openLink(hubOrigin: string, scoreId: string, branch: string): string {
+  const query = new URLSearchParams({ hub: hubOrigin, score: scoreId, branch });
+  return `${CLONE_SCHEME}://open?${query.toString()}`;
+}
+
 /**
  * Where to get the app when the link reached nothing. Releases rather than a
  * page of our own: the hub is self-hosted and every operator's copy would

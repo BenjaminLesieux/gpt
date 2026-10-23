@@ -216,3 +216,37 @@ export function historyQuery(id: string) {
     retry: (attempt, error) => !(error instanceof HubError && error.isSignedOut) && attempt < 2,
   });
 }
+
+export function branchesQuery(id: string) {
+  return queryOptions({
+    queryKey: ['branches', id],
+    queryFn: async () => (await api.readBranches(id)).branches,
+    retry: (attempt, error) => !(error instanceof HubError && error.isSignedOut) && attempt < 2,
+  });
+}
+
+/** A landing moves main and a toggle moves the branch; both lists are stale either way. */
+function useBranchMutation<TVars, TData>(
+  scoreId: string,
+  mutationFn: (vars: TVars) => Promise<TData>
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['branches', scoreId] }),
+        queryClient.invalidateQueries({ queryKey: ['history', scoreId] }),
+      ]),
+  });
+}
+
+export function useLandBranch(scoreId: string) {
+  return useBranchMutation(scoreId, (branch: string) => api.landBranch(scoreId, branch));
+}
+
+export function useSetAskFirst(scoreId: string) {
+  return useBranchMutation(scoreId, ({ branch, askFirst }: { branch: string; askFirst: boolean }) =>
+    api.setAskFirst(scoreId, branch, askFirst)
+  );
+}
