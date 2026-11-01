@@ -69,7 +69,7 @@ pub async fn pick_and_track_file(app: AppHandle) -> Result<Option<TrackedFile>> 
 /// diff against.
 fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile> {
     let author = state.signature()?;
-    let path = path.canonicalize()?;
+    let path = dunce::canonicalize(path)?;
     if !path.is_file() {
         return Err(Error::NotAFile(path.display().to_string()));
     }

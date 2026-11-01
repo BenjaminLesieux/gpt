@@ -1268,6 +1268,7 @@ dependencies = [
  "base64 0.22.1",
  "core-foundation 0.10.1",
  "core-foundation-sys",
+ "dunce",
  "getrandom 0.3.4",
  "git2",
  "keyring",

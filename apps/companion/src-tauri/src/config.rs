@@ -168,9 +168,10 @@ impl TrackedFile {
 }
 
 /// Stored and event paths must agree, and macOS hands out both `/var/…` and
-/// `/private/var/…` for the same file.
+/// `/private/var/…` for the same file. `dunce` because Windows canonicalizes
+/// to `\\?\C:\…`, which is the same file but not a path anyone wants to read.
 pub fn canonical(path: &Path) -> PathBuf {
-    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+    dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// First 12 hex digits of the path's SHA-1 (git2's hasher, no extra dep).
