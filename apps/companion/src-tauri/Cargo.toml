@@ -91,6 +91,15 @@ core-foundation = "0.10"
 core-foundation-sys = "0.8"
 libc = "0.2"
 
+# Reading Guitar Pro's window title (see guitar_pro.rs). Already in the tree
+# through global-hotkey, at this version.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 [dev-dependencies]
 tempfile = "3"
 
