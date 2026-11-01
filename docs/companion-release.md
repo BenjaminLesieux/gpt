@@ -37,16 +37,23 @@ will not give them back.
    git tag companion-v0.1.1 && git push origin companion-v0.1.1
    ```
 
-3. `release-companion.yml` builds a universal macOS bundle, publishes the
+3. `release-companion.yml` builds a universal macOS bundle and publishes the
    `companion-v0.1.1` release (`.dmg`, `.app.tar.gz`, `.sig`, `latest.json`),
-   then copies `latest.json` onto the `companion-latest` pre-release. That
-   last copy is what installed apps read. Never delete `companion-latest`.
+   then builds the Windows installer into the same release
+   (`_x64-setup.exe`, its `.sig`, and a `windows-x86_64` entry merged into
+   `latest.json`). Only then does it copy `latest.json` onto the
+   `companion-latest` pre-release, after checking that both platforms are in
+   it. That last copy is what installed apps read. Never delete
+   `companion-latest`.
+
+   If the Windows leg fails, the release exists with only the Mac files and
+   the feed has not moved: fix, delete the release and its tag, and tag again.
 
 Within four hours (or at next launch) each running companion downloads the
 update and shows *Restart to update* in the extended window header. The
 restart waits while a named version is still being pushed.
 
-## First install, for bandmates
+## First install, for bandmates on a Mac
 
 1. Download the `.dmg` from the newest `companion-v*` release and drag
    Gitarpro to Applications.
@@ -58,6 +65,21 @@ restart waits while a named version is still being pushed.
 After each update, macOS asks for Accessibility again: the grant is tied to an
 ad-hoc signature that changes with every build. Allowing it again is all it
 takes.
+
+## First install, for bandmates on Windows
+
+1. Download `Gitarpro_<version>_x64-setup.exe` from the newest `companion-v*`
+   release and run it. It installs for you alone, so it asks for no
+   administrator password.
+2. Windows shows *Windows protected your PC*, because the installer is not
+   code-signed. Press *More info*, then *Run anyway*. Some browsers also hold
+   the download back first (Edge: *Keep* → *Show more* → *Keep anyway*).
+3. Gitarpro opens and sits in the notification area. The panel is
+   Ctrl+Shift+G. There is nothing to allow: Windows lets Gitarpro read Guitar
+   Pro's window title without asking.
+
+Updates install themselves after *Restart to update*: a progress bar shows
+briefly, then Gitarpro starts again. SmartScreen does not come back.
 
 ## Testing an update locally
 

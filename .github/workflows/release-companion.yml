@@ -70,22 +70,75 @@ jobs:
           tauriScript: pnpm tauri
           # Updater artifacts only here, merged over tauri.conf.json: the CLI
           # refuses to bundle without the private key once they are on, and a
-          # local `nx bundle` has no business holding it.
+          # local `nx bundle` has no business holding it. A file rather than
+          # inline JSON, which cmd.exe mangles on the Windows leg.
           args: >-
             --target universal-apple-darwin
-            --config '{"bundle":{"createUpdaterArtifacts":true}}'
+            --config src-tauri/tauri.release.conf.json
           tagName: ${{ github.ref_name }}
           releaseName: Gitarpro companion ${{ github.ref_name }}
-          releaseBody: Install the .dmg once; Gitarpro updates itself from then on.
+          releaseBody: Install once (the .dmg on macOS, the -setup.exe on Windows); Gitarpro updates itself from then on.
           releaseDraft: false
 
+  # After macOS, not beside it: tauri-action merges its platform into the
+  # release's latest.json by download, edit, re-upload, and two legs doing
+  # that at once can each erase the other's entry.
+  windows:
+    needs: macos
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/companion/src-tauri -> target
+
+      # The NSIS installer and its .sig; `bundle.targets` leaves only nsis on
+      # Windows. Unsigned: bandmates get SmartScreen once (ADR 0014).
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/companion
+          tauriScript: pnpm tauri
+          args: --config src-tauri/tauri.release.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: Gitarpro companion ${{ github.ref_name }}
+          releaseBody: Install once (the .dmg on macOS, the -setup.exe on Windows); Gitarpro updates itself from then on.
+          releaseDraft: false
+
+  # Last, and only once every platform is in: a feed missing one would leave
+  # those installs silently behind.
+  feed:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
       # Every build asks companion-latest/latest.json, never releases/latest:
       # hub-v* releases share this repository and would take that slot.
       - name: Point the updater feed at this release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir feed
+          jq -e '.platforms | (keys | any(startswith("darwin-"))) and has("windows-x86_64")' feed/latest.json >/dev/null || {
+            echo "::error::latest.json is missing a platform"; cat feed/latest.json; exit 1
+          }
           gh release view companion-latest >/dev/null 2>&1 ||
             gh release create companion-latest --prerelease \
               --title 'Companion updater feed' \
