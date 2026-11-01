@@ -490,7 +490,7 @@ fn hostname() -> String {
 
 #[cfg(not(target_os = "macos"))]
 fn hostname() -> String {
-    String::new()
+    std::env::var("COMPUTERNAME").unwrap_or_default()
 }
 
 fn tidy(raw: &str) -> String {

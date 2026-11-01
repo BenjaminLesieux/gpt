@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Maximize2, X } from 'lucide-react';
 import { Button } from '@gpt/ui/button';
 import { hidePanel, openExtendedWindow } from '@/lib/ipc';
+import { isMac } from '@/lib/platform';
 import { SignIn } from '@/sign-in/SignIn';
 import { useAuth } from '@/sign-in/useAuth';
 import { BranchSwitcher } from './BranchSwitcher';
@@ -126,7 +127,7 @@ export function PanelApp() {
             ) : (
               <>
                 <PanelHint keys="⏎">{t('panel.hint.commit')}</PanelHint>
-                {canSwitch && <PanelHint keys="⌘K">{t('panel.hint.switch')}</PanelHint>}
+                {canSwitch && <PanelHint keys={isMac ? '⌘K' : 'Ctrl K'}>{t('panel.hint.switch')}</PanelHint>}
               </>
             ))}
           {mode === 'commit' && <PanelHint keys="esc">{t('panel.hint.close')}</PanelHint>}

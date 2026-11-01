@@ -87,6 +87,6 @@ export function FileSwitcher({
 
 /** The containing folder, which is what tells two same-named scores apart. */
 function folderOf(path: string): string {
-  const separator = path.lastIndexOf('/');
+  const separator = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   return separator > 0 ? path.slice(0, separator) : path;
 }
