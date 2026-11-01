@@ -47,16 +47,15 @@ export interface IssuedClaim {
  */
 export type ClaimLookup =
   /**
-   * `ownerId` is whose namespace the repository sits in — the path segment —
-   * and deliberately not called `accountId`: a score now has members, one of
-   * whom may be redeeming this claim, and the two being swapped is a clone URL
-   * pointing at a repository that is not there.
+   * `bandId` is where the repository sits — the path segment — and not the
+   * member redeeming this claim: swapping the two is a clone URL pointing at a
+   * repository that is not there.
    */
   | {
       status: 'valid';
       scoreId: string;
       scoreName: string;
-      ownerId: string;
+      bandId: string;
       /** The member who made the claim, and so whose credential this becomes. */
       createdBy: string;
     }
@@ -121,7 +120,7 @@ export function peekCloneClaim(
       redeemedAt: cloneClaims.redeemedAt,
       scoreId: scores.id,
       scoreName: scores.name,
-      ownerId: scores.accountId,
+      bandId: scores.bandId,
       createdBy: cloneClaims.createdBy,
     })
     .from(cloneClaims)
@@ -137,7 +136,7 @@ export function peekCloneClaim(
     status: 'valid',
     scoreId: row.scoreId,
     scoreName: row.scoreName,
-    ownerId: row.ownerId,
+    bandId: row.bandId,
     createdBy: row.createdBy,
   };
 }
@@ -192,7 +191,7 @@ function peekAfterSpending(db: HubDatabase, codeHash: string): ClaimLookup {
     .select({
       scoreId: scores.id,
       scoreName: scores.name,
-      ownerId: scores.accountId,
+      bandId: scores.bandId,
       createdBy: cloneClaims.createdBy,
     })
     .from(cloneClaims)
@@ -295,8 +294,8 @@ export async function claimRoutes(fastify: FastifyInstance, opts: ClaimRoutesOpt
 
     return reply.code(201).send({
       name: claim.scoreName,
-      url: cloneUrl(publicUrl, claim.ownerId, claim.scoreId),
-      username: claim.ownerId,
+      url: cloneUrl(publicUrl, claim.bandId, claim.scoreId),
+      username: claim.bandId,
       token: token.token,
       tokenName: token.name,
     });

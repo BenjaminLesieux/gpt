@@ -18,7 +18,8 @@ import { requireAccount } from '../auth/session-guard';
 import type { HubDatabase } from '../db/client';
 import { accounts, scoreInvites, scores } from '../db/schema';
 import { newId } from '../ids';
-import { addScoreMember, readMemberScore } from './members';
+import { addBandMember } from '../bands/bands';
+import { readMemberScore } from './members';
 
 /** Long enough to survive a weekend, short enough that one forgotten in a chat
  * thread stops working before anybody has changed bands. */
@@ -121,7 +122,7 @@ export function peekScoreInvite(
  * afterwards only turns "no rows changed" into the right sentence.
  *
  * The one read up front asks a different question — is this caller already on
- * the score — and exists so the unique index on `score_members` cannot throw
+ * the score's band — and exists so the unique index on `band_members` cannot throw
  * when the inviter opens their own link.
  */
 export function acceptScoreInvite(
@@ -164,7 +165,9 @@ export function acceptScoreInvite(
   // foreign key means the score is too.
   if (!score) return { status: 'unknown' };
 
-  addScoreMember(db, score.id, accountId, 'member', now);
+  // Joining through one score's invite puts them in its band, and so on every
+  // score the band owns. Invites themselves move to the band in #40.
+  addBandMember(db, score.bandId, accountId, 'member', now);
 
   return { status: 'joined', scoreId: score.id, scoreName: score.name };
 }
@@ -172,7 +175,7 @@ export function acceptScoreInvite(
 /** Which score a code names, whatever state the invite is in. */
 function invitedScore(db: HubDatabase, codeHash: string) {
   return db
-    .select({ id: scores.id, name: scores.name })
+    .select({ id: scores.id, name: scores.name, bandId: scores.bandId })
     .from(scoreInvites)
     .innerJoin(scores, eq(scoreInvites.scoreId, scores.id))
     .where(eq(scoreInvites.codeHash, codeHash))

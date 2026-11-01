@@ -59,11 +59,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the update archives. The matching public key is baked into
-          # every build already shipped (ADR 0012), so losing this key means
+          # every build already shipped (ADR 0014), so losing this key means
           # every install has to be redone by hand.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Ad-hoc: no Apple Developer account yet (ADR 0012).
+          # Ad-hoc: no Apple Developer account yet (ADR 0014).
           APPLE_SIGNING_IDENTITY: '-'
         with:
           projectPath: apps/companion

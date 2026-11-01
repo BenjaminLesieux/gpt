@@ -53,10 +53,10 @@ knows whether now is a good moment, so nothing restarts on its own.
   requirement is the binary's own hash (`codesign -d -r-` prints
   `cdhash H"…"`). Every update has a new hash, so Guitar Pro binding goes blind
   until the user allows Gitarpro again. Everything else keeps working.
-- **No Windows build.** Some of the band is on Windows, and the companion reads
-  Guitar Pro through macOS accessibility. A Windows port adds a leg to the
-  workflow; `latest.json` already keys entries per platform, so it joins the
-  same feed without changing anything an installed Mac trusts.
+- **macOS only, for now.** The companion runs on Windows, but this workflow
+  builds macOS alone. A Windows leg joins the same feed, since `latest.json`
+  keys entries per platform, without changing anything an installed Mac
+  trusts.
 
 ## The way out of ad-hoc
 

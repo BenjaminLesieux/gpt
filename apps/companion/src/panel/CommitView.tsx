@@ -23,6 +23,7 @@ import {
 } from '@/lib/ipc';
 import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { canLand, LandRow } from './LandRow';
 import { PanelBody } from './PanelShell';
 import { VersionLedger } from './VersionLedger';
 import type { PanelSession } from './usePanelSession';
@@ -165,6 +166,9 @@ export function CommitView({
 
         <BindingNotice binding={session.binding} onAddFile={() => void session.addFile()} />
         <PushNotice status={session.push} />
+        {canLand(active) && (
+          <LandRow key={`${active.id}\n${active.branch}`} file={active} onError={session.reportError} />
+        )}
 
         <div className="mt-2.5">
           {phase === 'saved' && committed ? (

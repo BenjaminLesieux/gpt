@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TrackedFile, Version } from '@/lib/ipc';
 import i18n from '@/lib/i18n';
@@ -17,6 +17,8 @@ vi.mock('@/lib/ipc', () => ({
   fetchRemote: vi.fn(),
   pullRemote: vi.fn(),
   pickAndAdoptRemote: vi.fn(),
+  listScores: vi.fn(),
+  adoptScore: vi.fn(),
   peekClaim: vi.fn(),
   adoptClaim: vi.fn(),
   onFileSaved: vi.fn(() => Promise.resolve(() => {})),
@@ -26,6 +28,11 @@ vi.mock('@/lib/ipc', () => ({
   updateReady: vi.fn(() => Promise.resolve(null)),
   onUpdateReady: vi.fn(() => Promise.resolve(() => {})),
   restartToUpdate: vi.fn(),
+  onScoreLinkOpened: vi.fn(() => Promise.resolve(() => {})),
+  authState: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  onAuthStateChanged: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -73,6 +80,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ipc.authState.mockResolvedValue({
+    kind: 'signedIn',
+    hub: 'https://hub.example.com',
+    email: 'ben@example.com',
+  });
   ipc.listTrackedFiles.mockResolvedValue([blackbird]);
   ipc.getActiveFile.mockResolvedValue(blackbird);
   ipc.listVersions.mockResolvedValue([bridge, intro]);
@@ -80,6 +92,7 @@ beforeEach(() => {
   ipc.restoreVersion.mockResolvedValue(null);
   ipc.setRemote.mockResolvedValue(undefined);
   ipc.syncState.mockResolvedValue({ kind: 'unconfigured' });
+  ipc.listScores.mockResolvedValue([]);
 });
 
 /** The same file, but pointed at a server. */
@@ -351,6 +364,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
 
     await user.type(
       await screen.findByLabelText('Repository URL'),
@@ -379,6 +393,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
     const url = (await screen.findByLabelText('Repository URL')) as HTMLInputElement;
     await user.type(url, 'https://hub.example.com/git/lasagna.git');
     await user.click(screen.getByRole('button', { name: /Choose where to save/ }));
@@ -397,6 +412,7 @@ describe('ExtendedApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Blackbird' }));
     await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+    await user.click(await screen.findByRole('button', { name: 'Different hub…' }));
     await user.type(
       await screen.findByLabelText('Repository URL'),
       'https://hub.example.com/git/lasagna.git',
@@ -416,7 +432,79 @@ describe('ExtendedApp', () => {
 
     await user.click(await screen.findByRole('button', { name: /Bring in a score/ }));
 
-    expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
+    expect(await screen.findByText('No scores yet')).toBeTruthy();
+  });
+
+  describe("the account's scores", () => {
+    const lasagna = {
+      id: 'k7m2x',
+      name: 'Lasagna',
+      url: 'https://hub.example.com/git/ben/k7m2x.git',
+      createdAt: '2026-09-01T10:00:00.000Z',
+    };
+    const tracked = { ...lasagna, id: 'q9r4t', name: 'Blackbird', url: synced.remote?.url ?? '' };
+
+    async function openAdopt() {
+      const user = userEvent.setup();
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      await user.click(screen.getByRole('button', { name: 'Blackbird' }));
+      await user.click(await screen.findByRole('menuitem', { name: /Bring in a score/ }));
+      return user;
+    }
+
+    it('lists them and marks the ones already on this machine', async () => {
+      ipc.listTrackedFiles.mockResolvedValue([synced]);
+      ipc.listScores.mockResolvedValue([lasagna, tracked]);
+      await openAdopt();
+
+      const here = await screen.findByRole('button', { name: /Blackbird/ });
+      expect(within(here).getByText('On this machine')).toBeTruthy();
+      expect((here as HTMLButtonElement).disabled).toBe(true);
+      const elsewhere = screen.getByRole('button', { name: 'Lasagna' });
+      expect(within(elsewhere).queryByText('On this machine')).toBeNull();
+    });
+
+    it('leaves the save dialog and the token to the host', async () => {
+      ipc.listScores.mockResolvedValue([lasagna]);
+      ipc.adoptScore.mockResolvedValue({
+        id: 'b2',
+        path: '/Users/ben/Songs/Lasagna.gp',
+        name: 'Lasagna',
+        addedAt: NOW,
+        remote: { url: lasagna.url, auth: { kind: 'token', username: 'ben' } },
+      });
+      const user = await openAdopt();
+
+      await user.click(await screen.findByRole('button', { name: 'Lasagna' }));
+
+      expect(ipc.adoptScore).toHaveBeenCalledWith('k7m2x', 'Lasagna');
+      expect(ipc.pickAndAdoptRemote).not.toHaveBeenCalled();
+      expect(await screen.findByText(/is on disk and tracked/)).toBeTruthy();
+    });
+
+    it('keeps the triple behind a different hub', async () => {
+      ipc.listScores.mockResolvedValue([lasagna]);
+      const user = await openAdopt();
+      await screen.findByRole('button', { name: 'Lasagna' });
+      expect(screen.queryByLabelText('Repository URL')).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: 'Different hub…' }));
+
+      expect(await screen.findByLabelText('Repository URL')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Lasagna' })).toBeNull();
+    });
+
+    it('says when the list could not be loaded, and tries again', async () => {
+      ipc.listScores.mockRejectedValueOnce(new Error('the hub could not be reached'));
+      ipc.listScores.mockResolvedValueOnce([lasagna]);
+      const user = await openAdopt();
+
+      expect(await screen.findByText(/could not be reached/)).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('button', { name: 'Lasagna' })).toBeTruthy();
+    });
   });
 
   /**
@@ -521,6 +609,59 @@ describe('ExtendedApp', () => {
     });
   });
 
+  /**
+   * `gitarpro://open` — the host has already found the score and switched it
+   * by the time this window hears about it. Nothing here adopts or redeems.
+   */
+  describe('a score opened from a gitarpro://open link', () => {
+    function opened(event: { id: string | null; error: string | null }) {
+      const [handler] = ipc.onScoreLinkOpened.mock.lastCall!;
+      act(() =>
+        handler({
+          hub: 'https://hub.example.com',
+          branch: 'new-chorus',
+          ...event,
+        }),
+      );
+    }
+
+    it('shows the score on its branch, history read again', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+      const reads = ipc.listVersions.mock.calls.length;
+
+      opened({ id: 'a1', error: null });
+
+      expect(await screen.findByText(/Now on branch “new-chorus”/)).toBeTruthy();
+      await waitFor(() => expect(ipc.listVersions.mock.calls.length).toBeGreaterThan(reads));
+      expect(ipc.adoptClaim).not.toHaveBeenCalled();
+    });
+
+    it('says the score is not on this computer and points at the hub', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      opened({ id: null, error: null });
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(
+        /isn't on this computer. Open it on https:\/\/hub.example.com and press Clone/,
+      );
+      expect(ipc.peekClaim).not.toHaveBeenCalled();
+    });
+
+    it('says why the branch could not be opened', async () => {
+      render(<ExtendedApp />);
+      await screen.findByText('score:v2');
+
+      opened({
+        id: null,
+        error: 'Blackbird has no branch "new-chorus" here or on its hub',
+      });
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/has no branch "new-chorus"/);
+    });
+  });
+
   it('sends the user to the file picker when nothing is tracked', async () => {
     ipc.listTrackedFiles.mockResolvedValue([]);
     ipc.getActiveFile.mockResolvedValue(null);
@@ -545,5 +686,54 @@ describe('update', () => {
 
     expect(ipc.restartToUpdate).toHaveBeenCalled();
     expect((await screen.findByRole('alert')).textContent).toMatch(/still on its way/);
+  });
+});
+
+describe('ExtendedApp account', () => {
+  it('signs out only once the confirm is accepted', async () => {
+    ipc.signOut.mockResolvedValue({
+      kind: 'signedOut',
+      waiting: false,
+      failure: null,
+      hub: 'https://hub.example.com',
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+    await screen.findByText('score:v2');
+
+    await user.click(screen.getByRole('button', { name: 'ben@example.com' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(within(confirm).getByText(/saves are not snapshotted/)).toBeTruthy();
+    expect(ipc.signOut).not.toHaveBeenCalled();
+
+    await user.click(within(confirm).getByRole('button', { name: 'Sign out' }));
+
+    expect(ipc.signOut).toHaveBeenCalledTimes(1);
+    // Back on the sign-in screen, with the hub just left.
+    expect(
+      ((await screen.findByLabelText('Hub address')) as HTMLInputElement).value,
+    ).toBe('https://hub.example.com');
+  });
+});
+
+describe('ExtendedApp signed out', () => {
+  it('opens on the sign-in screen instead of the history', async () => {
+    ipc.authState.mockResolvedValue({ kind: 'signedOut', waiting: false, failure: null, hub: null });
+    ipc.signIn.mockResolvedValue({
+      kind: 'signedOut',
+      waiting: true,
+      failure: null,
+      hub: 'https://hub.example.com',
+    });
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+
+    await user.type(await screen.findByLabelText('Hub address'), 'https://hub.example.com');
+    await user.click(screen.getByRole('button', { name: 'Sign in with the browser' }));
+
+    expect(ipc.signIn).toHaveBeenCalledWith('https://hub.example.com');
+    expect(await screen.findByText('Waiting for the browser…')).toBeTruthy();
+    expect(screen.queryByText('score:v2')).toBeNull();
   });
 });

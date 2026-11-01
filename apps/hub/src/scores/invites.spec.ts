@@ -9,7 +9,7 @@ import { app } from '../app/app';
 import { SESSION_COOKIE } from '../auth/cookie';
 import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
-import { scoreInvites, scoreMembers, scores } from '../db/schema';
+import { bandMembers, scoreInvites, scores } from '../db/schema';
 import { INVITE_TTL_MS, acceptScoreInvite, purgeExpiredInvites } from './invites';
 
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
@@ -60,12 +60,12 @@ afterEach(async () => {
   await rm(gitRoot, { recursive: true, force: true });
 });
 
-async function createScore(name = 'Blackbird'): Promise<{ id: string }> {
+async function createScore(name = 'Blackbird', cookie = session): Promise<{ id: string }> {
   const created = await server.inject({
     method: 'POST',
     url: '/scores',
     payload: { name },
-    cookies: { [SESSION_COOKIE]: session },
+    cookies: { [SESSION_COOKIE]: cookie },
   });
   return created.json();
 }
@@ -98,8 +98,11 @@ function expire(): void {
     .run();
 }
 
+/** The band that owns the score, which is who is on it. */
 function membersOf(scoreId: string) {
-  return handle.db.select().from(scoreMembers).where(eq(scoreMembers.scoreId, scoreId)).all();
+  const score = handle.db.select().from(scores).where(eq(scores.id, scoreId)).get();
+  if (!score) throw new Error(`no score ${scoreId}`);
+  return handle.db.select().from(bandMembers).where(eq(bandMembers.bandId, score.bandId)).all();
 }
 
 describe('POST /scores/:id/invites', () => {
@@ -266,7 +269,7 @@ describe('GET /invites/:code', () => {
 });
 
 describe('POST /invites/:code', () => {
-  it('should put the accepter on the score, as a member', async () => {
+  it('should put the accepter in the score’s band, as a member', async () => {
     // Given
     const score = await createScore();
     const code = await inviteTo(score.id);
@@ -283,28 +286,32 @@ describe('POST /invites/:code', () => {
     expect(roles).toHaveLength(2);
   });
 
-  it('should make the score visible to them and nobody else', async () => {
-    // Given
+  it('should make every score of the band visible to them, and nothing outside it', async () => {
+    // Given a band with two scores, and a stranger with one of their own
     const score = await createScore();
+    const other = await createScore('Yesterday');
     const drummer = await signUp('drummer@example.com');
     const stranger = await signUp('stranger@example.com');
+    await createScore('Elsewhere', stranger.session);
 
-    // When
+    // When the drummer accepts an invite to just one of them
     await accept(await inviteTo(score.id), drummer.session);
 
-    // Then — the whole point of the row.
+    // Then — membership is to the band, so the other score comes with it.
     const theirs = await server.inject({
       method: 'GET',
       url: '/scores',
       cookies: { [SESSION_COOKIE]: drummer.session },
     });
-    const nobody = await server.inject({
+    const strangers = await server.inject({
       method: 'GET',
       url: '/scores',
       cookies: { [SESSION_COOKIE]: stranger.session },
     });
-    expect(theirs.json().map((s: { id: string }) => s.id)).toEqual([score.id]);
-    expect(nobody.json()).toEqual([]);
+    expect(theirs.json().map((s: { id: string }) => s.id).sort()).toEqual(
+      [score.id, other.id].sort()
+    );
+    expect(strangers.json().map((s: { name: string }) => s.name)).toEqual(['Elsewhere']);
   });
 
   it('should hand back no credential of any kind', async () => {
@@ -435,7 +442,7 @@ describe('POST /invites/:code', () => {
 
 /**
  * An invited person has no membership row until they accept, so a members
- * list built from `score_members` alone draws them as absent. That is the
+ * list built from `band_members` alone draws them as absent. That is the
  * conflation of "issued" with "in use" the token activity fix removed for
  * machines, and it is worse for people: the inviter reads the empty square as
  * a link that never sent.

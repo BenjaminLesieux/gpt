@@ -1,7 +1,7 @@
 # Cutting a companion release
 
 How the companion reaches bandmates and updates itself. The decisions are in
-[ADR 0012](adr/0012-the-companion-updates-itself-from-a-signed-github-feed.md).
+[ADR 0014](adr/0014-the-companion-updates-itself-from-a-signed-github-feed.md).
 
 ## Once: the update signing key
 

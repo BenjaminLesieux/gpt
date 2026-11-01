@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cloneLink } from './clone-link';
+import { cloneLink, openLink } from './clone-link';
 
 const CODE = 'Ml9_3Qh0-Zt4aBcDeFgHiJkLmNoPqRsTuVwXyZ012345';
 
@@ -32,5 +32,25 @@ describe('cloneLink', () => {
 
     expect(link.searchParams.get('claim')).toBe(CODE);
     expect(link.searchParams.get('hub')).toBe('https://hub.example.com/?claim=elsewhere');
+  });
+});
+
+describe('openLink', () => {
+  it('names the hub, the score and the branch, and nothing else', () => {
+    const link = new URL(openLink('https://hub.example.com', 's9q3v1', 'new chorus/sam'));
+
+    expect(link.protocol).toBe('gitarpro:');
+    expect(link.host).toBe('open');
+    expect([...link.searchParams.keys()].sort()).toEqual(['branch', 'hub', 'score']);
+    expect(link.searchParams.get('hub')).toBe('https://hub.example.com');
+    expect(link.searchParams.get('score')).toBe('s9q3v1');
+    expect(link.searchParams.get('branch')).toBe('new chorus/sam');
+  });
+
+  it('escapes a branch name rather than letting it add parameters', () => {
+    const link = new URL(openLink('https://hub.example.com', 's9q3v1', 'x&score=other'));
+
+    expect(link.searchParams.get('score')).toBe('s9q3v1');
+    expect(link.searchParams.get('branch')).toBe('x&score=other');
   });
 });

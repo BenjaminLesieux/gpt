@@ -14,7 +14,9 @@ import { initials, shortId } from '@gpt/ui/score/history';
  * glance and leave.
  */
 const ScorePlayer = lazy(() =>
-  import('@gpt/ui/score/player').then((module) => ({ default: module.ScorePlayer }))
+  import('@gpt/ui/score/player').then((module) => ({
+    default: module.ScorePlayer,
+  })),
 );
 
 /**
@@ -46,12 +48,16 @@ export function VersionInspector({
 
   return (
     <aside
-      aria-label={range ? t('inspector.rangeLabel') : t('inspector.versionLabel')}
+      aria-label={
+        range ? t('inspector.rangeLabel') : t('inspector.versionLabel')
+      }
       className="flex w-[520px] flex-none flex-col border-l border-border bg-card"
     >
       <div className="flex h-8 flex-none items-center justify-between border-b border-border px-4">
         <h2 className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          {range ? t('inspector.range', { count: selected.length }) : t('inspector.version')}
+          {range
+            ? t('inspector.range', { count: selected.length })
+            : t('inspector.version')}
         </h2>
         <Button
           variant="ghost"
@@ -100,7 +106,13 @@ export function VersionInspector({
   );
 }
 
-function OneVersion({ version, branch }: { version: Version; branch: string | null }) {
+function OneVersion({
+  version,
+  branch,
+}: {
+  version: Version;
+  branch: string | null;
+}) {
   const { t, i18n } = useTranslation();
 
   return (
@@ -117,7 +129,7 @@ function OneVersion({ version, branch }: { version: Version; branch: string | nu
 
       <dl className="flex flex-col gap-2.5">
         <Fact label={t('inspector.who')} mono>
-          {version.authorEmail}
+          {version.authorEmail ?? '—'}
         </Fact>
         <Fact label={t('inspector.when')}>
           {when(version.at, dateLocale(i18n.language), t)}
@@ -160,7 +172,13 @@ function RangeFacts({ selected }: { selected: Version[] }) {
 
   const bars = [...tracks.values()].reduce((sum, count) => sum + count, 0);
   const names = [...tracks.keys()];
-  const people = [...new Set(selected.map((version) => initials(version.authorEmail)))];
+  const people = [
+    ...new Set(
+      selected.flatMap((version) =>
+        version.authorEmail ? [initials(version.authorEmail)] : [],
+      ),
+    ),
+  ];
 
   return (
     <>
@@ -173,8 +191,12 @@ function RangeFacts({ selected }: { selected: Version[] }) {
       </p>
 
       <dl className="flex flex-col gap-2.5">
-        <Fact label={t('inspector.newerEnd')}>{newest.message || t('common.unnamedVersion')}</Fact>
-        <Fact label={t('inspector.olderEnd')}>{oldest.message || t('common.unnamedVersion')}</Fact>
+        <Fact label={t('inspector.newerEnd')}>
+          {newest.message || t('common.unnamedVersion')}
+        </Fact>
+        <Fact label={t('inspector.olderEnd')}>
+          {oldest.message || t('common.unnamedVersion')}
+        </Fact>
         <Separator className="my-0.5 bg-border" />
         {names.map((name) => (
           <Fact key={name} label={name} labelMono mono muted>
@@ -183,7 +205,7 @@ function RangeFacts({ selected }: { selected: Version[] }) {
         ))}
         {names.length > 0 && <Separator className="my-0.5 bg-border" />}
         <Fact label={t('inspector.whoWorked')} mono>
-          {people.join(', ')}
+          {people.join(', ') || '—'}
         </Fact>
         <Fact label={t('inspector.span')}>
           {`${when(oldest.at, locale, t)} → ${clock(new Date(newest.at), locale)}`}
@@ -229,7 +251,10 @@ function Fact({
 /** *Yesterday at 9:31 pm* — the inspector's one long-form date. */
 function when(iso: string, locale: string, t: TFunction): string {
   const at = new Date(iso);
-  return t('time.dayAtTime', { day: dayLabel(at, locale), time: clock(at, locale) });
+  return t('time.dayAtTime', {
+    day: dayLabel(at, locale),
+    time: clock(at, locale),
+  });
 }
 
 /** *Guitar 1 and Bass*, *Guitar 1, Bass and Drums* — prose, not a join. */
@@ -242,7 +267,10 @@ function PlayerLoading() {
   const { t } = useTranslation();
 
   return (
-    <p role="status" className="border border-border-subtle bg-card px-3 py-2.5 text-sm text-muted-foreground">
+    <p
+      role="status"
+      className="border border-border-subtle bg-card px-3 py-2.5 text-sm text-muted-foreground"
+    >
       {t('inspector.loadingScore')}
     </p>
   );

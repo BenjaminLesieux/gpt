@@ -1,6 +1,8 @@
 import cookie from '@fastify/cookie';
 import type { FastifyInstance } from 'fastify';
 import { authRoutes } from '../auth/routes';
+import { bandRoutes } from '../bands/routes';
+import { companionRoutes } from '../companion/routes';
 import type { HubDatabase } from '../db/client';
 import { gitRoutes } from '../git/routes';
 import { claimRoutes } from '../scores/claims';
@@ -19,6 +21,8 @@ export interface AppOptions {
   gitRoot: string;
   /** The origin clone URLs are built from. */
   publicUrl: string;
+  /** `MERGE_WRITES`. Off unless set: a landing reports and writes nothing. */
+  mergeWrites?: boolean;
   /**
    * Built hub-web bundle. Optional: the hub is a working git remote and JSON
    * API without a UI, and every test builds it that way.
@@ -40,6 +44,7 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
 
   await fastify.register(health);
   await fastify.register(authRoutes, { ...opts, prefix: '/auth' });
+  await fastify.register(bandRoutes, { ...opts, prefix: '/bands' });
   await fastify.register(scoreRoutes, { ...opts, prefix: '/scores' });
 
   // Same prefix, separate scope: importing a score sends a file, and the
@@ -65,6 +70,13 @@ export async function app(fastify: FastifyInstance, opts: AppOptions) {
     db: opts.db,
     cookieSecure: opts.cookieSecure,
     prefix: '/invites',
+  });
+
+  await fastify.register(companionRoutes, {
+    db: opts.db,
+    cookieSecure: opts.cookieSecure,
+    publicUrl: opts.publicUrl,
+    prefix: '/companion',
   });
 
   // Its own scope: the raw-stream content-type parser git needs must not

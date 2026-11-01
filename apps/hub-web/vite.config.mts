@@ -10,7 +10,7 @@ import { defaultClientConditions, defineConfig } from 'vite';
  * owns has to reach Fastify in development too — otherwise the dev server
  * answers `/auth/login` with index.html and the session cookie is never set.
  */
-const API_PREFIXES = ['/auth', '/git', '/health', '/invites'];
+const API_PREFIXES = ['/auth', '/git', '/health', '/invites', '/companion/'];
 const API_ORIGIN = process.env.HUB_API_ORIGIN ?? 'http://localhost:3000';
 
 /**

@@ -3,9 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-use git2::Repository;
+use git2::{Repository, Signature};
 use serde::Serialize;
 
+use crate::auth::SignIn;
 use crate::config::{Config, SnapshotPolicy, TrackedFile, CONFIG_FILE, REPOS_DIR};
 use crate::error::{Error, Result};
 use crate::git;
@@ -42,6 +43,7 @@ pub struct AppState {
     binding: Mutex<Binding>,
     pub watcher: Watcher,
     pub pushes: Queue,
+    pub sign_in: SignIn,
 }
 
 impl AppState {
@@ -56,6 +58,7 @@ impl AppState {
             binding: Mutex::new(Binding::Idle),
             watcher: Watcher::new(),
             pushes: Queue::new(),
+            sign_in: SignIn::default(),
         })
     }
 
@@ -89,6 +92,26 @@ impl AppState {
             .iter()
             .map(|file| file.path.clone())
             .collect()
+    }
+
+    /// Points the watcher at every tracked file — or at none while signed
+    /// out, since a snapshot is a version and every version has an author.
+    pub fn watch(&self) -> Result<()> {
+        let paths = if self.config().account.is_some() {
+            self.tracked_paths()
+        } else {
+            Vec::new()
+        };
+        self.watcher.resync(&paths)
+    }
+
+    pub fn signature(&self) -> Result<Signature<'static>> {
+        let email = self
+            .config()
+            .account
+            .as_ref()
+            .map(|account| account.email.clone());
+        git::signature(&email.ok_or(Error::SignedOut)?)
     }
 
     pub fn snapshot_policy(&self) -> SnapshotPolicy {

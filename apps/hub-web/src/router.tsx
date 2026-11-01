@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { createRouter } from '@tanstack/react-router';
+import { createRouter, type RouterHistory } from '@tanstack/react-router';
 import { authedRoute } from './routes/authed';
 import { loginRoute, signupRoute } from './routes/auth';
+import { connectRoute } from './routes/connect';
 import { credentialsRoute } from './routes/credentials';
 import { joinRoute } from './routes/join';
 import { rootRoute } from './routes/root';
@@ -15,12 +16,15 @@ const routeTree = rootRoute.addChildren([
   // not have an account yet, and the screen has to name the score before it
   // asks them for one.
   joinRoute,
+  // Outside it too: signed out, it sends people to sign in carrying its query.
+  connectRoute,
   authedRoute.addChildren([scoresRoute, scoreRoute, credentialsRoute]),
 ]);
 
-export function createHubRouter(queryClient: QueryClient) {
+export function createHubRouter(queryClient: QueryClient, history?: RouterHistory) {
   return createRouter({
     routeTree,
+    history,
     context: { queryClient },
     defaultPreload: 'intent',
   });

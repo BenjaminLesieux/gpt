@@ -13,6 +13,8 @@ export interface Version {
   message: string;
   at: Date;
   kind: VersionKind;
+  /** Absent for versions signed before sign-in, which name nobody. */
+  authorEmail?: string;
 }
 
 /** A version as the host sends it: `timestamp` in unix seconds. */
@@ -177,7 +179,10 @@ export function requestAccessibility(): Promise<void> {
 
 /** Rejects when the file on disk is already its newest named version — a name
  * has to be given to a save that actually happened. */
-export async function commitNamed(id: string, message: string): Promise<Version> {
+export async function commitNamed(
+  id: string,
+  message: string,
+): Promise<Version> {
   return version(await invoke<WireVersion>('commit_named', { id, message }));
 }
 
@@ -186,17 +191,32 @@ export function hasPendingChange(id: string): Promise<boolean> {
   return invoke('has_pending_change', { id });
 }
 
-export async function listVersions(id: string, limit?: number): Promise<Version[]> {
-  return (await invoke<WireVersion[]>('list_versions', { id, limit })).map(version);
+export async function listVersions(
+  id: string,
+  limit?: number,
+): Promise<Version[]> {
+  return (await invoke<WireVersion[]>('list_versions', { id, limit })).map(
+    version,
+  );
 }
 
-export async function listSnapshots(id: string, limit?: number): Promise<Version[]> {
-  return (await invoke<WireVersion[]>('list_snapshots', { id, limit })).map(version);
+export async function listSnapshots(
+  id: string,
+  limit?: number,
+): Promise<Version[]> {
+  return (await invoke<WireVersion[]>('list_snapshots', { id, limit })).map(
+    version,
+  );
 }
 
 /** `rev` is a version id from {@link listVersions} / {@link listSnapshots}. */
-export async function getVersionBlob(id: string, rev: string): Promise<Uint8Array> {
-  return new Uint8Array(await invoke<ArrayBuffer>('get_version_blob', { id, rev }));
+export async function getVersionBlob(
+  id: string,
+  rev: string,
+): Promise<Uint8Array> {
+  return new Uint8Array(
+    await invoke<ArrayBuffer>('get_version_blob', { id, rev }),
+  );
 }
 
 // ── Branches ─────────────────────────────────────────────────────────────
@@ -215,9 +235,51 @@ export async function switchBranch(id: string, branch: string): Promise<Version 
   return maybeVersion(await invoke<WireVersion | null>('switch_branch', { id, branch }));
 }
 
+/** One conflicting spot, as the hub's merge named it. */
+export interface Conflict {
+  /** 1-based; `null` for something that is not a bar, such as the tempo. */
+  bar: number | null;
+  /** `null` for every track at once. */
+  track: string | null;
+  /** The merge engine's own words — for a hover, never the headline. */
+  description: string;
+}
+
+/** What pressing land did. `main_moved`: someone landed at the same moment. */
+export type LandOutcome =
+  | { status: 'landed'; commit: string }
+  | { status: 'clean' }
+  | { status: 'waiting' }
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[] }
+  | { status: 'unreadable' }
+  | { status: 'up_to_date' }
+  | { status: 'main_moved' };
+
+/**
+ * Lands the file's current branch on main. Pushes it first, so what lands is
+ * the newest version named here.
+ */
+export function landBranch(id: string): Promise<LandOutcome> {
+  return invoke('land_branch', { id });
+}
+
+export function askFirst(id: string): Promise<boolean> {
+  return invoke('ask_first', { id });
+}
+
+/** Resolves with what the hub now holds. */
+export function setAskFirst(id: string, askFirst: boolean): Promise<boolean> {
+  return invoke('set_ask_first', { id, askFirst });
+}
+
 /** Resolves with the safety snapshot taken before overwriting, if any. */
-export async function restoreVersion(id: string, rev: string): Promise<Version | null> {
-  return maybeVersion(await invoke<WireVersion | null>('restore_version', { id, rev }));
+export async function restoreVersion(
+  id: string,
+  rev: string,
+): Promise<Version | null> {
+  return maybeVersion(
+    await invoke<WireVersion | null>('restore_version', { id, rev }),
+  );
 }
 
 // ── Remote ───────────────────────────────────────────────────────────────
@@ -264,11 +326,17 @@ export function fetchRemote(id: string): Promise<SyncState> {
  * comes back as `safety` if it was worth keeping.
  */
 export async function pullRemote(id: string): Promise<Pulled> {
-  const pulled = await invoke<Omit<Pulled, 'version' | 'safety'> & {
-    version: WireVersion | null;
-    safety: WireVersion | null;
-  }>('pull_remote', { id });
-  return { ...pulled, version: maybeVersion(pulled.version), safety: maybeVersion(pulled.safety) };
+  const pulled = await invoke<
+    Omit<Pulled, 'version' | 'safety'> & {
+      version: WireVersion | null;
+      safety: WireVersion | null;
+    }
+  >('pull_remote', { id });
+  return {
+    ...pulled,
+    version: maybeVersion(pulled.version),
+    safety: maybeVersion(pulled.safety),
+  };
 }
 
 /**
@@ -304,17 +372,22 @@ export function pickAndAdoptRemote(
 // ── Events ───────────────────────────────────────────────────────────────
 
 /** Fires after every Guitar Pro save of a tracked file, debounced. */
-export function onFileSaved(handler: (event: FileSavedEvent) => void): Promise<UnlistenFn> {
-  return listen<Omit<FileSavedEvent, 'version'> & { version: WireVersion | null }>(
-    'file-saved',
-    ({ payload }) => handler({ ...payload, version: maybeVersion(payload.version) }),
+export function onFileSaved(
+  handler: (event: FileSavedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<
+    Omit<FileSavedEvent, 'version'> & { version: WireVersion | null }
+  >('file-saved', ({ payload }) =>
+    handler({ ...payload, version: maybeVersion(payload.version) }),
   );
 }
 
 export function onTrackedFilesChanged(
   handler: (files: TrackedFile[]) => void,
 ): Promise<UnlistenFn> {
-  return listen<TrackedFile[]>('tracked-files-changed', ({ payload }) => handler(payload));
+  return listen<TrackedFile[]>('tracked-files-changed', ({ payload }) =>
+    handler(payload),
+  );
 }
 
 /**
@@ -325,7 +398,9 @@ export function onTrackedFilesChanged(
 export function onPushStatusChanged(
   handler: (event: PushStatusChangedEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<PushStatusChangedEvent>('push-status-changed', ({ payload }) => handler(payload));
+  return listen<PushStatusChangedEvent>('push-status-changed', ({ payload }) =>
+    handler(payload),
+  );
 }
 
 /**
@@ -344,7 +419,26 @@ export interface ClaimArrivedEvent {
 export function onClaimArrived(
   handler: (event: ClaimArrivedEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<ClaimArrivedEvent>('claim-arrived', ({ payload }) => handler(payload));
+  return listen<ClaimArrivedEvent>('claim-arrived', ({ payload }) =>
+    handler(payload),
+  );
+}
+
+/**
+ * What a `gitarpro://open` link came to. `id` is the tracked file, now on
+ * `branch`; neither `id` nor `error` means this machine does not have the score.
+ */
+export interface ScoreLinkOpenedEvent {
+  hub: string;
+  branch: string;
+  id: string | null;
+  error: string | null;
+}
+
+export function onScoreLinkOpened(
+  handler: (event: ScoreLinkOpenedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ScoreLinkOpenedEvent>('score-link-opened', ({ payload }) => handler(payload));
 }
 
 /** What a claim is about, read from the hub before anything is spent. */
@@ -364,7 +458,10 @@ export function peekClaim(hub: string, claim: string): Promise<ClaimPeek> {
  * `null` means the save dialog was cancelled — nothing was spent and the same
  * link still works, which is why the save dialog comes before the redemption.
  */
-export function adoptClaim(hub: string, claim: string): Promise<TrackedFile | null> {
+export function adoptClaim(
+  hub: string,
+  claim: string,
+): Promise<TrackedFile | null> {
   return invoke('adopt_claim', { hub, claim });
 }
 
@@ -385,4 +482,66 @@ export function onUpdateReady(handler: (version: string) => void): Promise<Unlis
  */
 export function restartToUpdate(): Promise<boolean> {
   return invoke('restart_to_update');
+}
+
+// ── Account ──────────────────────────────────────────────────────────────
+
+/**
+ * The companion cannot be used signed out (ADR 0011). `waiting` means the
+ * browser was opened and has not answered yet; `failure` is why the last
+ * attempt did not end signed in, in the hub's own words where it gave some.
+ * `hub` is the origin last asked or signed out of since launch, to prefill.
+ */
+export type AuthState =
+  | {
+      kind: 'signedOut';
+      waiting: boolean;
+      failure: string | null;
+      hub: string | null;
+    }
+  | { kind: 'signedIn'; hub: string; email: string };
+
+export function authState(): Promise<AuthState> {
+  return invoke('auth_state');
+}
+
+/** Opens `hub`'s sign-in page in the browser. Calling it again starts over. */
+export function signIn(hub: string): Promise<AuthState> {
+  return invoke('sign_in', { hub });
+}
+
+export function signOut(): Promise<AuthState> {
+  return invoke('sign_out');
+}
+
+export function onAuthStateChanged(
+  handler: (state: AuthState) => void,
+): Promise<UnlistenFn> {
+  return listen<AuthState>('auth-state-changed', ({ payload }) =>
+    handler(payload),
+  );
+}
+
+/** A score the signed-in account is a member of. */
+export interface Score {
+  id: string;
+  name: string;
+  url: string;
+  createdAt: string;
+}
+
+/** Rejects, and signs the companion out, when the hub refuses the account token. */
+export function listScores(): Promise<Score[]> {
+  return invoke('scores');
+}
+
+/**
+ * Asks where one of those scores should land, then mints its token and adopts
+ * it. `null` means the save dialog was cancelled, before anything was minted.
+ */
+export function adoptScore(
+  id: string,
+  name: string,
+): Promise<TrackedFile | null> {
+  return invoke('adopt_score', { id, name });
 }

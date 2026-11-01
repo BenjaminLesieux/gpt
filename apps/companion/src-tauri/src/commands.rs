@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::adopt;
+use crate::auth::{self, AuthState};
 use crate::branch;
 use crate::config::{is_guitar_pro_file, Remote, RemoteAuth, TrackedFile, GP_EXTENSIONS};
 use crate::error::{Error, Result};
@@ -67,7 +68,8 @@ pub async fn pick_and_track_file(app: AppHandle) -> Result<Option<TrackedFile>> 
 /// score as it stands — so the first Guitar Pro save already has a baseline to
 /// diff against.
 fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile> {
-    let path = path.canonicalize()?;
+    let author = state.signature()?;
+    let path = dunce::canonicalize(path)?;
     if !path.is_file() {
         return Err(Error::NotAFile(path.display().to_string()));
     }
@@ -89,10 +91,11 @@ fn track(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<TrackedFile
         &repo,
         &file.branch,
         &normalize_gp(&std::fs::read(&file.path)?),
+        &author,
     )?;
 
     state.set_active(&file.id);
-    state.watcher.resync(&state.tracked_paths())?;
+    state.watch()?;
     events::tracked_files_changed(app, state.config().tracked_files.clone());
     Ok(file)
 }
@@ -111,7 +114,7 @@ pub fn untrack_file(app: AppHandle, state: State<'_, AppState>, id: String) -> R
     })?;
 
     state.clear_active(&id);
-    state.watcher.resync(&state.tracked_paths())?;
+    state.watch()?;
     events::tracked_files_changed(&app, state.config().tracked_files.clone());
     Ok(())
 }
@@ -144,7 +147,7 @@ pub fn commit_named(state: State<'_, AppState>, id: String, message: String) -> 
         return Err(Error::NothingToName(file.name));
     }
 
-    let version = git::commit_named(&repo, &file.branch, &bytes, &message)?;
+    let version = git::commit_named(&repo, &file.branch, &bytes, &message, &state.signature()?)?;
     state.set_active(&file.id);
     // Queued, not sent. The version is already safe on disk, and nothing about
     // the network is allowed to reach back and spoil that.
@@ -232,12 +235,13 @@ pub fn restore_version(
 ) -> Result<Option<Version>> {
     let file = state.tracked(&id)?;
     let repo = state.open_repo(&file.id)?;
+    let author = state.signature()?;
 
     // Read first: an unknown rev must not touch the file on disk.
     let restored = git::read_score(&repo, &rev)?;
 
     let safety = match std::fs::read(&file.path) {
-        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current))?,
+        Ok(current) => git::commit_snapshot(&repo, &file.branch, &normalize_gp(&current), &author)?,
         // File gone — restoring is the recovery, nothing to preserve.
         Err(_) => None,
     };
@@ -385,15 +389,10 @@ pub async fn adopt_remote(
     .map_err(|err| Error::BackgroundTask(err.to_string()))?
 }
 
-/// Asks where the score should land, then adopts into it. A *save* dialog, not
-/// an open one: the file is what this is about to create.
-#[tauri::command]
-pub async fn pick_and_adopt_remote(
-    app: AppHandle,
-    url: String,
-    auth: Option<RemoteAuth>,
-    token: Option<String>,
-) -> Result<Option<TrackedFile>> {
+/// Where a score about to be created should land. A *save* dialog, not an
+/// open one: the file is what the caller is about to create. `None` is a
+/// cancel.
+async fn pick_save_path(app: &AppHandle, file_name: String) -> Result<Option<PathBuf>> {
     let picked = {
         // As in `pick_and_track_file`: a native dialog takes focus and the
         // panel dismisses itself when it loses it. Focus is not handed back
@@ -403,7 +402,7 @@ pub async fn pick_and_adopt_remote(
         app.dialog()
             .file()
             .add_filter("Guitar Pro", &GP_EXTENSIONS)
-            .set_file_name(adopt::suggested_file_name(&url))
+            .set_file_name(file_name)
             .save_file(move |picked| {
                 // Capacity 1 and a single send: this can never be full.
                 let _ = sender.try_send(picked);
@@ -411,12 +410,26 @@ pub async fn pick_and_adopt_remote(
         receiver.recv().await.flatten()
     };
 
-    let Some(picked) = picked else {
+    picked
+        .map(|picked| {
+            picked
+                .into_path()
+                .map_err(|err| Error::NotAFile(err.to_string()))
+        })
+        .transpose()
+}
+
+/// Asks where the score should land, then adopts into it.
+#[tauri::command]
+pub async fn pick_and_adopt_remote(
+    app: AppHandle,
+    url: String,
+    auth: Option<RemoteAuth>,
+    token: Option<String>,
+) -> Result<Option<TrackedFile>> {
+    let Some(path) = pick_save_path(&app, adopt::suggested_file_name(&url)).await? else {
         return Ok(None);
     };
-    let path = picked
-        .into_path()
-        .map_err(|err| Error::NotAFile(err.to_string()))?;
 
     adopt_remote(app, path, url, auth, token).await.map(Some)
 }
@@ -456,30 +469,11 @@ pub async fn adopt_claim(
     // through the webview is a value the webview could have changed.
     let peek = client.peek(&claim).await?;
 
-    let picked = {
-        // As in `pick_and_track_file`: a native dialog takes focus and the
-        // panel dismisses itself when it loses it.
-        let _hold = crate::panel::hold();
-        let (sender, mut receiver) = tauri::async_runtime::channel(1);
-        app.dialog()
-            .file()
-            .add_filter("Guitar Pro", &GP_EXTENSIONS)
-            .set_file_name(adopt::file_name_for(&peek.score_name))
-            .save_file(move |picked| {
-                // Capacity 1 and a single send: this can never be full.
-                let _ = sender.try_send(picked);
-            });
-        receiver.recv().await.flatten()
-    };
-
     // Nothing has been spent, so this is a cancel and not a failure — the
     // same link still works.
-    let Some(picked) = picked else {
+    let Some(path) = pick_save_path(&app, adopt::file_name_for(&peek.score_name)).await? else {
         return Ok(None);
     };
-    let path = picked
-        .into_path()
-        .map_err(|err| Error::NotAFile(err.to_string()))?;
 
     let redeemed = client.redeem(&claim, &hub::device_name()).await?;
     let auth = RemoteAuth::Token {
@@ -489,6 +483,105 @@ pub async fn adopt_claim(
     adopt_remote(app, path, redeemed.url, Some(auth), Some(redeemed.token))
         .await
         .map(Some)
+}
+
+/// The hub a file's remote lives on, the score it is there, and the
+/// credential its git remote already uses — landing is that score's own
+/// business, so it needs no other.
+fn on_hub(state: &AppState, id: &str) -> Result<(TrackedFile, hub::Hub, String, hub::ScoreAuth)> {
+    let file = state.tracked(id)?;
+    let not_on_hub = || Error::NotOnHub(file.name.clone());
+    let remote = file.remote.as_ref().ok_or_else(not_on_hub)?;
+    let RemoteAuth::Token { username } = &remote.auth else {
+        return Err(not_on_hub());
+    };
+    let found = hub::hub_score(&remote.url).ok_or_else(not_on_hub)?;
+    let auth = hub::ScoreAuth {
+        username: username.clone(),
+        token: secrets::read(&file.id)?.ok_or_else(not_on_hub)?,
+    };
+
+    let client = hub::Hub::new(found.origin.as_str())?;
+    Ok((file, client, found.score, auth))
+}
+
+/// The deliberate act: lands the file's current branch on main.
+///
+/// Pushes first, because the hub can only land the tip it has seen — pressing
+/// land straight after naming a version would otherwise land the one before.
+#[tauri::command]
+pub async fn land_branch(app: AppHandle, id: String) -> Result<hub::LandOutcome> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+
+    let pusher = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::push::deliver(&pusher.state::<AppState>(), &id)
+    })
+    .await
+    .map_err(|err| Error::BackgroundTask(err.to_string()))??;
+
+    client.land(&score, &file.branch, &auth).await
+}
+
+#[tauri::command]
+pub async fn ask_first(app: AppHandle, id: String) -> Result<bool> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+    client.ask_first(&score, &file.branch, &auth).await
+}
+
+/// Ask the band first: a clean landing waits for someone on the web.
+#[tauri::command]
+pub async fn set_ask_first(app: AppHandle, id: String, ask_first: bool) -> Result<bool> {
+    let (file, client, score, auth) = on_hub(&app.state::<AppState>(), &id)?;
+    client
+        .set_ask_first(&score, &file.branch, ask_first, &auth)
+        .await
+}
+
+/// The scores the signed-in account is a member of.
+#[tauri::command]
+pub async fn scores(app: AppHandle) -> Result<Vec<hub::Score>> {
+    let answer = auth::scores(&app.state::<AppState>()).await;
+    auth::told(&app, answer)
+}
+
+/// Adopts one of them. The token is minted after the save dialog, as a claim
+/// is redeemed after it, so cancelling leaves nothing on the hub.
+#[tauri::command]
+pub async fn adopt_score(app: AppHandle, id: String, name: String) -> Result<Option<TrackedFile>> {
+    let Some(path) = pick_save_path(&app, adopt::file_name_for(&name)).await? else {
+        return Ok(None);
+    };
+
+    let answer = auth::score_token(&app.state::<AppState>(), &id).await;
+    let minted = auth::told(&app, answer)?;
+    let auth = RemoteAuth::Token {
+        username: minted.username,
+    };
+
+    adopt_remote(app, path, minted.url, Some(auth), Some(minted.token))
+        .await
+        .map(Some)
+}
+
+#[tauri::command]
+pub fn auth_state(state: State<'_, AppState>) -> AuthState {
+    auth::auth_state(&state)
+}
+
+/// Opens `hub`'s connect page in the browser. Calling it again starts over:
+/// the link the earlier page would hand back stops working.
+#[tauri::command]
+pub async fn sign_in(app: AppHandle, hub: String) -> Result<AuthState> {
+    auth::sign_in(&app, &hub)?;
+    Ok(auth::auth_state(&app.state::<AppState>()))
+}
+
+#[tauri::command]
+pub fn sign_out(app: AppHandle, state: State<'_, AppState>) -> Result<AuthState> {
+    auth::sign_out(&state)?;
+    auth::changed(&app);
+    Ok(auth::auth_state(&state))
 }
 
 /// What the active file is anchored to. Read from the host's cache — the
@@ -542,9 +635,10 @@ mod tests {
         let id = crate::config::file_id(file);
         let repo = git::open_or_init(&data_dir.join("repos").join(&id)).unwrap();
         let bytes = std::fs::read(file).unwrap();
-        let version = git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&bytes))
-            .unwrap()
-            .unwrap();
+        let version =
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&bytes), &git::me())
+                .unwrap()
+                .unwrap();
         (id, version)
     }
 
@@ -568,7 +662,7 @@ mod tests {
         std::fs::write(&score, &resaved).unwrap();
 
         assert!(
-            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&resaved))
+            git::commit_snapshot(&repo, git::MAIN_BRANCH, &normalize_gp(&resaved), &git::me())
                 .unwrap()
                 .is_none()
         );
@@ -580,8 +674,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repo = git::open_or_init(&dir.path().join("repo")).unwrap();
 
-        let first = git::commit_named(&repo, git::MAIN_BRANCH, b"intro v1", "Intro").unwrap();
-        git::commit_named(&repo, git::MAIN_BRANCH, b"intro v2", "Intro reworked").unwrap();
+        let first =
+            git::commit_named(&repo, git::MAIN_BRANCH, b"intro v1", "Intro", &git::me()).unwrap();
+        git::commit_named(
+            &repo,
+            git::MAIN_BRANCH,
+            b"intro v2",
+            "Intro reworked",
+            &git::me(),
+        )
+        .unwrap();
 
         assert_eq!(git::read_score(&repo, &first.id).unwrap(), b"intro v1");
     }
@@ -596,8 +698,13 @@ mod tests {
         };
 
         for take in 0..20 {
-            git::commit_snapshot(&repo, git::MAIN_BRANCH, format!("take {take}").as_bytes())
-                .unwrap();
+            git::commit_snapshot(
+                &repo,
+                git::MAIN_BRANCH,
+                format!("take {take}").as_bytes(),
+                &git::me(),
+            )
+            .unwrap();
             git::prune_snapshots(&repo, policy).unwrap();
         }
 

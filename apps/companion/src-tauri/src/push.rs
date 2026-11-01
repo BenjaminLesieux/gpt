@@ -431,6 +431,7 @@ mod tests {
             git::MAIN_BRANCH,
             b"riff",
             "Intro",
+            &git::me(),
         )
         .unwrap();
         deliver(&state, &id).unwrap();
@@ -451,6 +452,7 @@ mod tests {
             git::MAIN_BRANCH,
             b"riff",
             "Intro",
+            &git::me(),
         )
         .unwrap();
 
@@ -468,6 +470,7 @@ mod tests {
             git::MAIN_BRANCH,
             b"riff",
             "Intro",
+            &git::me(),
         )
         .unwrap();
 

@@ -1,4 +1,13 @@
 {
+  "signIn": {
+    "title": "Connecte-toi à ton hub",
+    "why": "Chaque version est signée avec ton compte. Sans connexion, tes sauvegardes ne sont pas enregistrées.",
+    "action": "Se connecter avec le navigateur",
+    "waiting": "En attente du navigateur…",
+    "again": "Recommencer",
+    "hub": "Adresse du hub",
+    "invalidHub": "Saisis l'adresse du hub, en commençant par https://."
+  },
   "panel": {
     "title": "Gitarpro",
     "close": "fermer",
@@ -44,11 +53,30 @@
     "push": {
       "sending": "envoi…",
       "failed": "Impossible d'envoyer cette partition vers son dépôt distant"
+    },
+    "land": {
+      "action": "Intégrer dans main",
+      "askFirst": "Demander au groupe d'abord",
+      "landed": "Intégrée dans main",
+      "clean": "S’intégrerait sans conflit — ce hub est en essai à blanc",
+      "waiting": "En attente — le groupe est consulté d'abord",
+      "conflicts_one": "{{count}} mesure demande une décision — voir le hub",
+      "conflicts_other": "{{count}} mesures demandent une décision — voir le hub",
+      "unreadable": "Le hub n'a pas pu lire cette branche — rien n'a été intégré",
+      "upToDate": "Rien à intégrer — main l'a déjà",
+      "mainMoved": "Quelqu'un a intégré en même temps — réessaie"
     }
   },
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Fenêtre étendue",
+    "account": {
+      "signOut": "Se déconnecter",
+      "title": "Se déconnecter ?",
+      "description": "Tant que tu ne te reconnectes pas, tes sauvegardes ne sont pas enregistrées et aucune version ne peut être nommée. Tes fichiers et leur historique restent sur cette machine.",
+      "cancel": "Annuler",
+      "confirm": "Se déconnecter"
+    },
     "trackAnotherFile": "Suivre un autre fichier…",
     "timeline": {
       "versions": "Versions",
@@ -121,7 +149,7 @@
       "token": "Jeton d'accès",
       "tokenPlaceholder": "Colle un jeton d'accès personnel",
       "tokenStored": "Enregistré — laisse vide pour le garder",
-      "tokenHint": "Conservé dans ton trousseau macOS, jamais dans le fichier de réglages de Gitarpro.",
+      "tokenHint": "Conservé dans le trousseau du système, jamais dans le fichier de réglages de Gitarpro.",
       "insecure": "Cette URL n'est pas en https : le jeton circulerait en clair.",
       "remove": "Supprimer le dépôt distant",
       "cancel": "Annuler",
@@ -133,7 +161,15 @@
       "title": "Récupérer une partition depuis un dépôt",
       "description": "Colle le dépôt où la partition vit déjà. Ses versions nommées sont récupérées, et tu choisis où le fichier est enregistré.",
       "action": "Choisir où l'enregistrer…",
-      "adopted": "« {{file}} » est sur le disque et suivie."
+      "adopted": "« {{file}} » est sur le disque et suivie.",
+      "pick": "Choisis une de tes partitions. Ses versions nommées sont récupérées, et tu choisis où le fichier est enregistré.",
+      "differentHub": "Autre hub…",
+      "yourScores": "Tes partitions",
+      "tracked": "Sur cette machine",
+      "loadFailed": "Impossible de charger tes partitions",
+      "retry": "Réessayer",
+      "emptyTitle": "Aucune partition pour l'instant",
+      "emptyDescription": "Les partitions que tu crées ou rejoins sur le hub apparaissent ici."
     },
     "claim": {
       "title": "Ajouter « {{score}} » à cet ordinateur ?",
@@ -163,6 +199,10 @@
       "restart": "Redémarrer pour mettre à jour",
       "ready": "Gitarpro {{version}} est prêt. Le redémarrage prend une seconde ; Guitar Pro n’est pas touché.",
       "waitForSync": "Une version est encore en route vers le hub. Réessaie dans un instant."
+    },
+    "link": {
+      "opened": "Sur la branche « {{branch}} ».",
+      "notHere": "Cette partition n'est pas sur cet ordinateur. Ouvre-la sur {{hub}} et clique sur Cloner."
     }
   }
 }

@@ -64,6 +64,27 @@
       "when": 1789920068949,
       "tag": "0008_score_pushes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791479467434,
+      "tag": "0009_branch_landings",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792775523219,
+      "tag": "0010_companion_sign_in",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792776238539,
+      "tag": "0011_bands",
+      "breakpoints": true
     }
   ]
 }

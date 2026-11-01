@@ -11,9 +11,19 @@ import {
 } from '@gpt/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@gpt/ui/empty';
 import { TooltipProvider } from '@gpt/ui/tooltip';
-import { onClaimArrived, type ClaimArrivedEvent, type TrackedFile, type Version } from '@/lib/ipc';
+import {
+  onClaimArrived,
+  onScoreLinkOpened,
+  type ClaimArrivedEvent,
+  type TrackedFile,
+  type Version,
+} from '@/lib/ipc';
 import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { isMac } from '@/lib/platform';
+import { SignIn } from '@/sign-in/SignIn';
+import { useAuth } from '@/sign-in/useAuth';
+import { AccountMenu } from './AccountMenu';
 import { AdoptDialog } from './AdoptDialog';
 import { ClaimDialog } from './ClaimDialog';
 import { DiffStage } from './DiffStage';
@@ -36,6 +46,7 @@ import { useSync } from './useSync';
  */
 export function ExtendedApp() {
   const { t } = useTranslation();
+  const auth = useAuth();
   const library = useLibrary();
   const history = useHistory(library.selected?.id ?? null);
   const sync = useSync(library.selected?.id ?? null);
@@ -78,6 +89,29 @@ export function ExtendedApp() {
     const unlisten = onClaimArrived(setClaim);
     return () => void unlisten.then((stop) => stop());
   }, []);
+
+  // A `gitarpro://open` link the host has already acted on: the score is on
+  // its branch, or is not on this machine.
+  const { select: selectFile } = library;
+  const { reload } = history;
+  useEffect(() => {
+    const unlisten = onScoreLinkOpened((opened) => {
+      if (opened.error) {
+        setFailure(opened.error);
+      } else if (opened.id) {
+        selectFile(opened.id);
+        // Same file id, other branch: the history has to be asked for again.
+        reload();
+        setNotice({
+          about: opened.id,
+          message: t('extended.link.opened', { branch: opened.branch }),
+        });
+      } else {
+        setFailure(t('extended.link.notHere', { hub: opened.hub }));
+      }
+    });
+    return () => void unlisten.then((stop) => stop());
+  }, [selectFile, reload, t]);
 
   const entries = useMemo(
     () => [...history.versions, ...history.snapshots],
@@ -145,6 +179,7 @@ export function ExtendedApp() {
   const adoptDialog = (
     <AdoptDialog
       open={adoptOpen}
+      files={library.files}
       onClose={() => setAdoptOpen(false)}
       onAdopted={(file) => {
         library.adopted(file);
@@ -154,9 +189,23 @@ export function ExtendedApp() {
     />
   );
 
-  if (!library.loading && library.files.length === 0) {
+  if (auth.state?.kind !== 'signedIn') {
+    // Updates stay reachable signed out: an update may be what fixes sign-in.
     return (
       <Shell onError={setFailure}>
+        {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
+        {auth.state && <SignIn auth={auth} />}
+      </Shell>
+    );
+  }
+
+  const account = (
+    <AccountMenu email={auth.state.email} onSignOut={auth.signOut} onError={setFailure} />
+  );
+
+  if (!library.loading && library.files.length === 0) {
+    return (
+      <Shell account={account} onError={setFailure}>
         {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
         <NoTrackedFiles
           onAddFile={() => void library.addFile()}
@@ -170,6 +219,7 @@ export function ExtendedApp() {
 
   return (
     <Shell
+      account={account}
       onError={setFailure}
       header={
         library.selected && (
@@ -281,10 +331,12 @@ export function ExtendedApp() {
 
 function Shell({
   header,
+  account,
   onError,
   children,
 }: {
   header?: React.ReactNode;
+  account?: React.ReactNode;
   onError(message: string): void;
   children: React.ReactNode;
 }) {
@@ -295,13 +347,20 @@ function Shell({
       <div className="flex h-screen flex-col bg-background text-foreground">
         <header
           data-tauri-drag-region
-          className="flex h-11 shrink-0 items-center gap-4 border-b border-border px-4 pl-20"
+          // Room for the traffic lights the overlay title bar puts on macOS.
+          className={cn(
+            'flex h-11 shrink-0 items-center gap-4 border-b border-border px-4',
+            isMac && 'pl-20',
+          )}
         >
           <span className="text-xs font-bold tracking-widest uppercase" data-tauri-drag-region>
             {t('extended.title')}
           </span>
-          {header}
+          <div className="flex min-w-0 flex-1 items-center gap-4" data-tauri-drag-region>
+            {header}
+          </div>
           <UpdateButton onError={onError} />
+          {account}
         </header>
         {children}
       </div>

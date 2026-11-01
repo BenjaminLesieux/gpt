@@ -1,4 +1,4 @@
-//! Self-update (ADR 0012).
+//! Self-update (ADR 0014).
 //!
 //! Checked on launch and every few hours, downloaded in the background, and
 //! installed only when the user asks for the restart. Nothing here restarts on

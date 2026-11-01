@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { errorBody } from '../app/errors';
 import type { HubDatabase } from '../db/client';
+import { bandNameFor, createBand } from '../bands/bands';
 import { accounts } from '../db/schema';
 import { newId } from '../ids';
 import { SESSION_COOKIE, sessionCookie } from './cookie';
@@ -68,7 +69,12 @@ export async function authRoutes(fastify: FastifyInstance, opts: AuthRoutesOptio
     };
 
     try {
-      db.insert(accounts).values(account).run();
+      // A solo musician never sees the word *band* until they invite someone,
+      // but every score needs one to sit under (ADR 0012).
+      db.transaction((tx) => {
+        tx.insert(accounts).values(account).run();
+        createBand(tx, bandNameFor(email), account.id, account.createdAt);
+      });
     } catch (error) {
       // Checking first and inserting second would still race; the unique
       // index is the only thing that actually decides.

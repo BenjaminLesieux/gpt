@@ -1,4 +1,13 @@
 {
+  "signIn": {
+    "title": "Sign in to your hub",
+    "why": "Every version is signed with your account. Until you sign in, saves are not recorded.",
+    "action": "Sign in with the browser",
+    "waiting": "Waiting for the browser…",
+    "again": "Start again",
+    "hub": "Hub address",
+    "invalidHub": "Enter the hub's address, starting with https://."
+  },
   "panel": {
     "title": "Gitarpro",
     "close": "close",
@@ -44,11 +53,30 @@
     "push": {
       "sending": "sending…",
       "failed": "Couldn't send this score to its remote"
+    },
+    "land": {
+      "action": "Land on main",
+      "askFirst": "Ask the band first",
+      "landed": "Landed on main",
+      "clean": "Would land cleanly — landing is in dry run on this hub",
+      "waiting": "Waiting — the band is asked first",
+      "conflicts_one": "{{count}} bar needs a decision — see the hub",
+      "conflicts_other": "{{count}} bars need a decision — see the hub",
+      "unreadable": "The hub couldn't read this branch — nothing landed",
+      "upToDate": "Nothing to land — main already has this",
+      "mainMoved": "Someone landed at the same time — try again"
     }
   },
   "extended": {
     "title": "Gitarpro",
     "windowTitle": "Extended window",
+    "account": {
+      "signOut": "Sign out",
+      "title": "Sign out?",
+      "description": "Until you sign in again, saves are not snapshotted and no version can be named. Your files and their history stay on this machine.",
+      "cancel": "Cancel",
+      "confirm": "Sign out"
+    },
     "trackAnotherFile": "Track another file…",
     "timeline": {
       "versions": "Versions",
@@ -121,7 +149,7 @@
       "token": "Access token",
       "tokenPlaceholder": "Paste a personal access token",
       "tokenStored": "Stored — leave empty to keep it",
-      "tokenHint": "Kept in your macOS keychain, never in Gitarpro's settings file.",
+      "tokenHint": "Kept in your system keychain, never in Gitarpro's settings file.",
       "insecure": "This URL is not https, so the token would travel unencrypted.",
       "remove": "Remove remote",
       "cancel": "Cancel",
@@ -133,7 +161,15 @@
       "title": "Bring in a score from a remote",
       "description": "Paste the repository a score already lives in. Its named versions come down, and you choose where the file is saved.",
       "action": "Choose where to save…",
-      "adopted": "“{{file}}” is on disk and tracked."
+      "adopted": "“{{file}}” is on disk and tracked.",
+      "pick": "Pick one of your scores. Its named versions come down, and you choose where the file is saved.",
+      "differentHub": "Different hub…",
+      "yourScores": "Your scores",
+      "tracked": "On this machine",
+      "loadFailed": "Your scores could not be loaded",
+      "retry": "Try again",
+      "emptyTitle": "No scores yet",
+      "emptyDescription": "Scores you create or join on the hub show up here."
     },
     "claim": {
       "title": "Add “{{score}}” to this computer?",
@@ -163,6 +199,10 @@
       "restart": "Restart to update",
       "ready": "Gitarpro {{version}} is ready. Restarting takes a second; Guitar Pro is not touched.",
       "waitForSync": "A version is still on its way to the hub. Try again in a moment."
+    },
+    "link": {
+      "opened": "Now on branch “{{branch}}”.",
+      "notHere": "That score isn't on this computer. Open it on {{hub}} and press Clone."
     }
   }
 }

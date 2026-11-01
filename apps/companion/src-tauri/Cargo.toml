@@ -30,7 +30,7 @@ url = "2"
 # Native "add a file" picker. Driven from Rust, so the webview needs no
 # dialog capability of its own.
 tauri-plugin-dialog = "2"
-# Self-update from GitHub Releases (see update.rs and ADR 0012). Restarting
+# Self-update from GitHub Releases (see update.rs and ADR 0014). Restarting
 # into the new version is `AppHandle::restart`, so no process plugin.
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
@@ -65,7 +65,21 @@ thiserror = "2"
 reqwest = { version = "0.13", features = ["json"] }
 # Remote tokens (see secrets.rs). `config.json` is plain text, so nothing
 # secret may land in it. v3 rather than v4 — v4 wants rustc 1.88.
-keyring = { version = "3", default-features = false, features = ["apple-native"] }
+# Without a native feature for the platform, keyring falls back to an
+# in-memory mock and every token is gone at the next launch.
+keyring = { version = "3", default-features = false, features = [
+  "apple-native",
+  "windows-native",
+] }
+# Signing in (see auth.rs): the PKCE verifier and nonce, and the S256
+# challenge. All three were already in the lockfile through tauri and reqwest;
+# declared at those versions so nothing new is built.
+getrandom = "0.3"
+sha2 = "0.10"
+base64 = "0.22"
+# Canonical paths without Windows' `\\?\` prefix (see config::canonical).
+# Already in the tree through tauri.
+dunce = "1"
 
 # Reading the score Guitar Pro has in front (see guitar_pro.rs). The
 # accessibility calls themselves are declared by hand — five stable C symbols
@@ -84,6 +98,19 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
 core-foundation = "0.10"
 core-foundation-sys = "0.8"
 libc = "0.2"
+
+# Reading Guitar Pro's window title (see guitar_pro.rs). Already in the tree
+# through global-hotkey, at this version.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# Windows starts a second process for every launch and every `gitarpro://`
+# link; this hands both to the one already running. macOS never starts the
+# second copy (see `RunEvent::Reopen` in lib.rs).
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [dev-dependencies]
 tempfile = "3"

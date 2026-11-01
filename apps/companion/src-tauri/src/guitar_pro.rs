@@ -3,7 +3,8 @@
 //! Guitar Pro is a Qt app: its windows leave `AXDocument` empty, so the
 //! accessibility API can only hand us the window *title*, which is the score's
 //! display name. There is no path to be had — callers match the name against
-//! tracked files, and settle for no answer when it is ambiguous.
+//! tracked files, and settle for no answer when it is ambiguous. Windows has
+//! the same title, read straight off the window, with no permission to ask.
 
 use serde::Serialize;
 
@@ -16,7 +17,7 @@ pub enum Access {
     /// invisible to us until they do.
     Denied,
     /// No window detection on this platform. Part of the contract on every
-    /// platform so the panel's copy doesn't change shape when Windows lands.
+    /// platform so the panel's copy doesn't change shape off macOS and Windows.
     #[allow(dead_code)]
     Unsupported,
 }
@@ -41,6 +42,19 @@ pub fn request_access() {
 /// "Riff" never adopts "Riff v2".
 pub fn document_matches(title: &str, name: &str) -> bool {
     title.trim().trim_end_matches(['*', '•']).trim_end() == name
+}
+
+/// Qt appends the application's name to a title everywhere but macOS:
+/// "Blackbird* - Guitar Pro 8".
+// ponytail: the suffix is Qt's documented format, not one seen on a real
+// Guitar Pro install; if Windows titles come out differently, this is the
+// one place to teach.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn without_app_name(title: &str) -> &str {
+    match title.rsplit_once(" - ") {
+        Some((score, app)) if app.starts_with("Guitar Pro") => score,
+        _ => title,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -164,7 +178,86 @@ mod imp {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+mod imp {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use std::path::Path;
+
+    use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, GW_OWNER,
+    };
+
+    use super::Access;
+
+    /// Guitar Pro 8, then 7.
+    const EXECUTABLES: [&str; 2] = ["GuitarPro.exe", "GuitarPro7.exe"];
+
+    /// Nothing to grant: any process may read another's window titles.
+    pub fn access() -> Access {
+        Access::Granted
+    }
+
+    /// `EnumWindows` walks top-level windows front to back, so the first
+    /// Guitar Pro one is the one in front. Owned windows are skipped — a
+    /// dialog up in front of the score must not be mistaken for the score.
+    pub fn open_document() -> Option<String> {
+        let mut found: Option<String> = None;
+        unsafe { EnumWindows(Some(visit), &mut found as *mut _ as LPARAM) };
+        let title = super::without_app_name(found?.trim()).trim().to_owned();
+        (!title.is_empty()).then_some(title)
+    }
+
+    pub fn request_access() {}
+
+    unsafe extern "system" fn visit(window: HWND, found: LPARAM) -> BOOL {
+        if IsWindowVisible(window) == 0
+            || !GetWindow(window, GW_OWNER).is_null()
+            || !is_guitar_pro(window)
+        {
+            return 1;
+        }
+        // Another process's window: the caption is read from the system's
+        // copy rather than asked of the window, so a busy Guitar Pro cannot
+        // stall the panel.
+        let mut text = [0u16; 512];
+        let len = GetWindowTextW(window, text.as_mut_ptr(), text.len() as i32);
+        if len <= 0 {
+            return 1;
+        }
+        *(found as *mut Option<String>) = Some(String::from_utf16_lossy(&text[..len as usize]));
+        0
+    }
+
+    unsafe fn is_guitar_pro(window: HWND) -> bool {
+        let mut pid = 0;
+        GetWindowThreadProcessId(window, &mut pid);
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if process.is_null() {
+            return false;
+        }
+        let mut image = [0u16; 1024];
+        let mut len = image.len() as u32;
+        let ok =
+            QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, image.as_mut_ptr(), &mut len);
+        CloseHandle(process);
+        if ok == 0 {
+            return false;
+        }
+        let image = OsString::from_wide(&image[..len as usize]);
+        Path::new(&image)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| EXECUTABLES.iter().any(|exe| exe.eq_ignore_ascii_case(name)))
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 mod imp {
     use super::Access;
 
@@ -196,5 +289,15 @@ mod tests {
         assert!(!document_matches("Blackbird v2", "Blackbird"));
         assert!(!document_matches("Blackbird", "Blackbird v2"));
         assert!(!document_matches("", "Blackbird"));
+    }
+
+    #[test]
+    fn the_windows_title_suffix_comes_off_and_nothing_else_does() {
+        assert_eq!(without_app_name("Blackbird* - Guitar Pro 8"), "Blackbird*");
+        assert_eq!(
+            without_app_name("Rock - Live - Guitar Pro 7"),
+            "Rock - Live"
+        );
+        assert_eq!(without_app_name("Rock - Live"), "Rock - Live");
     }
 }

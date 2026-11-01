@@ -28,6 +28,10 @@ pub enum Error {
     #[error("nothing to name in {0}: it is already the newest version")]
     NothingToName(String),
 
+    /// Every version has an author, and signed out there is nobody to sign as.
+    #[error("sign in to make a version")]
+    SignedOut,
+
     #[error("the remote refused {refname}: {reason}")]
     PushRejected { refname: String, reason: String },
 
@@ -73,6 +77,12 @@ pub enum Error {
 
     #[error("could not install the update: {0}")]
     Update(String),
+
+    #[error("{0} has no branch \"{1}\" here or on its hub")]
+    UnknownBranch(String, String),
+
+    #[error("{0} is not connected to a Gitarpro hub")]
+    NotOnHub(String),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),

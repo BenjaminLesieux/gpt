@@ -5,8 +5,10 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::auth::AuthState;
 use crate::config::TrackedFile;
-use crate::deep_link::AdoptLink;
+use crate::deep_link::{AdoptLink, OpenLink};
+use crate::error::Result;
 use crate::git::Version;
 use crate::push::PushStatus;
 
@@ -15,6 +17,8 @@ pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
 pub const CLAIM_ARRIVED: &str = "claim-arrived";
 pub const UPDATE_READY: &str = "update-ready";
+pub const SCORE_LINK_OPENED: &str = "score-link-opened";
+pub const AUTH_STATE_CHANGED: &str = "auth-state-changed";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,4 +78,36 @@ pub fn claim_arrived(app: &AppHandle, link: &AdoptLink) {
 /// A new version is downloaded and waits for the user to restart into it.
 pub fn update_ready(app: &AppHandle, version: &str) {
     let _ = app.emit(UPDATE_READY, version);
+}
+
+/// What a `gitarpro://open` link came to: `id` is the tracked file now on
+/// `branch`, `None` with no `error` means this machine does not have the score.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoreLinkOpened {
+    pub hub: String,
+    pub branch: String,
+    pub id: Option<String>,
+    pub error: Option<String>,
+}
+
+pub fn score_link_opened(app: &AppHandle, link: &OpenLink, opened: Result<Option<String>>) {
+    let (id, error) = match opened {
+        Ok(id) => (id, None),
+        Err(err) => (None, Some(err.to_string())),
+    };
+    let _ = app.emit(
+        SCORE_LINK_OPENED,
+        ScoreLinkOpened {
+            hub: link.hub.clone(),
+            branch: link.branch.clone(),
+            id,
+            error,
+        },
+    );
+}
+
+/// Signed in, signed out, or waiting on the browser. Both windows gate on it.
+pub fn auth_state_changed(app: &AppHandle, state: AuthState) {
+    let _ = app.emit(AUTH_STATE_CHANGED, state);
 }

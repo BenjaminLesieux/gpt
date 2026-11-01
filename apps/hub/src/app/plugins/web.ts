@@ -3,7 +3,7 @@ import staticFiles from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 
 /** Prefixes the JSON API and git own; the SPA never answers for these. */
-const API_PREFIXES = ['/auth/', '/scores', '/git/', '/health', '/invites'];
+const API_PREFIXES = ['/auth/', '/scores', '/git/', '/health', '/invites', '/companion/'];
 
 /**
  * The one client route that lives inside an API prefix: a score's own page,

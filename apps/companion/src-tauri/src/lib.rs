@@ -5,6 +5,7 @@
 //! TypeScript (`packages/gpt-core`).
 
 mod adopt;
+mod auth;
 mod branch;
 mod commands;
 mod config;
@@ -41,11 +42,24 @@ pub const EXTENDED_LABEL: &str = "extended";
 const HIDE_PANEL_ON_BLUR: bool = !cfg!(debug_assertions);
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // First, so a second copy exits before it builds anything. Its link is
+    // forwarded to the deep-link handler; the window is this event's share,
+    // like `RunEvent::Reopen` on macOS.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        if let Err(err) = window::open_extended(app) {
+            eprintln!("[gitarpro] could not reopen the window: {err}");
+        }
+    }));
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         // The scheme itself is declared in tauri.conf.json and registered by
-        // the bundle's Info.plist, so this can only be exercised from an
-        // installed app — never under `tauri dev`.
+        // the bundle's Info.plist (the NSIS installer's registry keys on
+        // Windows), so this can only be exercised from an installed app —
+        // never under `tauri dev`.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -79,6 +93,14 @@ pub fn run() {
             commands::adopt_claim,
             commands::update_ready,
             commands::restart_to_update,
+            commands::land_branch,
+            commands::set_ask_first,
+            commands::ask_first,
+            commands::scores,
+            commands::adopt_score,
+            commands::auth_state,
+            commands::sign_in,
+            commands::sign_out,
         ])
         .setup(|app| {
             // The resting state: menu-bar resident, no dock icon of its own.
@@ -90,11 +112,12 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
 
             let state = AppState::load(data_dir)?;
-            state.watcher.resync(&state.tracked_paths())?;
+            state.watch()?;
             app.manage(state);
             watcher::start(app.handle().clone());
             push::start(app.handle().clone());
             update::start(app.handle().clone());
+            auth::start(app.handle().clone());
 
             tray::init(app.handle())?;
             shortcut::init(app.handle())?;

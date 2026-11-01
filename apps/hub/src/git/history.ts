@@ -24,8 +24,12 @@ export interface Version {
   id: string;
   /** What the musician typed. Empty is ordinary and never invented over. */
   message: string;
-  /** Whoever authored it. Accounts have no display name yet. */
-  authorEmail: string;
+  /**
+   * Whoever authored it. Accounts have no display name yet. Absent for the
+   * companion's placeholder, which every version was signed with before the
+   * companion had an account: it names nobody.
+   */
+  authorEmail?: string;
   /** ISO 8601, with the author's offset — when *they* saved, not when it arrived. */
   at: string;
   /** One normally, two for a landing, none for the first version. */
@@ -92,11 +96,11 @@ const MAX_BUFFER = 16 * 1024 * 1024;
  */
 export async function readHistory(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   page: { limit?: number; skip?: number } = {}
 ): Promise<History | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
 
   const refs = await readBranches(repository);
@@ -153,11 +157,11 @@ export async function readHistory(
  */
 export async function readVersionScore(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string,
   commit: string
 ): Promise<Buffer | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
   if (!/^[0-9a-f]{7,64}$/.test(commit)) return null;
 
@@ -187,10 +191,10 @@ export async function readVersionScore(
  */
 export async function readBranchPoints(
   root: string,
-  accountId: string,
+  bandId: string,
   scoreId: string
 ): Promise<BranchPoint[] | null> {
-  const repository = repositoryPath(root, accountId, scoreId);
+  const repository = repositoryPath(root, bandId, scoreId);
   if (!repository) return null;
 
   const refs = (await readBranches(repository)).filter((ref) => ref.name !== MAIN_BRANCH);
@@ -204,6 +208,45 @@ export async function readBranchPoints(
       base: await mergeBase(repository, ref.name),
     }))
   );
+}
+
+/** One branch measured against main by sha, so a landing writes against exactly what it read. */
+export interface BranchAgainstMain {
+  /** Main's tip, or null before anything has landed on it. */
+  main: string | null;
+  tip: string;
+  base: string | null;
+  ahead: number;
+}
+
+/** Null for a bad id, for a branch that does not exist, and for main itself. */
+export async function readBranchAgainstMain(
+  root: string,
+  bandId: string,
+  scoreId: string,
+  name: string
+): Promise<BranchAgainstMain | null> {
+  const repository = repositoryPath(root, bandId, scoreId);
+  if (!repository || name === MAIN_BRANCH) return null;
+
+  const refs = await readBranches(repository);
+  const tip = refs.find((ref) => ref.name === name)?.tip;
+  if (!tip) return null;
+
+  const main = refs.find((ref) => ref.name === MAIN_BRANCH)?.tip ?? null;
+  if (!main) {
+    const ahead = await git(repository, ['rev-list', '--count', tip]);
+    return { main, tip, base: null, ahead: Number(ahead) };
+  }
+
+  const [base, ahead] = await Promise.all([
+    git(repository, ['merge-base', main, tip])
+      .then((out) => out.trim() || null)
+      .catch(() => null),
+    git(repository, ['rev-list', '--count', `${main}..${tip}`]),
+  ]);
+
+  return { main, tip, base, ahead: Number(ahead) };
 }
 
 interface Ref {
@@ -258,6 +301,8 @@ async function mergeBase(repository: string, name: string): Promise<string | nul
     .catch(() => null);
 }
 
+const PLACEHOLDER_EMAIL = 'companion@gitarpro.app';
+
 function parseLog(out: string): Version[] {
   return out
     .split(RECORD)
@@ -270,7 +315,7 @@ function parseLog(out: string): Version[] {
         // %B keeps the trailing newline git adds. Trimming the ends and not
         // the middle: a two-line message stays two lines.
         message: (message ?? '').trim(),
-        authorEmail,
+        ...(authorEmail === PLACEHOLDER_EMAIL ? {} : { authorEmail }),
         at,
         parents: parents ? parents.split(' ').filter(Boolean) : [],
       };

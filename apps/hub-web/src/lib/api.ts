@@ -84,7 +84,8 @@ export interface Version {
   id: string;
   /** The musician's own words. Empty is ordinary and is never rewritten. */
   message: string;
-  authorEmail: string;
+  /** Absent when the version names nobody. */
+  authorEmail?: string;
   /** ISO, with the author's own offset. */
   at: string;
   /** One normally, two for a landing, none for the first version. */
@@ -97,6 +98,42 @@ export interface Branch {
   name: string;
   tip: string;
   ahead: number;
+}
+
+/** One place two lines of work both changed. */
+export interface Conflict {
+  /** 1-based; null when it is not a bar at all — tempo, title. */
+  bar: number | null;
+  /** Null when it is every track. */
+  track: string | null;
+  /** The merge's own words. A tooltip, never the headline. */
+  description: string;
+}
+
+/** What the last press of *land* found. `tip` is the tip it was worked out for. */
+export type Landing =
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[]; tip: string }
+  | { status: 'waiting'; tip: string }
+  | { status: 'unreadable'; tip: string };
+
+export type LandOutcome =
+  | { status: 'landed'; commit: string; dryRun: false }
+  | { status: 'clean'; dryRun: true }
+  | { status: 'waiting' }
+  | { status: 'conflicts'; cleanBars: number; conflicts: Conflict[] }
+  | { status: 'unreadable' }
+  | { status: 'up_to_date' };
+
+/** A branch as the score page lists it, with who put it there and what it touches. */
+export interface BranchDetail extends Branch {
+  /** ISO of the tip. */
+  at: string;
+  /** Email of whoever pushed it; null when nobody can be named. */
+  pushedBy: string | null;
+  scope: VersionScope | null;
+  askFirst: boolean;
+  /** Null until someone pressed land, and again once it has. */
+  landing: Landing | null;
 }
 
 export interface History {
@@ -142,6 +179,14 @@ export interface InvitePeek {
   invitedBy: string;
 }
 
+/** A companion signed in to this account — a device, revocable from here. */
+export interface CompanionToken {
+  id: string;
+  device: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 /** One score and its band, which the list route does not carry. */
 export interface ScoreDetail {
   id: string;
@@ -156,7 +201,7 @@ export class HubError extends Error {
   constructor(
     readonly code: string,
     message: string,
-    readonly status: number
+    readonly status: number,
   ) {
     super(message);
     this.name = 'HubError';
@@ -186,7 +231,7 @@ async function request<T>(
   path: string,
   init?: RequestInit,
   /** For a body that is not JSON. Declared only when there is a body. */
-  contentType = 'application/json'
+  contentType = 'application/json',
 ): Promise<T> {
   let response: Response;
 
@@ -207,11 +252,13 @@ async function request<T>(
   const body = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const error = (body as { error?: { code?: string; message?: string } } | null)?.error;
+    const error = (
+      body as { error?: { code?: string; message?: string } } | null
+    )?.error;
     throw new HubError(
       error?.code ?? 'unknown',
       error?.message ?? i18n.t('common.genericError'),
-      response.status
+      response.status,
     );
   }
 
@@ -255,7 +302,7 @@ export const api = {
     request<ImportedScore>(
       `/scores/${encodeURIComponent(id)}/import`,
       { method: 'POST', body: file },
-      'application/octet-stream'
+      'application/octet-stream',
     ),
 
   /**
@@ -272,13 +319,31 @@ export const api = {
   readHistory: (id: string, skip = 0) =>
     request<History>(`/scores/${encodeURIComponent(id)}/history?skip=${skip}`),
 
+  readBranches: (id: string) =>
+    request<{ branches: BranchDetail[] }>(`/scores/${encodeURIComponent(id)}/branches`),
+
+  /** `override` lands a clean branch the band was asked about first. */
+  landBranch: (id: string, branch: string) =>
+    request<LandOutcome>(
+      `/scores/${encodeURIComponent(id)}/branches/${encodeURIComponent(branch)}/land`,
+      { method: 'POST', body: JSON.stringify({ override: true }) }
+    ),
+
+  setAskFirst: (id: string, branch: string, askFirst: boolean) =>
+    request<{ askFirst: boolean }>(
+      `/scores/${encodeURIComponent(id)}/branches/${encodeURIComponent(branch)}/ask-first`,
+      { method: 'PUT', body: JSON.stringify({ askFirst }) }
+    ),
+
   /**
    * Mints the claim behind the Clone button. The response carries no
    * credential: what it buys is minted on redemption, on the machine the
    * score is arriving at.
    */
   createCloneClaim: (id: string) =>
-    request<CloneClaim>(`/scores/${encodeURIComponent(id)}/clone-claims`, { method: 'POST' }),
+    request<CloneClaim>(`/scores/${encodeURIComponent(id)}/clone-claims`, {
+      method: 'POST',
+    }),
 
   /**
    * Mints a token for a score that already exists — the retry after a
@@ -293,21 +358,38 @@ export const api = {
 
   /** Mints the link that puts a second person on a score. */
   createInvite: (id: string) =>
-    request<ScoreInvite>(`/scores/${encodeURIComponent(id)}/invites`, { method: 'POST' }),
+    request<ScoreInvite>(`/scores/${encodeURIComponent(id)}/invites`, {
+      method: 'POST',
+    }),
 
   /**
    * What the link names, without spending it. The one call in this client
    * that works signed out — being asked to sign up before being told what
    * for is how an invite gets ignored.
    */
-  peekInvite: (code: string) => request<InvitePeek>(`/invites/${encodeURIComponent(code)}`),
+  peekInvite: (code: string) =>
+    request<InvitePeek>(`/invites/${encodeURIComponent(code)}`),
 
   /** Spends it. Needs a session: it puts an *account* on a score. */
   acceptInvite: (code: string) =>
     request<{ id: string; name: string; role: 'member' }>(
       `/invites/${encodeURIComponent(code)}`,
-      { method: 'POST' }
+      { method: 'POST' },
     ),
+
+  /** A code for the companion that opened `/connect`, bound to its PKCE challenge. */
+  createCompanionCode: (challenge: string) =>
+    request<{ code: string; expiresAt: string }>('/companion/codes', {
+      method: 'POST',
+      body: JSON.stringify({ challenge, challengeMethod: 'S256' }),
+    }),
+
+  listCompanionTokens: () => request<CompanionToken[]>('/companion/tokens'),
+
+  revokeCompanionToken: (id: string) =>
+    request<void>(`/companion/tokens/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 };
 
 /**

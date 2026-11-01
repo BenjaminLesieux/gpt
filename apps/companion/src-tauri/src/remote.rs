@@ -242,7 +242,7 @@ mod tests {
         let remote_path = dir.path().join("remote");
         let remote = open(&remote_path);
 
-        git::commit_named(&local, BRANCH, b"riff bytes", "Intro").unwrap();
+        git::commit_named(&local, BRANCH, b"riff bytes", "Intro", &git::me()).unwrap();
         push(&local, BRANCH, &local_remote(&remote_path), None).unwrap();
 
         let landed = git::list(&remote, &branch_ref(BRANCH), None).unwrap();
@@ -261,8 +261,8 @@ mod tests {
         let remote_path = dir.path().join("remote");
         let remote = open(&remote_path);
 
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
-        git::commit_snapshot(&local, BRANCH, b"riff, mid-edit").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
+        git::commit_snapshot(&local, BRANCH, b"riff, mid-edit", &git::me()).unwrap();
         push(&local, BRANCH, &local_remote(&remote_path), None).unwrap();
 
         assert!(git::list(&remote, git::SNAPSHOT_REF, None)
@@ -277,7 +277,7 @@ mod tests {
         let remote_path = dir.path().join("remote");
         open(&remote_path);
 
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
         let remote = local_remote(&remote_path);
 
         push(&local, BRANCH, &remote, None).unwrap();
@@ -294,11 +294,18 @@ mod tests {
         // Two scores that share a remote and know nothing of each other — the
         // second machine, in miniature.
         let first = open(&dir.path().join("first"));
-        git::commit_named(&first, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&first, BRANCH, b"riff", "Intro", &git::me()).unwrap();
         push(&first, BRANCH, &descriptor, None).unwrap();
 
         let second = open(&dir.path().join("second"));
-        git::commit_named(&second, BRANCH, b"different riff", "Other intro").unwrap();
+        git::commit_named(
+            &second,
+            BRANCH,
+            b"different riff",
+            "Other intro",
+            &git::me(),
+        )
+        .unwrap();
 
         let refused = push(&second, BRANCH, &descriptor, None).unwrap_err();
         assert!(matches!(refused, Error::PushRejected { .. }), "{refused}");
@@ -314,7 +321,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let local = open(&dir.path().join("local"));
 
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
 
         assert_eq!(
             compare(&local, BRANCH, None).unwrap(),
@@ -330,8 +337,8 @@ mod tests {
         open(&remote_path);
         let descriptor = local_remote(&remote_path);
 
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
-        git::commit_named(&local, BRANCH, b"riff II", "Second guitar").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
+        git::commit_named(&local, BRANCH, b"riff II", "Second guitar", &git::me()).unwrap();
 
         // An empty remote answers "I have no main", which is an answer.
         fetch(&local, &descriptor, None).unwrap();
@@ -350,7 +357,7 @@ mod tests {
         open(&remote_path);
         let descriptor = local_remote(&remote_path);
 
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
         push(&local, BRANCH, &descriptor, None).unwrap();
         fetch(&local, &descriptor, None).unwrap();
 
@@ -369,8 +376,8 @@ mod tests {
 
         // The other machine commits twice and pushes.
         let elsewhere = open(&dir.path().join("elsewhere"));
-        git::commit_named(&elsewhere, BRANCH, b"riff", "Intro").unwrap();
-        git::commit_named(&elsewhere, BRANCH, b"riff II", "Second guitar").unwrap();
+        git::commit_named(&elsewhere, BRANCH, b"riff", "Intro", &git::me()).unwrap();
+        git::commit_named(&elsewhere, BRANCH, b"riff II", "Second guitar", &git::me()).unwrap();
         push(&elsewhere, BRANCH, &descriptor, None).unwrap();
 
         // This one has never seen any of it.
@@ -393,7 +400,7 @@ mod tests {
         // A shared starting point, so this is divergence and not two
         // unrelated histories.
         let here = open(&dir.path().join("here"));
-        git::commit_named(&here, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&here, BRANCH, b"riff", "Intro", &git::me()).unwrap();
         push(&here, BRANCH, &descriptor, None).unwrap();
 
         let elsewhere = open(&dir.path().join("elsewhere"));
@@ -408,8 +415,15 @@ mod tests {
             .unwrap();
 
         // Both sides now write a bridge over the same version.
-        git::commit_named(&here, BRANCH, b"riff, bridge A", "Bridge").unwrap();
-        git::commit_named(&elsewhere, BRANCH, b"riff, bridge B", "A different bridge").unwrap();
+        git::commit_named(&here, BRANCH, b"riff, bridge A", "Bridge", &git::me()).unwrap();
+        git::commit_named(
+            &elsewhere,
+            BRANCH,
+            b"riff, bridge B",
+            "A different bridge",
+            &git::me(),
+        )
+        .unwrap();
         push(&elsewhere, BRANCH, &descriptor, None).unwrap();
         fetch(&here, &descriptor, None).unwrap();
 
@@ -435,9 +449,16 @@ mod tests {
         let descriptor = local_remote(&remote_path);
 
         let elsewhere = open(&dir.path().join("elsewhere"));
-        git::commit_named(&elsewhere, git::MAIN_BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&elsewhere, git::MAIN_BRANCH, b"riff", "Intro", &git::me()).unwrap();
         push(&elsewhere, git::MAIN_BRANCH, &descriptor, None).unwrap();
-        git::commit_named(&elsewhere, BRANCH, b"riff and bass", "Bass line").unwrap();
+        git::commit_named(
+            &elsewhere,
+            BRANCH,
+            b"riff and bass",
+            "Bass line",
+            &git::me(),
+        )
+        .unwrap();
         push(&elsewhere, BRANCH, &descriptor, None).unwrap();
 
         let here = open(&dir.path().join("here"));
@@ -466,7 +487,7 @@ mod tests {
         let descriptor = local_remote(&remote_path);
 
         let here = open(&dir.path().join("here"));
-        git::commit_named(&here, BRANCH, b"riff and bass", "Bass line").unwrap();
+        git::commit_named(&here, BRANCH, b"riff and bass", "Bass line", &git::me()).unwrap();
         push(&here, BRANCH, &descriptor, None).unwrap();
         fetch(&here, &descriptor, None).unwrap();
 
@@ -501,7 +522,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         let here = open(&dir.path().join("here"));
-        git::commit_named(&here, &branch, b"riff and bass", "Bass line").unwrap();
+        git::commit_named(&here, &branch, b"riff and bass", "Bass line", &git::me()).unwrap();
         push(&here, &branch, &remote, Some(&token)).unwrap();
 
         let elsewhere = open(&dir.path().join("elsewhere"));
@@ -521,11 +542,11 @@ mod tests {
         let descriptor = local_remote(&remote_path);
 
         let elsewhere = open(&dir.path().join("elsewhere"));
-        git::commit_named(&elsewhere, BRANCH, b"theirs", "Theirs").unwrap();
+        git::commit_named(&elsewhere, BRANCH, b"theirs", "Theirs", &git::me()).unwrap();
         push(&elsewhere, BRANCH, &descriptor, None).unwrap();
 
         let here = open(&dir.path().join("here"));
-        git::commit_named(&here, BRANCH, b"ours", "Ours").unwrap();
+        git::commit_named(&here, BRANCH, b"ours", "Ours", &git::me()).unwrap();
         fetch(&here, &descriptor, None).unwrap();
 
         assert_eq!(
@@ -538,7 +559,7 @@ mod tests {
     fn a_token_remote_with_nothing_in_the_keychain_fails_to_authenticate() {
         let dir = tempfile::tempdir().unwrap();
         let local = open(&dir.path().join("local"));
-        git::commit_named(&local, BRANCH, b"riff", "Intro").unwrap();
+        git::commit_named(&local, BRANCH, b"riff", "Intro", &git::me()).unwrap();
 
         let remote = Remote {
             url: dir.path().join("remote").to_string_lossy().into_owned(),

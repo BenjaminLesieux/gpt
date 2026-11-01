@@ -67,7 +67,17 @@ token cannot ask the question either, because `readScoreToken` resolves to
 exactly one score and that one-to-one mapping *is* the isolation guarantee.
 Listing an account's scores from companion therefore means a new
 account-scoped credential — a new thing to leak — and it earns its keep only
-once someone has more scores than they care to paste. Not yet.
+once someone has more scores than they care to paste.
+
+That credential now exists: ADR 0011 signs the companion in, and its account
+token can list the account's scores (`GET /companion/scores`) and mint a score
+token for one (`POST /companion/scores/:id/token`). The adopt dialog lists them
+and marks the ones already tracked here, by remote URL. Picking one asks where
+to save first and mints the token after, as a claim does, so a cancelled save
+dialog leaves nothing on the hub; the minted triple then reaches the same
+`adopt_remote` a pasted one does, so adoption itself did not change. The paste stays, behind
+*different hub*, for self-hosters and for hubs the companion is not signed in
+to.
 
 ## 2. Import
 
@@ -138,8 +148,6 @@ carry alphaTab into the Docker image for the sake of a zip utility.
 
 ## Still not done
 
-- **Listing an account's scores in companion**, per the fork above. Wants an
-  account-scoped credential first.
 - **Whether the score list should distinguish an empty score.** It deliberately
   does not: a score with no versions is the ordinary state of a freshly created
   one, so there is nothing to flag. If that changes, note that `GET /scores`
