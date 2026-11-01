@@ -185,6 +185,13 @@ impl Queue {
         lock(&self.statuses).get(id).cloned()
     }
 
+    /// Queued or being attempted, for any file.
+    pub fn any_pending(&self) -> bool {
+        lock(&self.statuses)
+            .values()
+            .any(|status| status.state == PushState::Pending)
+    }
+
     /// Dropped along with the remote it described.
     pub fn forget(&self, id: &str) {
         lock(&self.waiting).remove(id);

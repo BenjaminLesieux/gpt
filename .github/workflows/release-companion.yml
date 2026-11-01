@@ -1,0 +1,93 @@
+name: Release companion
+
+on:
+  push:
+    tags:
+      # Its own sequence beside hub-v*; see docs/companion-release.md.
+      - 'companion-v*'
+
+permissions:
+  # Creating the release, uploading its assets, and moving the updater feed.
+  contents: write
+
+env:
+  # nx.json still carries an nxCloudId this workspace was never claimed
+  # against, so every task otherwise ends in a 401.
+  NX_NO_CLOUD: 'true'
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # tauri.conf.json is the version. A tag that disagrees with it would
+      # publish a feed announcing one version and shipping another.
+      - name: Tag matches tauri.conf.json
+        run: |
+          version=$(jq -r .version apps/companion/src-tauri/tauri.conf.json)
+          test "$GITHUB_REF_NAME" = "companion-v$version" || {
+            echo "::error::tag $GITHUB_REF_NAME but tauri.conf.json says $version"
+            exit 1
+          }
+
+      # pnpm must exist before setup-node, otherwise `cache: 'pnpm'` has no
+      # store path to resolve.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          # In step with ci.yml.
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # One universal binary serves Apple Silicon and Intel alike, so the
+      # feed carries one archive for both.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/companion/src-tauri -> target
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the update archives. The matching public key is baked into
+          # every build already shipped (ADR 0014), so losing this key means
+          # every install has to be redone by hand.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Ad-hoc: no Apple Developer account yet (ADR 0014).
+          APPLE_SIGNING_IDENTITY: '-'
+        with:
+          projectPath: apps/companion
+          tauriScript: pnpm tauri
+          # Updater artifacts only here, merged over tauri.conf.json: the CLI
+          # refuses to bundle without the private key once they are on, and a
+          # local `nx bundle` has no business holding it.
+          args: >-
+            --target universal-apple-darwin
+            --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          tagName: ${{ github.ref_name }}
+          releaseName: Gitarpro companion ${{ github.ref_name }}
+          releaseBody: Install the .dmg once; Gitarpro updates itself from then on.
+          releaseDraft: false
+
+      # Every build asks companion-latest/latest.json, never releases/latest:
+      # hub-v* releases share this repository and would take that slot.
+      - name: Point the updater feed at this release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir feed
+          gh release view companion-latest >/dev/null 2>&1 ||
+            gh release create companion-latest --prerelease \
+              --title 'Companion updater feed' \
+              --notes 'Read by installed companions. Moved by release-companion.yml on every companion-v* tag; do not delete.'
+          gh release upload companion-latest feed/latest.json --clobber

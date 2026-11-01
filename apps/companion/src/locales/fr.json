@@ -195,6 +195,11 @@
       "broughtIn": "« {{version}} » est maintenant la partition sur le disque.",
       "broughtInWithSafety": "« {{version}} » est maintenant la partition sur le disque — le contenu précédent a été mis en instantané."
     },
+    "update": {
+      "restart": "Redémarrer pour mettre à jour",
+      "ready": "Gitarpro {{version}} est prêt. Le redémarrage prend une seconde ; Guitar Pro n’est pas touché.",
+      "waitForSync": "Une version est encore en route vers le hub. Réessaie dans un instant."
+    },
     "link": {
       "opened": "Sur la branche « {{branch}} ».",
       "notHere": "Cette partition n'est pas sur cet ordinateur. Ouvre-la sur {{hub}} et clique sur Cloner."

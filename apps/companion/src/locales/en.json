@@ -195,6 +195,11 @@
       "broughtIn": "“{{version}}” is now the score on disk.",
       "broughtInWithSafety": "“{{version}}” is now the score on disk — what was there was snapshotted."
     },
+    "update": {
+      "restart": "Restart to update",
+      "ready": "Gitarpro {{version}} is ready. Restarting takes a second; Guitar Pro is not touched.",
+      "waitForSync": "A version is still on its way to the hub. Try again in a moment."
+    },
     "link": {
       "opened": "Now on branch “{{branch}}”.",
       "notHere": "That score isn't on this computer. Open it on {{hub}} and press Clone."

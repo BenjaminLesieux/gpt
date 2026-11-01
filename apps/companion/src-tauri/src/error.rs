@@ -75,6 +75,9 @@ pub enum Error {
     #[error("\"{0}\" cannot be used as a branch name")]
     InvalidBranch(String),
 
+    #[error("could not install the update: {0}")]
+    Update(String),
+
     #[error("{0} has no branch \"{1}\" here or on its hub")]
     UnknownBranch(String, String),
 

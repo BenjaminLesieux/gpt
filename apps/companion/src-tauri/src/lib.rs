@@ -24,6 +24,7 @@ mod secrets;
 mod shortcut;
 mod state;
 mod tray;
+mod update;
 mod watcher;
 mod window;
 
@@ -60,6 +61,7 @@ pub fn run() {
         // Windows), so this can only be exercised from an installed app —
         // never under `tauri dev`.
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::toggle_panel,
             commands::hide_panel,
@@ -89,6 +91,8 @@ pub fn run() {
             commands::pick_and_adopt_remote,
             commands::peek_claim,
             commands::adopt_claim,
+            commands::update_ready,
+            commands::restart_to_update,
             commands::land_branch,
             commands::set_ask_first,
             commands::ask_first,
@@ -112,6 +116,7 @@ pub fn run() {
             app.manage(state);
             watcher::start(app.handle().clone());
             push::start(app.handle().clone());
+            update::start(app.handle().clone());
             auth::start(app.handle().clone());
 
             tray::init(app.handle())?;

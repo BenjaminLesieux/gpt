@@ -32,6 +32,7 @@ import { RestoreDialog } from './RestoreDialog';
 import { ScoreStage, StageMessage, StageSpinner } from './ScoreStage';
 import { SyncBar } from './SyncBar';
 import { Timeline } from './Timeline';
+import { UpdateButton } from './UpdateButton';
 import { useHistory } from './useHistory';
 import { useLibrary } from './useLibrary';
 import { useSync } from './useSync';
@@ -189,7 +190,13 @@ export function ExtendedApp() {
   );
 
   if (auth.state?.kind !== 'signedIn') {
-    return <Shell>{auth.state && <SignIn auth={auth} />}</Shell>;
+    // Updates stay reachable signed out: an update may be what fixes sign-in.
+    return (
+      <Shell onError={setFailure}>
+        {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
+        {auth.state && <SignIn auth={auth} />}
+      </Shell>
+    );
   }
 
   const account = (
@@ -198,7 +205,7 @@ export function ExtendedApp() {
 
   if (!library.loading && library.files.length === 0) {
     return (
-      <Shell account={account}>
+      <Shell account={account} onError={setFailure}>
         {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
         <NoTrackedFiles
           onAddFile={() => void library.addFile()}
@@ -213,6 +220,7 @@ export function ExtendedApp() {
   return (
     <Shell
       account={account}
+      onError={setFailure}
       header={
         library.selected && (
           <>
@@ -324,10 +332,12 @@ export function ExtendedApp() {
 function Shell({
   header,
   account,
+  onError,
   children,
 }: {
   header?: React.ReactNode;
   account?: React.ReactNode;
+  onError(message: string): void;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -349,6 +359,7 @@ function Shell({
           <div className="flex min-w-0 flex-1 items-center gap-4" data-tauri-drag-region>
             {header}
           </div>
+          <UpdateButton onError={onError} />
           {account}
         </header>
         {children}

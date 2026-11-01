@@ -465,6 +465,25 @@ export function adoptClaim(
   return invoke('adopt_claim', { hub, claim });
 }
 
+// ── Updates ──────────────────────────────────────────────────────────────
+
+/** The version downloaded and waiting for a restart, or `null`. */
+export function updateReady(): Promise<string | null> {
+  return invoke('update_ready');
+}
+
+export function onUpdateReady(handler: (version: string) => void): Promise<UnlistenFn> {
+  return listen<string>('update-ready', ({ payload }) => handler(payload));
+}
+
+/**
+ * Installs and restarts. Resolves `false` without restarting while a named
+ * version is still on its way to the hub — the push queue lives in memory.
+ */
+export function restartToUpdate(): Promise<boolean> {
+  return invoke('restart_to_update');
+}
+
 // ── Account ──────────────────────────────────────────────────────────────
 
 /**

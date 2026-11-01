@@ -612,6 +612,17 @@ pub fn open_extended_window(app: AppHandle) -> Result<()> {
     crate::window::open_extended(&app).map_err(Error::from)
 }
 
+/// The version downloaded and waiting for a restart, if any.
+#[tauri::command]
+pub fn update_ready(app: AppHandle) -> Option<String> {
+    crate::update::version(&app)
+}
+
+#[tauri::command]
+pub fn restart_to_update(app: AppHandle) -> Result<bool> {
+    crate::update::install_and_restart(&app)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

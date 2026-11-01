@@ -16,6 +16,7 @@ pub const FILE_SAVED: &str = "file-saved";
 pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
 pub const CLAIM_ARRIVED: &str = "claim-arrived";
+pub const UPDATE_READY: &str = "update-ready";
 pub const SCORE_LINK_OPENED: &str = "score-link-opened";
 pub const AUTH_STATE_CHANGED: &str = "auth-state-changed";
 
@@ -72,6 +73,11 @@ pub fn claim_arrived(app: &AppHandle, link: &AdoptLink) {
             claim: link.claim.clone(),
         },
     );
+}
+
+/// A new version is downloaded and waits for the user to restart into it.
+pub fn update_ready(app: &AppHandle, version: &str) {
+    let _ = app.emit(UPDATE_READY, version);
 }
 
 /// What a `gitarpro://open` link came to: `id` is the tracked file now on
