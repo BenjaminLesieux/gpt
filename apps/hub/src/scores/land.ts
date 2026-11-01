@@ -48,7 +48,7 @@ export type LandOutcome =
 export interface LandRequest {
   db: HubDatabase;
   gitRoot: string;
-  ownerId: string;
+  bandId: string;
   scoreId: string;
   branch: string;
   /** Lands a clean branch even though it asks the band first. */
@@ -82,9 +82,9 @@ export function land(request: LandRequest): Promise<LandOutcome> {
 }
 
 async function attempt(request: LandRequest): Promise<LandOutcome> {
-  const { db, gitRoot, ownerId, scoreId, branch } = request;
+  const { db, gitRoot, bandId, scoreId, branch } = request;
 
-  const point = await readBranchAgainstMain(gitRoot, ownerId, scoreId, branch);
+  const point = await readBranchAgainstMain(gitRoot, bandId, scoreId, branch);
   if (!point) return { status: 'no_such_branch' };
 
   if (point.ahead === 0) {
@@ -113,7 +113,7 @@ async function attempt(request: LandRequest): Promise<LandOutcome> {
   record(db, scoreId, branch, null);
   if (!request.writes) return { status: 'clean', dryRun: true };
 
-  const written = await writeLanding(gitRoot, ownerId, scoreId, {
+  const written = await writeLanding(gitRoot, bandId, scoreId, {
     from: point.main,
     tip: point.tip,
     merged,
@@ -147,7 +147,7 @@ async function merge(
     };
   }
 
-  const load = parser(request.gitRoot, request.ownerId, request.scoreId);
+  const load = parser(request.gitRoot, request.bandId, request.scoreId);
   const base = await load(point.base);
   const ours = await load(point.main);
   const theirs = await load(point.tip);

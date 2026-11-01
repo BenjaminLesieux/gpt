@@ -63,6 +63,24 @@ describe('POST /auth/signup', () => {
     expect(sessionCookieOf(response)).toBeDefined();
   });
 
+  it('should put the new account in a band of one, as its owner', async () => {
+    // Given / When
+    const cookie = sessionCookieOf(await signup());
+    if (!cookie) throw new Error('signup issued no session cookie');
+
+    // Then — every score needs a band to sit under, so a solo musician has one
+    // from the start, named after their email.
+    const bands = await server.inject({
+      method: 'GET',
+      url: '/bands',
+      cookies: { [SESSION_COOKIE]: cookie.value },
+    });
+    expect(bands.statusCode).toBe(200);
+    expect(bands.json()).toEqual([
+      { id: expect.stringMatching(/^[a-z2-7]+$/), name: 'player', role: 'owner' },
+    ]);
+  });
+
   it('should never echo the password or its hash when it answers', async () => {
     // Given / When
     const response = await signup();

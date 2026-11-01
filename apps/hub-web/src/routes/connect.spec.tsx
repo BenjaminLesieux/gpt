@@ -3,11 +3,12 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type * as cloneLink from '@/lib/clone-link';
 import { openCloneLink } from '@/lib/clone-link';
 import { createHubRouter } from '@/router';
 
 vi.mock('@/lib/clone-link', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/clone-link')>()),
+  ...(await importOriginal<typeof cloneLink>()),
   openCloneLink: vi.fn(),
 }));
 

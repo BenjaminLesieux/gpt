@@ -146,11 +146,11 @@ pub struct HubScore {
 pub fn hub_score(remote_url: &str) -> Option<HubScore> {
     let url = Url::parse(remote_url).ok()?;
     let segments: Vec<&str> = url.path_segments()?.collect();
-    let ["git", owner, repo] = segments.as_slice() else {
+    let ["git", band, repo] = segments.as_slice() else {
         return None;
     };
     let score = repo.strip_suffix(".git")?;
-    if owner.is_empty() || score.is_empty() {
+    if band.is_empty() || score.is_empty() {
         return None;
     }
 

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { HubDatabase } from '../db/client';
-import { scoreMembers, scoreTokens, scores } from '../db/schema';
+import { bandMembers, scoreTokens, scores } from '../db/schema';
 import { newId } from '../ids';
 
 const TOKEN_BYTES = 32;
@@ -49,8 +49,8 @@ export function deviceName(raw: unknown): string {
 /**
  * `accountId` is the member the credential belongs to, and it is a required
  * argument rather than something derived from the score: deriving it would
- * mean reading `scores.account_id`, which is the owner, and every token on a
- * shared score would then be attributed to the wrong person.
+ * mean guessing a person from a band, and every token would then be
+ * attributed to the wrong one.
  */
 export function mintScoreToken(
   db: HubDatabase,
@@ -72,13 +72,9 @@ export function mintScoreToken(
 }
 
 /**
- * Two accounts, deliberately under names that cannot be swapped by accident.
- *
- * On a shared score they are different people. `ownerId` is whose namespace
- * holds the repository — the first segment of every clone URL, fixed when the
- * score was created and unmoved by sharing it. `holderId` is whose credential
- * this is. Calling either of them `accountId` is how the git route ends up
- * either refusing every shared score or serving somebody else's.
+ * A band and a person, under names that cannot be swapped by accident.
+ * `bandId` is where the repository is stored — the first segment of every
+ * clone URL. `holderId` is whose credential this is.
  *
  * `lastUsedAt` rides along because the route stamps activity on every request,
  * and carrying the current value here lets it skip the write when the last one
@@ -87,8 +83,8 @@ export function mintScoreToken(
 export interface ScoreTokenBearer {
   tokenId: string;
   scoreId: string;
-  /** The account the repository is stored under. */
-  ownerId: string;
+  /** The band the repository is stored under. */
+  bandId: string;
   /** The account this credential belongs to. */
   holderId: string;
   lastUsedAt: Date | null;
@@ -97,7 +93,7 @@ export interface ScoreTokenBearer {
 /**
  * The membership join is the second half of the authorisation, and it lives
  * here rather than at the call site so that it cannot be the thing somebody
- * forgets: a token whose holder is no longer on the score resolves to nothing
+ * forgets: a token whose holder is no longer in the band resolves to nothing
  * and is refused as invalid, which is what it is.
  */
 export function readScoreToken(db: HubDatabase, token: string): ScoreTokenBearer | null {
@@ -105,18 +101,15 @@ export function readScoreToken(db: HubDatabase, token: string): ScoreTokenBearer
     .select({
       tokenId: scoreTokens.id,
       scoreId: scores.id,
-      ownerId: scores.accountId,
+      bandId: scores.bandId,
       holderId: scoreTokens.accountId,
       lastUsedAt: scoreTokens.lastUsedAt,
     })
     .from(scoreTokens)
     .innerJoin(scores, eq(scoreTokens.scoreId, scores.id))
     .innerJoin(
-      scoreMembers,
-      and(
-        eq(scoreMembers.scoreId, scores.id),
-        eq(scoreMembers.accountId, scoreTokens.accountId)
-      )
+      bandMembers,
+      and(eq(bandMembers.bandId, scores.bandId), eq(bandMembers.accountId, scoreTokens.accountId))
     )
     .where(eq(scoreTokens.tokenHash, hashToken(token)))
     .get();

@@ -12,7 +12,7 @@ import { migrateToLatest, openDatabase } from '../db/client';
 import type { HubDatabaseHandle } from '../db/client';
 import { normalizeGp } from '../git/normalize';
 import { MAIN_REF, SCORE_ENTRY } from '../git/versions';
-import { addScoreMember } from './members';
+import { addBandMember } from '../bands/bands';
 
 const run = promisify(execFile);
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'db', 'migrations');
@@ -242,9 +242,8 @@ describe('POST /scores/:id/import', () => {
     expect(response.json().error.code).toBe('not_a_file');
   });
 
-  it('should let a member import, into the owner’s repository', async () => {
-    // Given a score shared with a second person — written the way the invite
-    // link eventually will, since there is no endpoint for it yet.
+  it('should let a band member import, into the band’s repository', async () => {
+    // Given a score whose band has a second person in it
     const created = (await createScore()).json();
     const drummer = await server.inject({
       method: 'POST',
@@ -252,14 +251,14 @@ describe('POST /scores/:id/import', () => {
       payload: { email: 'drummer@example.com', password: 'another decent passphrase' },
     });
     const theirSession = drummer.cookies.find((c) => c.name === SESSION_COOKIE)?.value ?? '';
-    addScoreMember(handle.db, created.id, drummer.json().id, 'member');
+    addBandMember(handle.db, created.username, drummer.json().id, 'member');
 
     // When
     const response = await importScore(created.id, sample, theirSession);
 
     // Then — the bytes land in the one repository this score has, which sits
-    // under the owner's account segment. The importer's own id names no
-    // directory here, so passing it would write nowhere.
+    // under the band's segment. The importer's own id names no directory
+    // here, so passing it would write nowhere.
     expect(response.statusCode).toBe(201);
     const stored = await storedScore(created.username, created.id);
     expect(Buffer.compare(stored, normalizeGp(sample))).toBe(0);

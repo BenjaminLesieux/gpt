@@ -421,7 +421,7 @@ export async function companionRoutes(
       listMemberScores(db, bearer.accountId).map((row) => ({
         id: row.id,
         name: row.name,
-        url: cloneUrl(publicUrl, row.ownerId, row.id),
+        url: cloneUrl(publicUrl, row.bandId, row.id),
         createdAt: row.createdAt.toISOString(),
       })),
     );
@@ -453,8 +453,8 @@ export async function companionRoutes(
       return reply.code(201).send({
         id: score.id,
         name: score.name,
-        url: cloneUrl(publicUrl, score.ownerId, score.id),
-        username: score.ownerId,
+        url: cloneUrl(publicUrl, score.bandId, score.id),
+        username: score.bandId,
         token: token.token,
         tokenName: token.name,
       });
