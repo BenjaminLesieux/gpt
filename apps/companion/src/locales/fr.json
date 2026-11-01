@@ -149,7 +149,7 @@
       "token": "Jeton d'accès",
       "tokenPlaceholder": "Colle un jeton d'accès personnel",
       "tokenStored": "Enregistré — laisse vide pour le garder",
-      "tokenHint": "Conservé dans ton trousseau macOS, jamais dans le fichier de réglages de Gitarpro.",
+      "tokenHint": "Conservé dans le trousseau du système, jamais dans le fichier de réglages de Gitarpro.",
       "insecure": "Cette URL n'est pas en https : le jeton circulerait en clair.",
       "remove": "Supprimer le dépôt distant",
       "cancel": "Annuler",

@@ -33,9 +33,12 @@ const RECHECK: Duration = Duration::from_secs(60 * 60);
 const REFUSED: [&str; 3] = ["no_token", "invalid_token", "token_revoked"];
 
 #[cfg(target_os = "macos")]
-const OPENER: &str = "open";
-#[cfg(not(target_os = "macos"))]
-const OPENER: &str = "xdg-open";
+const OPENER: &[&str] = &["open"];
+// Not `cmd /C start`: cmd reads the `&` between query parameters as its own.
+#[cfg(windows)]
+const OPENER: &[&str] = &["rundll32", "url.dll,FileProtocolHandler"];
+#[cfg(not(any(target_os = "macos", windows)))]
+const OPENER: &[&str] = &["xdg-open"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
@@ -250,11 +253,13 @@ pub fn challenge(verifier: &str) -> String {
 pub fn sign_in(app: &AppHandle, hub: &str) -> Result<()> {
     let page = begin(&app.state::<AppState>(), hub, &hub::device_name())?;
 
-    let opened = std::process::Command::new(OPENER)
+    let opened = std::process::Command::new(OPENER[0])
+        .args(&OPENER[1..])
         .arg(page.as_str())
         .status()?;
     if !opened.success() {
-        return Err(std::io::Error::other(format!("{OPENER} exited with {opened}")).into());
+        let opener = OPENER[0];
+        return Err(std::io::Error::other(format!("{opener} exited with {opened}")).into());
     }
 
     changed(app);

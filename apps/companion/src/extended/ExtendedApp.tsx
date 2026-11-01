@@ -20,6 +20,7 @@ import {
 } from '@/lib/ipc';
 import { dateLocale, formatRelative } from '@gpt/ui/lib/time';
 import { cn } from '@gpt/ui/lib/utils';
+import { isMac } from '@/lib/platform';
 import { SignIn } from '@/sign-in/SignIn';
 import { useAuth } from '@/sign-in/useAuth';
 import { AccountMenu } from './AccountMenu';
@@ -336,7 +337,11 @@ function Shell({
       <div className="flex h-screen flex-col bg-background text-foreground">
         <header
           data-tauri-drag-region
-          className="flex h-11 shrink-0 items-center gap-4 border-b border-border px-4 pl-20"
+          // Room for the traffic lights the overlay title bar puts on macOS.
+          className={cn(
+            'flex h-11 shrink-0 items-center gap-4 border-b border-border px-4',
+            isMac && 'pl-20',
+          )}
         >
           <span className="text-xs font-bold tracking-widest uppercase" data-tauri-drag-region>
             {t('extended.title')}

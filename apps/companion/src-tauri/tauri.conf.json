@@ -38,7 +38,8 @@
     "active": true,
     "targets": [
       "app",
-      "dmg"
+      "dmg",
+      "nsis"
     ],
     "category": "Music",
     "shortDescription": "Versionne tes fichiers Guitar Pro",
