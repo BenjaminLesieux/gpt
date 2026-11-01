@@ -23,6 +23,9 @@ vi.mock('@/lib/ipc', () => ({
   onTrackedFilesChanged: vi.fn(() => Promise.resolve(() => {})),
   onPushStatusChanged: vi.fn(() => Promise.resolve(() => {})),
   onClaimArrived: vi.fn(() => Promise.resolve(() => {})),
+  updateReady: vi.fn(() => Promise.resolve(null)),
+  onUpdateReady: vi.fn(() => Promise.resolve(() => {})),
+  restartToUpdate: vi.fn(),
 }));
 
 // The stages own alphaTab, which needs a real browser to render anything.
@@ -528,5 +531,19 @@ describe('ExtendedApp', () => {
     await user.click(await screen.findByRole('button', { name: /Choose a file/ }));
 
     expect(ipc.pickAndTrackFile).toHaveBeenCalled();
+  });
+});
+
+describe('update', () => {
+  it('waits for a push in flight instead of restarting under it', async () => {
+    ipc.updateReady.mockResolvedValue('0.1.1');
+    ipc.restartToUpdate.mockResolvedValue(false);
+    const user = userEvent.setup();
+    render(<ExtendedApp />);
+
+    await user.click(await screen.findByRole('button', { name: /Restart to update/ }));
+
+    expect(ipc.restartToUpdate).toHaveBeenCalled();
+    expect((await screen.findByRole('alert')).textContent).toMatch(/still on its way/);
   });
 });

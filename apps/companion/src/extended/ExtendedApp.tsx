@@ -22,6 +22,7 @@ import { RestoreDialog } from './RestoreDialog';
 import { ScoreStage, StageMessage, StageSpinner } from './ScoreStage';
 import { SyncBar } from './SyncBar';
 import { Timeline } from './Timeline';
+import { UpdateButton } from './UpdateButton';
 import { useHistory } from './useHistory';
 import { useLibrary } from './useLibrary';
 import { useSync } from './useSync';
@@ -155,7 +156,7 @@ export function ExtendedApp() {
 
   if (!library.loading && library.files.length === 0) {
     return (
-      <Shell>
+      <Shell onError={setFailure}>
         {failure && <Strip tone="error" message={failure} onDismiss={() => setFailure(null)} />}
         <NoTrackedFiles
           onAddFile={() => void library.addFile()}
@@ -169,6 +170,7 @@ export function ExtendedApp() {
 
   return (
     <Shell
+      onError={setFailure}
       header={
         library.selected && (
           <>
@@ -277,7 +279,15 @@ export function ExtendedApp() {
   );
 }
 
-function Shell({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) {
+function Shell({
+  header,
+  onError,
+  children,
+}: {
+  header?: React.ReactNode;
+  onError(message: string): void;
+  children: React.ReactNode;
+}) {
   const { t } = useTranslation();
 
   return (
@@ -291,6 +301,7 @@ function Shell({ header, children }: { header?: React.ReactNode; children: React
             {t('extended.title')}
           </span>
           {header}
+          <UpdateButton onError={onError} />
         </header>
         {children}
       </div>
