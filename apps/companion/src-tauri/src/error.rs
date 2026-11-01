@@ -71,6 +71,9 @@ pub enum Error {
     #[error("\"{0}\" cannot be used as a branch name")]
     InvalidBranch(String),
 
+    #[error("could not install the update: {0}")]
+    Update(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

@@ -55,6 +55,12 @@
     }
   },
   "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_THE_CONTENTS_OF_gitarpro-updater.key.pub",
+      "endpoints": [
+        "https://github.com/BenjaminLesieux/gpt/releases/download/companion-latest/latest.json"
+      ]
+    },
     "deep-link": {
       "desktop": {
         "schemes": [

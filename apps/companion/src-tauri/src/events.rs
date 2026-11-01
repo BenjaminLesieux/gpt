@@ -14,6 +14,7 @@ pub const FILE_SAVED: &str = "file-saved";
 pub const TRACKED_FILES_CHANGED: &str = "tracked-files-changed";
 pub const PUSH_STATUS_CHANGED: &str = "push-status-changed";
 pub const CLAIM_ARRIVED: &str = "claim-arrived";
+pub const UPDATE_READY: &str = "update-ready";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,4 +69,9 @@ pub fn claim_arrived(app: &AppHandle, link: &AdoptLink) {
             claim: link.claim.clone(),
         },
     );
+}
+
+/// A new version is downloaded and waits for the user to restart into it.
+pub fn update_ready(app: &AppHandle, version: &str) {
+    let _ = app.emit(UPDATE_READY, version);
 }

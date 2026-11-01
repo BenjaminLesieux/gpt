@@ -30,6 +30,9 @@ url = "2"
 # Native "add a file" picker. Driven from Rust, so the webview needs no
 # dialog capability of its own.
 tauri-plugin-dialog = "2"
+# Self-update from GitHub Releases (see update.rs and ADR 0012). Restarting
+# into the new version is `AppHandle::restart`, so no process plugin.
+tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Storage: one bare repo per tracked file, and the transport that syncs it.
