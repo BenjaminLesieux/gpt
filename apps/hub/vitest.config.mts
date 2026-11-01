@@ -10,6 +10,10 @@ export default defineConfig(() => ({
     globals: true,
     environment: 'node',
     include: ['src/**/*.{test,spec}.ts'],
+    // The score specs clone and push real repositories over HTTP and parse
+    // real Guitar Pro files: 1–3 s each alone, past the 5 s default once
+    // every project's suite runs in parallel.
+    testTimeout: 20_000,
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
